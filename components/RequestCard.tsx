@@ -9,7 +9,7 @@ export function RequestCard({ type, onOpen }: RequestCardProps) {
   return (
     <div className="flex flex-col justify-between rounded-card border border-axis-base/40 bg-white p-6 shadow-card transition-shadow hover:shadow-card-hover">
       <div>
-        <h3 className="font-head text-base font-bold tracking-tight text-axis-core">
+        <h3 className="font-head text-base font-medium tracking-tight text-axis-core">
           {type.name}
         </h3>
         <p className="mt-2 text-sm leading-relaxed text-axis-core/65">

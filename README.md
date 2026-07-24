@@ -42,16 +42,33 @@ supabase/
 
 ## Brand
 
-- Colors: Axis Core `#201C1A`, Axis Signal `#E3F464`, Axis Base `#CEC1A9`,
-  Axis Light `#F2F2F2`, White `#FFFFFF` — defined as Tailwind tokens
-  (`axis-core`, `axis-signal`, `axis-base`, `axis-light`) in
-  `tailwind.config.ts`.
-- Typography: Inter (body/UI) loads via `next/font/google`. Eurostile
-  (headlines) is a licensed font — drop the font files into `public/fonts`
-  and uncomment the `@font-face` block in `app/globals.css`. Until then,
-  headlines fall back to a geometric sans stack.
-- Logo: `components/Logo.tsx` is a placeholder wordmark. Replace it with the
-  real AxisKey logo asset once provided.
+Implemented from the AxisKey Brand Identity Guidelines (Jan 2026).
+
+- **Colors:** Axis Core `#201C1A` (primary dark/text), Axis Signal `#E3F464`
+  (accent — emphasis/CTAs only, never dense text or full-page backgrounds),
+  Axis Base `#CEC1A9` (warm neutral, secondary surfaces), Axis Light
+  `#F2F2F2` (light neutral, page/table backgrounds), White `#FFFFFF`
+  (default background). Defined as Tailwind tokens (`axis-core`,
+  `axis-signal`, `axis-base`, `axis-light`) in `tailwind.config.ts`.
+- **Typography:** Eurostile (Regular/Medium only) for headlines, used
+  sparingly and at scale — never for body copy. Helvetica Now / Inter for
+  everything else; per the guidelines, Inter is the approved digital
+  fallback for web applications, so it's the primary body font here (no
+  fallback chain needed). Loads via `next/font/google`. Eurostile is a
+  licensed font not included in this repo — drop the files into
+  `public/fonts` and uncomment the `@font-face` block in
+  `app/globals.css`; headlines fall back to a geometric sans stack until
+  then. Left-aligned by default per the guidelines; centering is reserved
+  for short, isolated statements.
+- **Logo:** the guidelines document (`AxisKey_Brand_Identity_Guidelines.docx`)
+  describes the mark system (Axis Icon, Primary Logo, Primary/Secondary
+  Lockup) but contains no embedded logo file — and explicitly says "do not
+  recreate or redraw the logo." `components/Logo.tsx` therefore renders a
+  plain text wordmark rather than inventing an icon. Once the real
+  SVG/PNG/AI asset is provided, drop it into `/public` and swap it in per
+  the instructions in that file's header comment (clear space = 2× the
+  width of the "I", optical alignment from the center of the "X", use the
+  Primary Lockup by default).
 
 ## Local setup
 

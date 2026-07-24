@@ -67,7 +67,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
             <p className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">
               Internal
             </p>
-            <h2 className="mt-1 font-head text-lg font-bold tracking-tight text-axis-core">
+            <h2 className="mt-1 font-head text-lg font-medium tracking-tight text-axis-core">
               Admin Overview
             </h2>
           </div>
@@ -106,7 +106,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
               </div>
 
               <div className="mt-8">
-                <h3 className="font-head text-sm font-bold tracking-tight text-axis-core">
+                <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
                   Requests by Type
                 </h3>
                 <div className="mt-3 space-y-2">
@@ -134,7 +134,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
               </div>
 
               <div className="mt-8">
-                <h3 className="font-head text-sm font-bold tracking-tight text-axis-core">
+                <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
                   Recent Requests
                 </h3>
                 <div className="mt-3 overflow-hidden rounded-card border border-axis-base/30">

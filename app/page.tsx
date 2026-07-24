@@ -30,7 +30,7 @@ export default function HomePage() {
 
       <section className="mx-auto max-w-5xl px-6 pb-20 pt-14">
         <div className="mb-12">
-          <h1 className="font-head text-2xl font-bold tracking-tight text-axis-core sm:text-3xl">
+          <h1 className="font-head text-2xl font-medium tracking-tight text-axis-core sm:text-3xl">
             Axis Operations Hub
           </h1>
           <p className="mt-2 text-sm text-axis-core/55">

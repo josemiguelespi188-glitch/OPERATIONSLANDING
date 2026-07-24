@@ -104,7 +104,7 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
             <p className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">
               Process Request
             </p>
-            <h2 className="mt-1 font-head text-lg font-bold tracking-tight text-axis-core">
+            <h2 className="mt-1 font-head text-lg font-medium tracking-tight text-axis-core">
               {requestType.name}
             </h2>
           </div>
@@ -138,7 +138,7 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
                 />
               </svg>
             </div>
-            <h3 className="mt-4 font-head text-base font-bold text-axis-core">
+            <h3 className="mt-4 font-head text-base font-medium text-axis-core">
               Request submitted
             </h3>
             <p className="mt-1 text-sm text-axis-core/65">

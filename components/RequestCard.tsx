@@ -1,11 +1,18 @@
+import Link from "next/link";
 import type { RequestTypeConfig } from "@/lib/requestTypes";
+import { getRequestFormConfig } from "@/lib/requestFormConfigs";
 
 interface RequestCardProps {
   type: RequestTypeConfig;
   onOpen: (slug: RequestTypeConfig["slug"]) => void;
 }
 
+const buttonClass =
+  "mt-7 inline-flex w-full items-center justify-center rounded-[8px] bg-axis-core px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-axis-core/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-axis-signal focus-visible:ring-offset-2";
+
 export function RequestCard({ type, onOpen }: RequestCardProps) {
+  const detailedForm = getRequestFormConfig(type.slug);
+
   return (
     <div className="flex flex-col justify-between rounded-card border border-axis-base/40 bg-white p-7 shadow-card transition-all duration-150 hover:-translate-y-0.5 hover:border-axis-signal/70 hover:shadow-card-hover">
       <div>
@@ -16,13 +23,15 @@ export function RequestCard({ type, onOpen }: RequestCardProps) {
           {type.description}
         </p>
       </div>
-      <button
-        type="button"
-        onClick={() => onOpen(type.slug)}
-        className="mt-7 inline-flex w-full items-center justify-center rounded-[8px] bg-axis-core px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-axis-core/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-axis-signal focus-visible:ring-offset-2"
-      >
-        {type.buttonLabel}
-      </button>
+      {detailedForm ? (
+        <Link href={`/forms/${type.slug}`} className={buttonClass}>
+          {type.buttonLabel}
+        </Link>
+      ) : (
+        <button type="button" onClick={() => onOpen(type.slug)} className={buttonClass}>
+          {type.buttonLabel}
+        </button>
+      )}
     </div>
   );
 }

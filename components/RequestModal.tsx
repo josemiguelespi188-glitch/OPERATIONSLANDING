@@ -99,12 +99,12 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
         className="w-full max-w-lg rounded-card bg-white shadow-modal"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between border-b border-axis-base/30 px-6 py-5">
+        <div className="flex items-start justify-between border-b border-axis-base/30 px-7 py-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">
               Process Request
             </p>
-            <h2 className="mt-1 font-head text-lg font-medium tracking-tight text-axis-core">
+            <h2 className="mt-1.5 font-head text-lg font-medium tracking-tight text-axis-core">
               {requestType.name}
             </h2>
           </div>
@@ -126,7 +126,7 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
         </div>
 
         {state === "success" ? (
-          <div className="px-6 py-10 text-center">
+          <div className="px-7 py-12 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-axis-signal">
               <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
                 <path
@@ -153,8 +153,8 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="px-6 py-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <form onSubmit={handleSubmit} className="px-7 py-6">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Field label="Requestor Name" required>
                 <input
                   required
@@ -195,7 +195,7 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
               </Field>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-5">
               <Field label="Notes">
                 <textarea
                   value={notes}
@@ -207,7 +207,7 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
               </Field>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-5">
               <Field label="Attachments">
                 <input
                   type="file"
@@ -224,18 +224,18 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
               </p>
             )}
 
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-axis-base/30 pt-5">
+            <div className="mt-7 flex items-center justify-end gap-3 border-t border-axis-base/30 pt-6">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-[8px] px-4 py-2.5 text-sm font-semibold text-axis-core/70 hover:bg-axis-light"
+                className="rounded-[8px] px-4 py-2.5 text-sm font-semibold text-axis-core/70 transition-colors hover:bg-axis-light"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex items-center justify-center rounded-[8px] bg-axis-core px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-axis-core/90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center rounded-[8px] bg-axis-core px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-axis-core/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-axis-signal focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {state === "uploading"
                   ? "Uploading..."
@@ -252,7 +252,7 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
 }
 
 const inputClass =
-  "w-full rounded-[8px] border border-axis-base/50 bg-white px-3 py-2.5 text-sm text-axis-core placeholder:text-axis-core/35 focus:border-axis-core focus:outline-none focus:ring-2 focus:ring-axis-signal/40";
+  "w-full rounded-[8px] border border-axis-base/50 bg-white px-3.5 py-2.5 text-sm text-axis-core placeholder:text-axis-core/35 transition-colors focus:border-axis-signal focus:outline-none focus:ring-2 focus:ring-axis-signal/50";
 
 function Field({
   label,

@@ -1,6 +1,7 @@
 import type { RequestTypeSlug } from "./requestTypes";
 
 export type RequestStatus = "submitted" | "in_review" | "completed";
+export type ClickUpSyncStatus = "pending" | "synced" | "failed";
 
 export interface AttachmentInput {
   fileName: string;
@@ -49,6 +50,8 @@ export interface RequestRecord {
   payload: RequestPayload;
   clickup_task_id: string | null;
   clickup_synced_at: string | null;
+  clickup_sync_status: ClickUpSyncStatus;
+  clickup_sync_error: string | null;
   created_at: string;
   updated_at: string;
 }

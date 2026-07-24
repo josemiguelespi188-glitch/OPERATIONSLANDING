@@ -9,35 +9,39 @@ tool.
 
 ## Tech stack
 
-- **Frontend:** Next.js 14 (App Router), React, TypeScript, Tailwind CSS
+- **Frontend:** Next.js 15 (App Router), React, TypeScript, Tailwind CSS
 - **Backend:** Supabase (Postgres + Storage), accessed via Next.js API routes
 - **Deployment:** Vercel
-- **Future integrations:** ClickUp API, n8n, email notifications
+- **Live integration:** ClickUp API (task creation on every submission)
+- **Future integration:** n8n, email notifications
 
 ## Project structure
 
 ```
 app/
-  page.tsx                 Landing page (single page app)
-  layout.tsx                Root layout, fonts
-  api/requests/route.ts     POST — creates a request
-  api/admin/stats/route.ts  GET — KPIs for the Admin panel
+  page.tsx                          Landing page (single page app)
+  layout.tsx                         Root layout, fonts
+  api/requests/route.ts               POST — creates a request, syncs to ClickUp
+  api/requests/[id]/retry-sync/route.ts  POST — retries a failed/pending ClickUp sync
+  api/admin/stats/route.ts            GET — KPIs for the Admin panel
 components/
-  Logo.tsx                  Wordmark placeholder (swap for real logo asset)
+  Logo.tsx                  Official AxisKey wordmark (public/axiskey-logo.png)
   RequestCard.tsx            One process card
   RequestModal.tsx           Request form (modal)
-  AdminPanel.tsx              Admin KPI panel
+  AdminPanel.tsx              Admin KPI panel incl. ClickUp sync status
 lib/
   requestTypes.ts             Source of truth for the 7 process types
   payload.ts                  Builds the integration-ready payload
   types.ts                    Shared TypeScript types
   supabase/client.ts           Browser Supabase client (anon key)
   supabase/server.ts           Server Supabase client (service role key)
-  integrations/clickup.ts      ClickUp sync — stubbed, not wired up yet
+  services/requestSync.ts      Business logic: orchestrates ClickUp + Supabase
+  integrations/clickup.ts      ClickUp service — real API client (task create + attach)
   integrations/n8n.ts          n8n webhook trigger — stubbed, not wired up yet
 supabase/
-  schema.sql                  Tables, indexes, RLS policies
+  schema.sql                  Tables, indexes, RLS policies (fresh installs)
   seed.sql                    Seeds request_types + creates storage bucket
+  migrations/001_clickup_sync_status.sql   Run once on an already-live DB
 ```
 
 ## Brand
@@ -60,15 +64,9 @@ Implemented from the AxisKey Brand Identity Guidelines (Jan 2026).
   `app/globals.css`; headlines fall back to a geometric sans stack until
   then. Left-aligned by default per the guidelines; centering is reserved
   for short, isolated statements.
-- **Logo:** the guidelines document (`AxisKey_Brand_Identity_Guidelines.docx`)
-  describes the mark system (Axis Icon, Primary Logo, Primary/Secondary
-  Lockup) but contains no embedded logo file — and explicitly says "do not
-  recreate or redraw the logo." `components/Logo.tsx` therefore renders a
-  plain text wordmark rather than inventing an icon. Once the real
-  SVG/PNG/AI asset is provided, drop it into `/public` and swap it in per
-  the instructions in that file's header comment (clear space = 2× the
-  width of the "I", optical alignment from the center of the "X", use the
-  Primary Lockup by default).
+- **Logo:** the official asset (`public/axiskey-logo.png`, monochrome,
+  transparent background) is wired up in `components/Logo.tsx` via
+  `next/image`, sized by height only so it never stretches or distorts.
 
 ## Local setup
 
@@ -82,6 +80,10 @@ npm run dev
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. In the SQL Editor, run `supabase/schema.sql`, then `supabase/seed.sql`.
+   - Already have a live project from before the ClickUp sync fields
+     existed? Also run `supabase/migrations/001_clickup_sync_status.sql` —
+     `schema.sql` uses `create table if not exists`, which won't add new
+     columns to a table that already exists.
 3. In Project Settings → API, copy:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -100,8 +102,9 @@ there's no auth yet — tighten these once internal login ships.
 2. In the [Vercel dashboard](https://vercel.com/new), import the GitHub
    repository.
 3. Add the environment variables from `.env.example` in Project Settings →
-   Environment Variables (same three Supabase values; leave the ClickUp/n8n
-   ones blank until those integrations are turned on).
+   Environment Variables: the three Supabase values, `CLICKUP_API_TOKEN`,
+   and `CLICKUP_LIST_ID_MAP` (leave `N8N_REQUEST_WEBHOOK_URL` blank until
+   that integration is turned on).
 4. Deploy. Every push to the branch connected in Vercel redeploys
    automatically.
 
@@ -112,43 +115,42 @@ there's no auth yet — tighten these once internal login ships.
    storage bucket from the browser, then the form POSTs to
    `/api/requests`.
 3. The API route builds a structured payload (`lib/payload.ts`), inserts
-   into `requests` (+ `request_attachments`, `activity_log`), and calls
-   `syncRequestToClickUp` / `triggerN8nWorkflow` — both currently no-ops.
+   into `requests` (+ `request_attachments`, `activity_log`), then calls
+   `syncRequestAndPersist` (`lib/services/requestSync.ts`), which:
+   - creates a ClickUp task via `lib/integrations/clickup.ts` (real API
+     call, not a stub) — task name `"<Type> | <Requestor> | <Deal or
+     Investor>"`, description with every submitted field, attachments
+     best-effort re-uploaded to the task (URLs are always included as a
+     fallback);
+   - writes `clickup_task_id`, `clickup_sync_status`
+     (`pending`/`synced`/`failed`), `clickup_sync_error`, and
+     `clickup_synced_at` back onto the `requests` row;
+   - logs the outcome to `activity_log`.
+4. The user always sees a success confirmation once the request is saved in
+   Supabase — a ClickUp failure never blocks or loses the submission, it's
+   just marked `failed` (retryable) instead of `synced`.
 
-## Connecting ClickUp / n8n later
+## ClickUp integration
 
-The payload shape is already normalized and stored on `requests.payload`:
-
-```ts
-{
-  requestType: "ira-funding-request",
-  requestTypeName: "IRA Funding Request",
-  requestorName: "",
-  requestorEmail: "",
-  investorName: "",
-  dealName: "",
-  notes: "",
-  attachments: [{ fileName, fileUrl, fileSize, contentType }],
-  submittedAt: "2026-01-01T00:00:00.000Z",
-}
-```
-
-To go live with ClickUp:
-
-- Implement `syncRequestToClickUp` in `lib/integrations/clickup.ts` — either
-  call the ClickUp API directly (map `requestType` → a ClickUp List ID, per
-  their [Create Task
-  endpoint](https://developer.clickup.com/reference/createtask)) or POST the
-  payload to an n8n webhook that owns the ClickUp side.
-- Add `CLICKUP_API_TOKEN` / `CLICKUP_LIST_ID_MAP` (or
-  `N8N_REQUEST_WEBHOOK_URL`) as environment variables.
-- Both functions are already called (fire-and-forget) from
-  `app/api/requests/route.ts` right after a request is saved, so wiring
-  them up doesn't require touching the form or the API route.
+- **List mapping is entirely env-driven** — `CLICKUP_LIST_ID_MAP` is a JSON
+  object of `request type slug -> ClickUp List ID` (see `.env.example`).
+  Nothing is hardcoded; a request type missing from the map syncs as
+  `failed` with a descriptive error instead of guessing a list.
+- **Retry:** the Admin panel shows a "Retry" button on any request that
+  isn't `synced`, which calls `POST /api/requests/[id]/retry-sync` — it
+  re-reads the stored payload and re-attempts the ClickUp call.
+- **Architecture is layered on purpose:** `lib/integrations/clickup.ts` only
+  knows how to talk to the ClickUp API; `lib/services/requestSync.ts` is the
+  business logic that decides what to persist in Supabase; the API routes
+  are thin glue; the UI never talks to ClickUp directly. Swapping ClickUp
+  for an n8n webhook later (`lib/integrations/n8n.ts`) means changing
+  `requestSync.ts`, not the routes or components.
 
 ## Admin panel
 
 Top-right "Admin" button opens a panel with total requests, requests by
-type, recent requests, and status breakdown (Submitted / In Review /
-Completed). No authentication yet — add it before this goes further than
-internal MVP use.
+type, status breakdown (Submitted / In Review / Completed), ClickUp sync
+breakdown (Successful / Failed / Pending), and a list of recent requests —
+each showing its ClickUp Task ID, sync status, submission date, and a Retry
+action when sync isn't `synced`. No authentication yet — add it before this
+goes further than internal MVP use.

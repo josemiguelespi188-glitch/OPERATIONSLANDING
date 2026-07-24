@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { buildRequestPayload } from "@/lib/payload";
 import { getRequestType } from "@/lib/requestTypes";
-import { syncRequestToClickUp } from "@/lib/integrations/clickup";
+import { syncRequestAndPersist } from "@/lib/services/requestSync";
 import { triggerN8nWorkflow } from "@/lib/integrations/n8n";
 import type { AttachmentInput, RequestFormInput } from "@/lib/types";
 
@@ -87,10 +87,16 @@ export async function POST(request: Request) {
     metadata: { requestType: requestType.slug },
   });
 
-  // Fire-and-forget: neither integration is live yet, but calling them here
-  // keeps the wiring point centralized for when they are.
-  void syncRequestToClickUp(payload);
+  // Awaited so the response can report whether ClickUp sync succeeded —
+  // but a ClickUp failure never fails the submission itself: the request
+  // is already safely in Supabase and marked for retry.
+  const sync = await syncRequestAndPersist(supabase, inserted.id, payload);
   void triggerN8nWorkflow(payload);
 
-  return NextResponse.json({ id: inserted.id, createdAt: inserted.created_at });
+  return NextResponse.json({
+    id: inserted.id,
+    createdAt: inserted.created_at,
+    clickupSynced: sync.synced,
+    clickupTaskId: sync.taskId,
+  });
 }

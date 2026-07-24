@@ -16,29 +16,29 @@ export default function HomePage() {
   return (
     <main className="min-h-screen">
       <header className="border-b border-axis-base/30 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
           <Logo />
           <button
             type="button"
             onClick={() => setAdminOpen(true)}
-            className="rounded-[8px] border border-axis-base/50 px-4 py-2 text-sm font-semibold text-axis-core/70 transition-colors hover:border-axis-core hover:text-axis-core"
+            className="rounded-[8px] border border-axis-base/50 px-4 py-2 text-sm font-semibold text-axis-core/70 transition-colors hover:border-axis-core hover:text-axis-core hover:shadow-[inset_0_0_0_1px_theme(colors.axis-signal)]"
           >
             Admin
           </button>
         </div>
       </header>
 
-      <section className="mx-auto max-w-5xl px-6 pb-20 pt-14">
-        <div className="mb-12">
+      <section className="mx-auto max-w-5xl px-6 pb-24 pt-16">
+        <div className="mb-14">
           <h1 className="font-head text-2xl font-medium tracking-tight text-axis-core sm:text-3xl">
             Axis Operations Hub
           </h1>
-          <p className="mt-2 text-sm text-axis-core/55">
+          <p className="mt-2.5 text-sm text-axis-core/55">
             Internal Request Center
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {REQUEST_TYPES.map((type) => (
             <RequestCard key={type.slug} type={type} onOpen={setActiveType} />
           ))}

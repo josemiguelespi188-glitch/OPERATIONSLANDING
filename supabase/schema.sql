@@ -45,6 +45,9 @@ create table if not exists requests (
   payload jsonb not null default '{}'::jsonb,
   clickup_task_id text,
   clickup_synced_at timestamptz,
+  clickup_sync_status text not null default 'pending'
+    check (clickup_sync_status in ('pending', 'synced', 'failed')),
+  clickup_sync_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -52,6 +55,7 @@ create table if not exists requests (
 create index if not exists idx_requests_status on requests(status);
 create index if not exists idx_requests_type on requests(request_type_slug);
 create index if not exists idx_requests_created_at on requests(created_at desc);
+create index if not exists idx_requests_clickup_sync_status on requests(clickup_sync_status);
 
 -- ---------------------------------------------------------------------
 -- request_attachments: files uploaded against a request

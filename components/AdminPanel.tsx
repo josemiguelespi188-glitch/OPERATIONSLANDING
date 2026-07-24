@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { REQUEST_TYPES } from "@/lib/requestTypes";
-import type { RequestStatus } from "@/lib/types";
+import type { ClickUpSyncStatus, RequestStatus } from "@/lib/types";
 
 interface AdminStats {
   total: number;
   byStatus: Record<RequestStatus, number>;
+  bySyncStatus: Record<ClickUpSyncStatus, number>;
   byType: Record<string, number>;
   recent: Array<{
     id: string;
@@ -15,6 +16,9 @@ interface AdminStats {
     investor_name: string | null;
     deal_name: string | null;
     status: RequestStatus;
+    clickup_task_id: string | null;
+    clickup_sync_status: ClickUpSyncStatus;
+    clickup_sync_error: string | null;
     created_at: string;
   }>;
 }
@@ -25,33 +29,43 @@ const STATUS_LABEL: Record<RequestStatus, string> = {
   completed: "Completed",
 };
 
+const SYNC_LABEL: Record<ClickUpSyncStatus, string> = {
+  pending: "Pending Sync",
+  synced: "Synced",
+  failed: "Failed",
+};
+
 export function AdminPanel({ onClose }: { onClose: () => void }) {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/stats");
+      if (!res.ok) throw new Error("Failed to load admin stats.");
+      setStats(await res.json());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load admin stats.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    fetchStats();
+  }, [fetchStats]);
 
-    fetch("/api/admin/stats")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load admin stats.");
-        return res.json();
-      })
-      .then((data) => {
-        if (!cancelled) setStats(data);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  async function handleRetry(id: string) {
+    setRetryingId(id);
+    try {
+      await fetch(`/api/requests/${id}/retry-sync`, { method: "POST" });
+      await fetchStats();
+    } finally {
+      setRetryingId(null);
+    }
+  }
 
   return (
     <div
@@ -107,6 +121,21 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
 
               <div className="mt-8">
                 <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
+                  ClickUp Sync
+                </h3>
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  <KpiCard
+                    label="Successful Syncs"
+                    value={stats.bySyncStatus.synced}
+                    accent
+                  />
+                  <KpiCard label="Failed Syncs" value={stats.bySyncStatus.failed} />
+                  <KpiCard label="Pending Sync" value={stats.bySyncStatus.pending} />
+                </div>
+              </div>
+
+              <div className="mt-8">
+                <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
                   Requests by Type
                 </h3>
                 <div className="mt-3 space-y-2">
@@ -146,21 +175,45 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                   {stats.recent.map((req, i) => (
                     <div
                       key={req.id}
-                      className={`flex items-center justify-between px-4 py-3 text-sm ${
+                      className={`px-4 py-3 text-sm ${
                         i !== 0 ? "border-t border-axis-base/20" : ""
                       }`}
                     >
-                      <div>
-                        <p className="font-medium text-axis-core">
-                          {req.requestor_name}
-                        </p>
-                        <p className="text-axis-core/50">
-                          {REQUEST_TYPES.find(
-                            (t) => t.slug === req.request_type_slug
-                          )?.name ?? req.request_type_slug}
-                        </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-axis-core">
+                            {req.requestor_name}
+                          </p>
+                          <p className="truncate text-axis-core/50">
+                            {REQUEST_TYPES.find(
+                              (t) => t.slug === req.request_type_slug
+                            )?.name ?? req.request_type_slug}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <StatusBadge status={req.status} />
+                          <SyncBadge status={req.clickup_sync_status} />
+                        </div>
                       </div>
-                      <StatusBadge status={req.status} />
+                      <div className="mt-2 flex items-center justify-between gap-3 text-xs text-axis-core/50">
+                        <span className="truncate">
+                          {req.clickup_task_id
+                            ? `ClickUp Task: ${req.clickup_task_id}`
+                            : req.clickup_sync_error || "Not synced to ClickUp yet."}
+                          {" · "}
+                          {new Date(req.created_at).toLocaleString()}
+                        </span>
+                        {req.clickup_sync_status !== "synced" && (
+                          <button
+                            type="button"
+                            onClick={() => handleRetry(req.id)}
+                            disabled={retryingId === req.id}
+                            className="shrink-0 rounded-[6px] border border-axis-base/50 px-2 py-1 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core disabled:opacity-50"
+                          >
+                            {retryingId === req.id ? "Retrying..." : "Retry"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -173,9 +226,23 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: number }) {
+function KpiCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+}) {
   return (
-    <div className="rounded-card border border-axis-base/30 bg-axis-light px-4 py-3">
+    <div
+      className={`rounded-card border px-4 py-3 ${
+        accent
+          ? "border-axis-signal/60 bg-axis-signal/20"
+          : "border-axis-base/30 bg-axis-light"
+      }`}
+    >
       <p className="text-2xl font-bold text-axis-core">{value}</p>
       <p className="mt-0.5 text-xs text-axis-core/55">{label}</p>
     </div>
@@ -191,9 +258,25 @@ function StatusBadge({ status }: { status: RequestStatus }) {
 
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${styles[status]}`}
+      className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${styles[status]}`}
     >
       {STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+function SyncBadge({ status }: { status: ClickUpSyncStatus }) {
+  const styles: Record<ClickUpSyncStatus, string> = {
+    pending: "bg-axis-base/40 text-axis-core",
+    synced: "bg-axis-signal text-axis-core",
+    failed: "bg-red-100 text-red-700",
+  };
+
+  return (
+    <span
+      className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${styles[status]}`}
+    >
+      {SYNC_LABEL[status]}
     </span>
   );
 }

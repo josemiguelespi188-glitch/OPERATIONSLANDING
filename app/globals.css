@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Eurostile is a licensed headline typeface per the AxisKey brand manual.
+  Drop the licensed font files into /public/fonts and uncomment the
+  @font-face block below. Until then, headlines fall back to a
+  geometric sans stack that approximates Eurostile's proportions.
+
+  @font-face {
+    font-family: "Eurostile";
+    src: url("/fonts/Eurostile-Bold.woff2") format("woff2");
+    font-weight: 700;
+    font-display: swap;
+  }
+*/
+
+:root {
+  --font-eurostile: "Eurostile", "Univers", "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+}
+
+::selection {
+  background: #e3f464;
+  color: #201c1a;
+}

@@ -5,6 +5,7 @@ import { Logo } from "@/components/Logo";
 import { RequestCard } from "@/components/RequestCard";
 import { RequestModal } from "@/components/RequestModal";
 import { AdminPanel } from "@/components/AdminPanel";
+import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
 import { REQUEST_TYPES, type RequestTypeSlug } from "@/lib/requestTypes";
 
 export default function HomePage() {
@@ -43,6 +44,8 @@ export default function HomePage() {
             <RequestCard key={type.slug} type={type} onOpen={setActiveType} />
           ))}
         </div>
+
+        <ClickUpSyncNotice />
       </section>
 
       {activeRequestType && (

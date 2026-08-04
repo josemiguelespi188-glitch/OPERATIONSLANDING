@@ -8,6 +8,10 @@ export interface AttachmentInput {
   fileUrl: string;
   fileSize?: number;
   contentType?: string;
+  /** Semantic form field key (e.g. "subscriptionAgreement") — lets an
+   *  integration match an uploaded file back to a specific ClickUp
+   *  attachment-type custom field. Not persisted to the DB schema. */
+  fieldKey?: string;
 }
 
 /** Shape submitted by the client-side request form. */
@@ -19,6 +23,9 @@ export interface RequestFormInput {
   dealName?: string;
   notes?: string;
   attachments?: AttachmentInput[];
+  /** Semantic key -> raw value, for ClickUp custom fields beyond the
+   *  generic requestor/investor/deal/notes columns. */
+  customFields?: Record<string, string>;
 }
 
 /**
@@ -35,6 +42,7 @@ export interface RequestPayload {
   dealName: string;
   notes: string;
   attachments: AttachmentInput[];
+  customFields: Record<string, string>;
   submittedAt: string;
 }
 

@@ -35,6 +35,42 @@ function getListIdMap(): Record<string, string> {
   }
 }
 
+/**
+ * Request type slug -> { payload.customFields key -> ClickUp custom field
+ * ID }. Field IDs are per-list (not per-workspace), so this only covers
+ * lists that have been mapped by hand against their real ClickUp fields.
+ * A request type with no entry here simply skips custom-field sync — the
+ * data still lands in the task description via buildTaskDescription.
+ */
+const CUSTOM_FIELD_MAP: Record<string, Record<string, string>> = {
+  "ira-funding-request": {
+    offeringName: "3a84a910-2a20-4c12-984f-d3e89926550a",
+    custodian: "f2d63342-eb0e-48f8-a930-4c183fa65284",
+    amountInvesting: "5bbae178-213c-4daf-9af2-becc105f0bbd",
+    orderNumber: "70257f39-e3a9-4c45-88bf-e5c5677ccc03",
+    ccEmail: "715f4b75-677f-40ab-98e7-42c21bcb4a02",
+  },
+};
+
+/**
+ * Request type slug -> { AttachmentInput.fieldKey -> ClickUp
+ * attachment-type custom field ID }. Populated after the file is uploaded
+ * as a regular task attachment (see attachTaskFile).
+ */
+const ATTACHMENT_FIELD_MAP: Record<string, Record<string, string>> = {
+  "ira-funding-request": {
+    subscriptionAgreement: "8438e487-dd9b-4cf1-846e-426ee12722ef",
+  },
+};
+
+/** ClickUp currency fields take a plain number, e.g. 23211 or 23211.5. */
+function parseCurrencyValue(raw: string): number | null {
+  const cleaned = raw.replace(/[^0-9.]/g, "");
+  if (!cleaned) return null;
+  const value = Number.parseFloat(cleaned);
+  return Number.isFinite(value) ? value : null;
+}
+
 function buildTaskName(payload: RequestPayload): string {
   const label = TASK_LABEL[payload.requestType] ?? payload.requestTypeName;
   const subject = payload.dealName || payload.investorName || payload.requestorName;
@@ -127,37 +163,84 @@ export async function syncRequestToClickUp(
     };
   }
 
-  // Best-effort: attach the actual files when the API allows it. A failure
-  // here never fails the sync — the file URLs are already in the task
+  // Best-effort: attach the actual files when the API allows it, and link
+  // them into their matching attachment-type custom field. A failure here
+  // never fails the sync — the file URLs are already in the task
   // description as a fallback per the attachment requirements.
+  const attachmentFieldIds = ATTACHMENT_FIELD_MAP[payload.requestType] ?? {};
   await Promise.all(
-    payload.attachments.map((attachment) =>
-      attachTaskFile(taskId, attachment, token)
-    )
+    payload.attachments.map(async (attachment) => {
+      const attachmentId = await attachTaskFile(taskId, attachment, token);
+      const fieldId = attachment.fieldKey ? attachmentFieldIds[attachment.fieldKey] : undefined;
+      if (attachmentId && fieldId) {
+        await setCustomField(taskId, fieldId, { add: [attachmentId] }, token);
+      }
+    })
   );
+
+  // Best-effort: populate the structured custom fields this list is known
+  // to have (see CUSTOM_FIELD_MAP). Never fails the sync.
+  const fieldIds = CUSTOM_FIELD_MAP[payload.requestType];
+  if (fieldIds) {
+    await Promise.all(
+      Object.entries(fieldIds).map(([key, fieldId]) => {
+        const rawValue = payload.customFields[key];
+        if (!rawValue) return Promise.resolve();
+        const value = key === "amountInvesting" ? parseCurrencyValue(rawValue) : rawValue;
+        if (value === null) return Promise.resolve();
+        return setCustomField(taskId, fieldId, value, token);
+      })
+    );
+  }
 
   return { synced: true, taskId };
 }
 
+async function setCustomField(
+  taskId: string,
+  fieldId: string,
+  value: unknown,
+  token: string
+): Promise<void> {
+  try {
+    await fetch(`${CLICKUP_API_BASE}/task/${taskId}/field/${fieldId}`, {
+      method: "POST",
+      headers: {
+        Authorization: token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ value }),
+    });
+  } catch {
+    // Non-fatal — the value is already visible in the task description.
+  }
+}
+
+/** Returns the uploaded attachment's ClickUp ID, or null on failure. */
 async function attachTaskFile(
   taskId: string,
   attachment: AttachmentInput,
   token: string
-): Promise<void> {
+): Promise<string | null> {
   try {
     const fileResponse = await fetch(attachment.fileUrl);
-    if (!fileResponse.ok) return;
+    if (!fileResponse.ok) return null;
     const blob = await fileResponse.blob();
 
     const form = new FormData();
     form.append("attachment", blob, attachment.fileName);
 
-    await fetch(`${CLICKUP_API_BASE}/task/${taskId}/attachment`, {
+    const response = await fetch(`${CLICKUP_API_BASE}/task/${taskId}/attachment`, {
       method: "POST",
       headers: { Authorization: token },
       body: form,
     });
+
+    if (!response.ok) return null;
+    const data = (await response.json()) as { id?: string };
+    return data.id ?? null;
   } catch {
     // Non-fatal — the file URL is already in the task description.
+    return null;
   }
 }

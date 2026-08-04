@@ -66,6 +66,12 @@ const fields: FieldConfig[] = [
     placeholder: "Enter number",
   },
   {
+    kind: "file",
+    name: "redemptionAgreement",
+    label: "Upload the signed Redemption Agreement",
+    helper: "Attach the signed redemption request/agreement document.",
+  },
+  {
     kind: "textarea",
     name: "notes",
     label: "Notes",
@@ -94,6 +100,17 @@ export default function RedemptionRequestPage() {
           { label: "Redemption Type", field: "redemptionType" },
           { label: "Redemption Amount (USD)", field: "redemptionAmount" },
           { label: "Notes", field: "notes", skipIfEmpty: true },
+        ],
+        // Confirmed against real submitted tasks in the "Redemptions
+        // Requests" ClickUp list (see the ClickUp sync notice for caveats —
+        // Investor email has no confirmed destination field yet).
+        customFields: [
+          { key: "investorAccountName", field: "investorAccountName" },
+          { key: "offeringName", field: "offeringName" },
+          { key: "orderNumber", field: "orderNumber" },
+          { key: "redemptionAmount", field: "redemptionAmount" },
+          { key: "redemptionType", field: "redemptionType" },
+          { key: "notes", field: "notes" },
         ],
       }}
     />

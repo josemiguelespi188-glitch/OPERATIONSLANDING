@@ -91,6 +91,15 @@ export default function TitleTransferRequestPage() {
           { label: "Current Investor Account Name", field: "currentAccountName" },
           { label: "New Investor Account Name", field: "newAccountName" },
         ],
+        // Confirmed against real submitted tasks in the "Title Transfer
+        // Requests" ClickUp list (see the ClickUp sync notice for caveats —
+        // Investor Name/email have no confirmed destination field yet).
+        customFields: [
+          { key: "currentAccountName", field: "currentAccountName" },
+          { key: "newAccountName", field: "newAccountName" },
+          { key: "dealName", field: "dealName" },
+          { key: "orderNumber", field: "orderNumber" },
+        ],
       }}
     />
   );

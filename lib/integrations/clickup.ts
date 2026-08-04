@@ -36,19 +36,60 @@ function getListIdMap(): Record<string, string> {
 }
 
 /**
- * Request type slug -> { payload.customFields key -> ClickUp custom field
- * ID }. Field IDs are per-list (not per-workspace), so this only covers
- * lists that have been mapped by hand against their real ClickUp fields.
- * A request type with no entry here simply skips custom-field sync — the
- * data still lands in the task description via buildTaskDescription.
+ * One ClickUp custom field target for a payload.customFields key. "text"
+ * passes the value through as-is; "number" strips non-numeric characters
+ * (covers both ClickUp's number and currency field types); "dropdown"
+ * translates our form's option text into the option's ClickUp UUID.
  */
-const CUSTOM_FIELD_MAP: Record<string, Record<string, string>> = {
+type ClickUpFieldTarget =
+  | { id: string; kind: "text" }
+  | { id: string; kind: "number" }
+  | { id: string; kind: "dropdown"; options: Record<string, string> };
+
+/**
+ * Request type slug -> { payload.customFields key -> one or more ClickUp
+ * custom field targets }. Field IDs are per-list (not per-workspace), so
+ * this only covers lists that have been mapped by hand against their real
+ * ClickUp fields — confirmed by reading actual submitted tasks in each
+ * list (see the ClickUp sync notice in the app for the caveats). A
+ * request type or key with no entry here simply skips custom-field sync —
+ * the data still lands in the task description via buildTaskDescription.
+ */
+const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
   "ira-funding-request": {
-    offeringName: "3a84a910-2a20-4c12-984f-d3e89926550a",
-    custodian: "f2d63342-eb0e-48f8-a930-4c183fa65284",
-    amountInvesting: "5bbae178-213c-4daf-9af2-becc105f0bbd",
-    orderNumber: "70257f39-e3a9-4c45-88bf-e5c5677ccc03",
-    ccEmail: "715f4b75-677f-40ab-98e7-42c21bcb4a02",
+    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
+    custodian: [{ id: "f2d63342-eb0e-48f8-a930-4c183fa65284", kind: "text" }],
+    amountInvesting: [{ id: "5bbae178-213c-4daf-9af2-becc105f0bbd", kind: "number" }],
+    orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
+    ccEmail: [{ id: "715f4b75-677f-40ab-98e7-42c21bcb4a02", kind: "text" }],
+  },
+  "title-transfer-request": {
+    currentAccountName: [{ id: "3026a4c9-b01c-41cb-ab92-87b2cf417ba1", kind: "text" }],
+    newAccountName: [{ id: "0de379f0-b634-44ad-b5cc-ef75f46359ed", kind: "text" }],
+    dealName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
+    orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
+  },
+  "redemption-request": {
+    investorAccountName: [{ id: "3026a4c9-b01c-41cb-ab92-87b2cf417ba1", kind: "text" }],
+    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
+    orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
+    // Real submitted tasks always have both amount fields filled with the
+    // same value — send to both.
+    redemptionAmount: [
+      { id: "d90c8115-3271-4597-89ac-bfac73e77c28", kind: "number" },
+      { id: "e98c4094-ee91-4886-b1c7-78a0da31d092", kind: "number" },
+    ],
+    redemptionType: [
+      {
+        id: "be5ab0e3-b125-4f58-ae22-8831e67dc294",
+        kind: "dropdown",
+        options: {
+          "Full Redemption": "6507524b-2070-4586-b0a9-44177f7822b8",
+          "Partial Redemption": "e93f8731-85ef-4523-a32d-cb3ee259d522",
+        },
+      },
+    ],
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
   },
 };
 
@@ -61,14 +102,32 @@ const ATTACHMENT_FIELD_MAP: Record<string, Record<string, string>> = {
   "ira-funding-request": {
     subscriptionAgreement: "8438e487-dd9b-4cf1-846e-426ee12722ef",
   },
+  "title-transfer-request": {
+    titleTransferComplete: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
+  },
+  "redemption-request": {
+    redemptionAgreement: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
+  },
 };
 
-/** ClickUp currency fields take a plain number, e.g. 23211 or 23211.5. */
-function parseCurrencyValue(raw: string): number | null {
+/** ClickUp number/currency fields take a plain number, e.g. 23211 or 23211.5. */
+function parseNumericValue(raw: string): number | null {
   const cleaned = raw.replace(/[^0-9.]/g, "");
   if (!cleaned) return null;
   const value = Number.parseFloat(cleaned);
   return Number.isFinite(value) ? value : null;
+}
+
+/** Resolves a raw form value into the value ClickUp's field API expects. */
+function resolveFieldValue(target: ClickUpFieldTarget, rawValue: string): unknown | null {
+  switch (target.kind) {
+    case "text":
+      return rawValue;
+    case "number":
+      return parseNumericValue(rawValue);
+    case "dropdown":
+      return target.options[rawValue] ?? null;
+  }
 }
 
 function buildTaskName(payload: RequestPayload): string {
@@ -180,17 +239,19 @@ export async function syncRequestToClickUp(
 
   // Best-effort: populate the structured custom fields this list is known
   // to have (see CUSTOM_FIELD_MAP). Never fails the sync.
-  const fieldIds = CUSTOM_FIELD_MAP[payload.requestType];
-  if (fieldIds) {
-    await Promise.all(
-      Object.entries(fieldIds).map(([key, fieldId]) => {
-        const rawValue = payload.customFields[key];
-        if (!rawValue) return Promise.resolve();
-        const value = key === "amountInvesting" ? parseCurrencyValue(rawValue) : rawValue;
-        if (value === null) return Promise.resolve();
-        return setCustomField(taskId, fieldId, value, token);
-      })
-    );
+  const fieldTargets = CUSTOM_FIELD_MAP[payload.requestType];
+  if (fieldTargets) {
+    const writes: Promise<void>[] = [];
+    for (const [key, targets] of Object.entries(fieldTargets)) {
+      const rawValue = payload.customFields[key];
+      if (!rawValue) continue;
+      for (const target of targets) {
+        const value = resolveFieldValue(target, rawValue);
+        if (value === null) continue;
+        writes.push(setCustomField(taskId, target.id, value, token));
+      }
+    }
+    await Promise.all(writes);
   }
 
   return { synced: true, taskId };

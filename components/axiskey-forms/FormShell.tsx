@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
 import type { RequestTypeSlug } from "@/lib/requestTypes";
 import type { AttachmentInput } from "@/lib/types";
 
@@ -353,6 +354,8 @@ export function FormShell({
             </div>
           </form>
         )}
+
+        <ClickUpSyncNotice />
       </div>
     </main>
   );

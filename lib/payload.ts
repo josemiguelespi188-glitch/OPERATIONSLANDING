@@ -19,6 +19,7 @@ export function buildRequestPayload(input: RequestFormInput): RequestPayload {
     dealName: input.dealName?.trim() ?? "",
     notes: input.notes?.trim() ?? "",
     attachments: input.attachments ?? [],
+    customFields: input.customFields ?? {},
     submittedAt: new Date().toISOString(),
   };
 }

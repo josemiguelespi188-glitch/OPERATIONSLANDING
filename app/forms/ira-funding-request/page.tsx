@@ -81,6 +81,13 @@ export default function IraFundingRequestPage() {
           { label: "Investing Amount", field: "investingAmount" },
           { label: "Order Number", field: "orderNumber" },
         ],
+        customFields: [
+          { key: "offeringName", field: "dealName" },
+          { key: "custodian", field: "iraName" },
+          { key: "amountInvesting", field: "investingAmount" },
+          { key: "orderNumber", field: "orderNumber" },
+          { key: "ccEmail", field: "ccEmail" },
+        ],
       }}
     />
   );

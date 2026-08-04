@@ -56,6 +56,10 @@ export interface SubmissionMapping {
   dealNameField?: string;
   /** Rendered as "Label: value" lines and joined into the notes column. */
   notesFields: { label: string; field: string; skipIfEmpty?: boolean }[];
+  /** Semantic key (matches the integration's field map, e.g. ClickUp
+   *  custom field keys) -> form field name. Sent alongside notes so an
+   *  integration can populate structured fields, not just free text. */
+  customFields?: { key: string; field: string }[];
 }
 
 export interface FormShellProps {
@@ -100,7 +104,7 @@ export function FormShell({
     const supabase = getSupabaseBrowserClient();
     const uploaded: AttachmentInput[] = [];
 
-    for (const [, file] of entries) {
+    for (const [fieldName, file] of entries) {
       if (!file) continue;
       const path = `${slug}/${Date.now()}-${file.name}`;
       const { error } = await supabase.storage
@@ -118,6 +122,7 @@ export function FormShell({
         fileUrl: data.publicUrl,
         fileSize: file.size,
         contentType: file.type,
+        fieldKey: fieldName,
       });
     }
 
@@ -137,6 +142,12 @@ export function FormShell({
       .filter((line): line is string => line !== null)
       .join("\n");
 
+    const customFields: Record<string, string> = {};
+    for (const { key, field } of submissionMapping.customFields ?? []) {
+      const value = values[field]?.trim();
+      if (value) customFields[key] = value;
+    }
+
     return {
       requestorName: firstNonEmpty(submissionMapping.requestorNameFields),
       requestorEmail: firstNonEmpty(submissionMapping.requestorEmailFields),
@@ -145,6 +156,7 @@ export function FormShell({
         : "",
       dealName: submissionMapping.dealNameField ? values[submissionMapping.dealNameField] ?? "" : "",
       notes,
+      customFields,
     };
   }
 

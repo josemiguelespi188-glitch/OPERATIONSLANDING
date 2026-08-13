@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
 import type { RequestTypeSlug } from "@/lib/requestTypes";
@@ -197,6 +198,21 @@ export function FormShell({
   return (
     <main className="min-h-screen bg-white">
       <div className="mx-auto max-w-[1000px] px-6 py-16 text-left">
+        <Link
+          href="/"
+          className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-black"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M8.5 3L4.5 7L8.5 11"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Back to Axis Operations Hub
+        </Link>
         <div className="mb-6 h-1 w-10 bg-black" />
         <h1 className="text-[28px] font-bold text-black sm:text-[32px]">{title}</h1>
         <div className="mt-4 max-w-2xl">
@@ -213,6 +229,12 @@ export function FormShell({
             <p className="mt-1.5 text-sm text-gray-600">
               Your {title.toLowerCase()} has been received.
             </p>
+            <Link
+              href="/"
+              className="mt-6 inline-flex items-center justify-center rounded-[6px] bg-black px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-gray-900"
+            >
+              Back to Axis Operations Hub
+            </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-10">

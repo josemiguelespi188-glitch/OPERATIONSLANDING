@@ -20,6 +20,7 @@ interface AdminStats {
     clickup_task_id: string | null;
     clickup_sync_status: ClickUpSyncStatus;
     clickup_sync_error: string | null;
+    clickup_status_text: string | null;
     created_at: string;
   }>;
 }
@@ -168,6 +169,7 @@ export function AdminOverview() {
                         {req.clickup_task_id
                           ? `ClickUp Task: ${req.clickup_task_id}`
                           : req.clickup_sync_error || "Not synced to ClickUp yet."}
+                        {req.clickup_status_text && ` · ClickUp status: ${req.clickup_status_text}`}
                         {" · "}
                         {new Date(req.created_at).toLocaleString()}
                       </span>

@@ -130,7 +130,26 @@ function resolveFieldValue(target: ClickUpFieldTarget, rawValue: string): unknow
   }
 }
 
+/**
+ * These 3 lists want the task name to be just the investor's name (no
+ * label/pipe prefix) — matches how the ops team names tasks manually:
+ *   ira-funding-request    -> Investor Account Name
+ *   title-transfer-request -> Investor Name
+ *   redemption-request     -> Investor Name
+ * payload.investorName is already sourced from the right form field for
+ * each of these (see each page's submissionMapping.investorNameField).
+ */
+const INVESTOR_NAME_ONLY_TASK_TYPES = new Set([
+  "ira-funding-request",
+  "title-transfer-request",
+  "redemption-request",
+]);
+
 function buildTaskName(payload: RequestPayload): string {
+  if (INVESTOR_NAME_ONLY_TASK_TYPES.has(payload.requestType)) {
+    return payload.investorName || payload.requestorName;
+  }
+
   const label = TASK_LABEL[payload.requestType] ?? payload.requestTypeName;
   const subject = payload.dealName || payload.investorName || payload.requestorName;
   return `${label} | ${payload.requestorName} | ${subject}`;

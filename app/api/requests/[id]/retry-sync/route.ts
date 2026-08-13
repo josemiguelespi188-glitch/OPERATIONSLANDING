@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/supabase/adminAuth";
 import { syncRequestAndPersist } from "@/lib/services/requestSync";
 import type { RequestPayload } from "@/lib/types";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const admin = await requireAdmin(request);
+  if (!admin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id } = await params;
 
   let supabase: ReturnType<typeof getSupabaseServerClient>;

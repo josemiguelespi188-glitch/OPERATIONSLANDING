@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { RequestCard } from "@/components/RequestCard";
 import { RequestModal } from "@/components/RequestModal";
-import { AdminPanel } from "@/components/AdminPanel";
 import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
 import { REQUEST_TYPES, type RequestTypeSlug } from "@/lib/requestTypes";
 
 export default function HomePage() {
   const [activeType, setActiveType] = useState<RequestTypeSlug | null>(null);
-  const [adminOpen, setAdminOpen] = useState(false);
 
   const activeRequestType = REQUEST_TYPES.find((t) => t.slug === activeType);
 
@@ -19,13 +18,12 @@ export default function HomePage() {
       <header className="border-b border-axis-base/30 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
           <Logo />
-          <button
-            type="button"
-            onClick={() => setAdminOpen(true)}
+          <Link
+            href="/admin"
             className="rounded-[8px] border border-axis-base/50 px-4 py-2 text-sm font-semibold text-axis-core/70 transition-colors hover:border-axis-core hover:text-axis-core hover:shadow-[inset_0_0_0_1px_theme(colors.axis-signal)]"
           >
             Admin
-          </button>
+          </Link>
         </div>
       </header>
 
@@ -54,8 +52,6 @@ export default function HomePage() {
           onClose={() => setActiveType(null)}
         />
       )}
-
-      {adminOpen && <AdminPanel onClose={() => setAdminOpen(false)} />}
     </main>
   );
 }

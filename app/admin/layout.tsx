@@ -79,6 +79,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   Overview
                 </Link>
+                <Link
+                  href="/admin/forms"
+                  className="rounded-[6px] px-3 py-1.5 text-sm font-semibold text-axis-core transition-colors hover:bg-axis-light"
+                >
+                  Form Builder
+                </Link>
               </nav>
             </div>
             <div className="flex items-center gap-3">

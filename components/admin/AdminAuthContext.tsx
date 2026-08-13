@@ -18,3 +18,19 @@ export function useAdminAuth(): AdminAuthValue {
   }
   return ctx;
 }
+
+/** fetch() with the admin session's bearer token attached, and a JSON body helper. */
+export function useAdminFetch() {
+  const { session } = useAdminAuth();
+
+  return async function adminFetch(input: string, init: RequestInit = {}) {
+    return fetch(input, {
+      ...init,
+      headers: {
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...init.headers,
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+  };
+}

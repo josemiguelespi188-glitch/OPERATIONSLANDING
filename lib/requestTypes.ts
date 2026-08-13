@@ -2,6 +2,7 @@ export type RequestTypeSlug =
   | "ira-funding-request"
   | "title-transfer-request"
   | "redemption-request"
+  | "side-letter-request"
   | "investor-information-update"
   | "account-maintenance-request"
   | "document-request"
@@ -37,6 +38,12 @@ export const REQUEST_TYPES: RequestTypeConfig[] = [
     slug: "redemption-request",
     name: "Redemption Request",
     description: "Submit an investor redemption request.",
+    buttonLabel: "Open Request",
+  },
+  {
+    slug: "side-letter-request",
+    name: "Side Letter Request",
+    description: "Request the creation of a side letter for an investor.",
     buttonLabel: "Open Request",
   },
   {

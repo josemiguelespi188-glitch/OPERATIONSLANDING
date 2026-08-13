@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
@@ -9,7 +9,7 @@ import type { AttachmentInput } from "@/lib/types";
 
 export type FieldConfig =
   | {
-      kind: "text" | "email" | "number" | "currency";
+      kind: "text" | "email" | "number" | "currency" | "date";
       name: string;
       label: string;
       required?: boolean;
@@ -70,6 +70,13 @@ export interface FormShellProps {
   descriptionParagraphs: string[];
   fields: FieldConfig[];
   submissionMapping: SubmissionMapping;
+  /** Optional prefill (e.g. a template picker above the form). Merges into
+   *  the current values whenever it changes — existing hardcoded pages
+   *  never pass this, so their behavior is unchanged. */
+  initialValues?: Record<string, string>;
+  /** Rendered between the intro text and the form fields (e.g. a template
+   *  library) — hidden once the form has been submitted. */
+  beforeForm?: React.ReactNode;
 }
 
 type SubmitState = "idle" | "uploading" | "submitting" | "success" | "error";
@@ -83,11 +90,20 @@ export function FormShell({
   descriptionParagraphs,
   fields,
   submissionMapping,
+  initialValues,
+  beforeForm,
 }: FormShellProps) {
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(initialValues ?? {});
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [state, setState] = useState<SubmitState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    if (initialValues) {
+      setValues((prev) => ({ ...prev, ...initialValues }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialValues]);
 
   const isSubmitting = state === "uploading" || state === "submitting";
 
@@ -223,6 +239,8 @@ export function FormShell({
           ))}
         </div>
 
+        {state !== "success" && beforeForm}
+
         {state === "success" ? (
           <div className="mt-12 rounded-[6px] border border-gray-200 px-6 py-10 text-center">
             <h2 className="text-lg font-bold text-black">Request submitted</h2>
@@ -290,6 +308,16 @@ export function FormShell({
                     />
                   )}
 
+                  {field.kind === "date" && (
+                    <input
+                      type="date"
+                      required={field.required}
+                      value={values[field.name] ?? ""}
+                      onChange={(e) => setValue(field.name, e.target.value)}
+                      className={inputClass}
+                    />
+                  )}
+
                   {field.kind === "textarea" && (
                     <textarea
                       required={field.required}
@@ -305,7 +333,7 @@ export function FormShell({
                     <div className="relative">
                       <select
                         required={field.required}
-                        defaultValue=""
+                        value={values[field.name] ?? ""}
                         onChange={(e) => setValue(field.name, e.target.value)}
                         className={`${inputClass} appearance-none pr-9`}
                       >

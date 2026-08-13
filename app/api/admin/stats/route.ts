@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   const { data: requests, error } = await supabase
     .from("requests")
     .select(
-      "id, request_type_slug, requestor_name, investor_name, deal_name, status, clickup_task_id, clickup_sync_status, clickup_sync_error, created_at"
+      "id, request_type_slug, requestor_name, investor_name, deal_name, status, clickup_task_id, clickup_sync_status, clickup_sync_error, clickup_status_text, created_at"
     )
     .order("created_at", { ascending: false });
 

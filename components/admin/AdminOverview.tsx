@@ -48,8 +48,12 @@ export function AdminOverview() {
   const fetchStats = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/stats", { headers: authHeaders });
-      if (!res.ok) throw new Error("Failed to load admin stats.");
-      setStats(await res.json());
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        console.error("Failed to load admin stats:", res.status, body);
+        throw new Error(`${body.error ?? "Failed to load admin stats."} (status ${res.status})`);
+      }
+      setStats(body);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load admin stats.");
     } finally {

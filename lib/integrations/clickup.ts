@@ -12,6 +12,7 @@ const TASK_LABEL: Record<string, string> = {
   "ira-funding-request": "IRA Funding",
   "title-transfer-request": "Title Transfer",
   "redemption-request": "Redemption",
+  "side-letter-request": "Side Letter",
   "investor-information-update": "Investor Update",
   "account-maintenance-request": "Account Maintenance",
   "document-request": "Document Request",

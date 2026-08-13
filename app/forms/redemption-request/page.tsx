@@ -93,9 +93,10 @@ export default function RedemptionRequestPage() {
       submissionMapping={{
         requestorNameFields: ["investorName"],
         requestorEmailFields: ["investorEmail"],
-        investorNameField: "investorAccountName",
+        investorNameField: "investorName",
         dealNameField: "offeringName",
         notesFields: [
+          { label: "Investor Account Name", field: "investorAccountName" },
           { label: "Order Number", field: "orderNumber" },
           { label: "Redemption Type", field: "redemptionType" },
           { label: "Redemption Amount (USD)", field: "redemptionAmount" },

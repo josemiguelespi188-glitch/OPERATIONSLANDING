@@ -1,7 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+let browserClient: SupabaseClient | undefined;
 
 /**
  * Browser client — safe to use in client components. Scoped to the anon
@@ -11,6 +13,11 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
  * persistSession is on so the Admin Portal's login (Supabase Auth) survives
  * a page reload — this has no effect on the anonymous request-submission
  * flow, which never reads or writes an auth session.
+ *
+ * Memoized to a single instance: multiple GoTrueClient instances sharing
+ * the same localStorage session key (one per call site otherwise) causes
+ * Supabase's own "Multiple GoTrueClient instances detected" warning and
+ * can desync auth state between them.
  */
 export function getSupabaseBrowserClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -19,7 +26,11 @@ export function getSupabaseBrowserClient() {
     );
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: { persistSession: true },
-  });
+  if (!browserClient) {
+    browserClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: true },
+    });
+  }
+
+  return browserClient;
 }

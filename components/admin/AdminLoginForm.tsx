@@ -14,15 +14,26 @@ export function AdminLoginForm() {
     setError("");
     setLoading(true);
 
-    const supabase = getSupabaseBrowserClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
-    setLoading(false);
-    if (signInError) {
-      setError(signInError.message);
+      if (signInError) {
+        console.error("Admin sign-in failed:", signInError);
+        setError(
+          signInError.message?.trim()
+            ? `${signInError.message} (status ${signInError.status ?? "unknown"})`
+            : `Sign-in failed with no message (status ${signInError.status ?? "unknown"}). Check the browser console for details.`
+        );
+      }
+      // On success, the layout's onAuthStateChange listener picks up the
+      // new session and swaps this form out for the admin content.
+    } catch (err) {
+      console.error("Admin sign-in threw:", err);
+      setError(err instanceof Error ? err.message : "Unexpected error signing in. Check the console.");
+    } finally {
+      setLoading(false);
     }
-    // On success, the layout's onAuthStateChange listener picks up the new
-    // session and swaps this form out for the admin content.
   }
 
   return (

@@ -1,284 +1,158 @@
 "use client";
 
-import { FIELD_TYPE_META, FIELD_TYPE_OPTIONS } from "@/lib/dynamicForms/fieldTypeMeta";
-import type { DynamicField, DynamicFieldType } from "@/lib/dynamicForms/types";
+import { FIELD_TYPE_META } from "@/lib/dynamicForms/fieldTypeMeta";
+import type { DynamicField } from "@/lib/dynamicForms/types";
 
-const inputClass =
-  "w-full rounded-[8px] border border-axis-base/50 bg-white px-3.5 py-2.5 text-sm text-axis-core placeholder:text-axis-core/35 focus:border-axis-signal focus:outline-none focus:ring-2 focus:ring-axis-signal/50";
+const previewInputClass =
+  "w-full rounded-[8px] border border-axis-base/40 bg-axis-light/40 px-3.5 py-2.5 text-sm text-axis-core/40";
 
 interface FieldRowProps {
   field: DynamicField;
   index: number;
   total: number;
-  isEditing: boolean;
-  onToggleEdit: () => void;
-  onChange: (patch: Partial<DynamicField>) => void;
-  onRemove: () => void;
+  onOpen: () => void;
   onMove: (direction: -1 | 1) => void;
 }
 
-export function FieldRow({
-  field,
-  index,
-  total,
-  isEditing,
-  onToggleEdit,
-  onChange,
-  onRemove,
-  onMove,
-}: FieldRowProps) {
-  const meta = FIELD_TYPE_META[field.fieldType];
-
+/**
+ * A read-only preview of how the field renders in the real form. Clicking
+ * anywhere on the card opens the FieldEditorPanel — this never edits state
+ * directly (that's the panel's job), it only renders + reorders.
+ */
+export function FieldRow({ field, index, total, onOpen, onMove }: FieldRowProps) {
   return (
-    <div className="rounded-[8px] border border-axis-base/30">
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-axis-core">
-            {field.label || <span className="text-axis-core/40">Untitled field</span>}
-            {field.isRequired && <span className="ml-1 text-red-600">*</span>}
-          </p>
-          <p className="truncate text-xs text-axis-core/50">
-            {meta.label}
-            {field.fieldKey && ` · ${field.fieldKey}`}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => onMove(-1)}
-            disabled={index === 0}
-            aria-label="Move up"
-            className="rounded-[6px] px-2 py-1 text-xs text-axis-core/60 hover:bg-axis-light disabled:opacity-30"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            onClick={() => onMove(1)}
-            disabled={index === total - 1}
-            aria-label="Move down"
-            className="rounded-[6px] px-2 py-1 text-xs text-axis-core/60 hover:bg-axis-light disabled:opacity-30"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            onClick={onToggleEdit}
-            className="rounded-[6px] border border-axis-base/50 px-3 py-1.5 text-xs font-semibold text-axis-core hover:border-axis-core"
-          >
-            {isEditing ? "Close" : "Edit"}
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            className="rounded-[6px] border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:border-red-400"
-          >
-            Delete
-          </button>
-        </div>
+    <div
+      className={`group relative rounded-[8px] border border-axis-base/30 bg-white p-4 transition-colors hover:border-axis-core/40 ${
+        field.columnSpan === "full" ? "sm:col-span-2" : ""
+      }`}
+    >
+      <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onMove(-1);
+          }}
+          disabled={index === 0}
+          aria-label="Move up"
+          className="rounded-[6px] bg-white px-1.5 py-1 text-xs text-axis-core/50 shadow-sm ring-1 ring-axis-base/30 hover:text-axis-core disabled:opacity-30"
+        >
+          ↑
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onMove(1);
+          }}
+          disabled={index === total - 1}
+          aria-label="Move down"
+          className="rounded-[6px] bg-white px-1.5 py-1 text-xs text-axis-core/50 shadow-sm ring-1 ring-axis-base/30 hover:text-axis-core disabled:opacity-30"
+        >
+          ↓
+        </button>
+        <span className="rounded-[6px] bg-white px-2 py-1 text-xs font-semibold text-axis-core shadow-sm ring-1 ring-axis-base/30">
+          Edit
+        </span>
       </div>
 
-      {isEditing && (
-        <div className="border-t border-axis-base/20 px-4 py-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-axis-core/80">Field type</span>
-              <select
-                value={field.fieldType}
-                onChange={(e) => onChange({ fieldType: e.target.value as DynamicFieldType })}
-                className={inputClass}
-              >
-                {FIELD_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                Internal field name
-              </span>
-              <input
-                value={field.fieldKey}
-                onChange={(e) => onChange({ fieldKey: e.target.value })}
-                placeholder="e.g. investorName"
-                className={inputClass}
-              />
-            </label>
-
-            <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                {meta.isLayoutOnly ? "Text" : "Label"}
-              </span>
-              <input
-                value={field.label}
-                onChange={(e) => onChange({ label: e.target.value })}
-                className={inputClass}
-              />
-            </label>
-
-            <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                Description / help text shown under the label
-              </span>
-              <input
-                value={field.description}
-                onChange={(e) => onChange({ description: e.target.value })}
-                className={inputClass}
-              />
-            </label>
-
-            {meta.hasPlaceholder && (
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                  Placeholder
-                </span>
-                <input
-                  value={field.placeholder}
-                  onChange={(e) => onChange({ placeholder: e.target.value })}
-                  className={inputClass}
-                />
-              </label>
-            )}
-
-            {meta.hasDefaultValue && (
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                  Default value
-                </span>
-                <input
-                  value={field.defaultValue}
-                  onChange={(e) => onChange({ defaultValue: e.target.value })}
-                  className={inputClass}
-                />
-              </label>
-            )}
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                Example text
-              </span>
-              <input
-                value={field.exampleText}
-                onChange={(e) => onChange({ exampleText: e.target.value })}
-                className={inputClass}
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                Field width
-              </span>
-              <select
-                value={field.columnSpan}
-                onChange={(e) => onChange({ columnSpan: e.target.value as "half" | "full" })}
-                className={inputClass}
-              >
-                <option value="half">Half (2-column grid)</option>
-                <option value="full">Full width</option>
-              </select>
-            </label>
-
-            {!meta.isLayoutOnly && (
-              <label className="flex items-center gap-2 sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={field.isRequired}
-                  onChange={(e) => onChange({ isRequired: e.target.checked })}
-                  className="h-4 w-4 rounded border-axis-base/50"
-                />
-                <span className="text-sm text-axis-core/80">Required</span>
-              </label>
-            )}
-
-            <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                Validation rules (advanced — raw JSON, optional)
-              </span>
-              <textarea
-                value={field.validationRules}
-                onChange={(e) => onChange({ validationRules: e.target.value })}
-                rows={2}
-                placeholder='e.g. {"minLength": 3, "pattern": "^[A-Z].*"}'
-                className={`${inputClass} font-mono text-xs`}
-              />
-            </label>
-          </div>
-
-          {meta.hasOptions && (
-            <OptionsEditor
-              options={field.options}
-              onChange={(options) => onChange({ options })}
-            />
-          )}
-        </div>
-      )}
+      <button type="button" onClick={onOpen} className="block w-full text-left">
+        <FieldPreviewBody field={field} />
+      </button>
     </div>
   );
 }
 
-function OptionsEditor({
-  options,
-  onChange,
-}: {
-  options: DynamicField["options"];
-  onChange: (options: DynamicField["options"]) => void;
-}) {
-  function updateOption(i: number, patch: Partial<{ label: string; value: string }>) {
-    onChange(options.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
+function FieldPreviewBody({ field }: { field: DynamicField }) {
+  const meta = FIELD_TYPE_META[field.fieldType];
+  const label = field.label || "Untitled field";
+
+  if (field.fieldType === "section_divider") {
+    return (
+      <div className="border-b border-axis-base/40 pb-2">
+        <p className="font-head text-base font-medium tracking-tight text-axis-core">{label}</p>
+      </div>
+    );
   }
 
-  function addOption() {
-    onChange([...options, { label: "", value: "" }]);
-  }
-
-  function removeOption(i: number) {
-    onChange(options.filter((_, idx) => idx !== i));
+  if (field.fieldType === "instructions" || field.fieldType === "readonly_info") {
+    return (
+      <div className="rounded-[6px] bg-axis-light/50 px-3.5 py-3">
+        <p className="text-sm italic text-axis-core/60">{label}</p>
+      </div>
+    );
   }
 
   return (
-    <div className="mt-4 border-t border-axis-base/20 pt-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-axis-core/80">Options</span>
-        <button
-          type="button"
-          onClick={addOption}
-          className="rounded-[6px] border border-axis-base/50 px-2.5 py-1 text-xs font-semibold text-axis-core hover:border-axis-core"
-        >
-          + Add option
-        </button>
+    <div>
+      <p className="truncate text-sm font-medium text-axis-core">
+        {label}
+        {field.isRequired && <span className="ml-0.5 text-red-600">*</span>}
+      </p>
+      {field.description && (
+        <p className="mt-0.5 truncate text-xs text-axis-core/45">{field.description}</p>
+      )}
+
+      <div className="mt-2">
+        <FieldPreviewInput field={field} />
       </div>
-      <div className="mt-2 space-y-2">
-        {options.length === 0 && (
-          <p className="text-xs text-axis-core/45">No options yet.</p>
-        )}
-        {options.map((option, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              value={option.label}
-              onChange={(e) => updateOption(i, { label: e.target.value })}
-              placeholder="Label shown to the user"
-              className={`${inputClass} py-2`}
-            />
-            <input
-              value={option.value}
-              onChange={(e) => updateOption(i, { value: e.target.value })}
-              placeholder="Stored value"
-              className={`${inputClass} py-2`}
-            />
-            <button
-              type="button"
-              onClick={() => removeOption(i)}
-              aria-label="Remove option"
-              className="shrink-0 rounded-[6px] px-2 py-2 text-xs text-red-700 hover:bg-red-50"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-      </div>
+
+      <p className="mt-2 text-[11px] text-axis-core/35">
+        {meta.label}
+        {field.fieldKey && ` · ${field.fieldKey}`}
+      </p>
     </div>
   );
+}
+
+function FieldPreviewInput({ field }: { field: DynamicField }) {
+  switch (field.fieldType) {
+    case "long_text":
+      return (
+        <div className={`${previewInputClass} h-16`}>{field.placeholder || "Enter text"}</div>
+      );
+    case "dropdown":
+      return (
+        <div className={previewInputClass}>
+          {field.placeholder || field.options[0]?.label || "Select an option"} ⌄
+        </div>
+      );
+    case "multi_select":
+    case "radio":
+      return (
+        <div className="flex flex-wrap gap-1.5">
+          {field.options.length === 0 && (
+            <span className="text-xs text-axis-core/35">No options yet</span>
+          )}
+          {field.options.slice(0, 4).map((o, i) => (
+            <span
+              key={i}
+              className="rounded-full border border-axis-base/40 bg-axis-light/40 px-2.5 py-1 text-xs text-axis-core/50"
+            >
+              {o.label || "Option"}
+            </span>
+          ))}
+          {field.options.length > 4 && (
+            <span className="text-xs text-axis-core/35">+{field.options.length - 4} more</span>
+          )}
+        </div>
+      );
+    case "checkbox":
+      return (
+        <label className="flex items-center gap-2 text-xs text-axis-core/45">
+          <span className="h-4 w-4 rounded border border-axis-base/50 bg-axis-light/40" />
+          {field.placeholder || "Yes"}
+        </label>
+      );
+    case "file_upload":
+      return (
+        <div className="rounded-[8px] border border-dashed border-axis-base/50 bg-axis-light/30 px-3.5 py-4 text-center text-xs text-axis-core/40">
+          Drop files here to upload
+        </div>
+      );
+    case "date":
+      return <div className={previewInputClass}>{field.defaultValue || "mm/dd/yyyy"}</div>;
+    default:
+      return <div className={previewInputClass}>{field.placeholder || "Enter text"}</div>;
+  }
 }

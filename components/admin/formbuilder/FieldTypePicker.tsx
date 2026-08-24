@@ -7,10 +7,14 @@ import { FieldTypeIcon } from "./FieldTypeIcon";
 
 interface FieldTypePickerProps {
   onSelect: (type: DynamicFieldType) => void;
+  /** Restricts the offered types (e.g. to the subset a locked/code-driven
+   *  form's public page can actually render — see LOCKED_FORM_FIELD_TYPES
+   *  in lib/dynamicForms/fieldConfigBridge). Omit to offer every type. */
+  allowedTypes?: DynamicFieldType[];
 }
 
 /** ClickUp-style "+ Add question" trigger that opens a searchable, categorized type menu. */
-export function FieldTypePicker({ onSelect }: FieldTypePickerProps) {
+export function FieldTypePicker({ onSelect, allowedTypes }: FieldTypePickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
@@ -27,14 +31,25 @@ export function FieldTypePicker({ onSelect }: FieldTypePickerProps) {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
 
-  const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return FIELD_TYPE_GROUPS;
+  const baseGroups = useMemo(() => {
+    if (!allowedTypes) return FIELD_TYPE_GROUPS;
+    const allowed = new Set(allowedTypes);
     return FIELD_TYPE_GROUPS.map((g) => ({
       group: g.group,
-      types: g.types.filter((t) => FIELD_TYPE_META[t].label.toLowerCase().includes(q)),
+      types: g.types.filter((t) => allowed.has(t)),
     })).filter((g) => g.types.length > 0);
-  }, [query]);
+  }, [allowedTypes]);
+
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return baseGroups;
+    return baseGroups
+      .map((g) => ({
+        group: g.group,
+        types: g.types.filter((t) => FIELD_TYPE_META[t].label.toLowerCase().includes(q)),
+      }))
+      .filter((g) => g.types.length > 0);
+  }, [baseGroups, query]);
 
   function select(type: DynamicFieldType) {
     onSelect(type);

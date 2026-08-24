@@ -4,8 +4,11 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
+import { PageShell } from "@/components/layout/PageShell";
+import { getPublicNavItems, PublicSidebarFooter } from "@/components/layout/nav";
 import type { RequestTypeSlug } from "@/lib/requestTypes";
 import type { AttachmentInput } from "@/lib/types";
+import { sanitizeFileNameForStorageKey } from "@/lib/storageKey";
 
 export type FieldConfig =
   | {
@@ -50,7 +53,6 @@ export type FieldConfig =
       label: string;
       required?: boolean;
       helper?: string;
-      /** Text shown next to the checkbox itself (defaults to the field label). */
       checkboxLabel?: string;
       fullWidth?: boolean;
     };
@@ -92,7 +94,7 @@ export interface FormShellProps {
 type SubmitState = "idle" | "uploading" | "submitting" | "success" | "error";
 
 const inputClass =
-  "w-full rounded-[6px] border border-gray-200 bg-white px-[12px] py-[12px] text-sm text-black placeholder:text-gray-300 focus:outline-none focus:border-gray-400 focus:ring-2 focus:ring-black/10";
+  "w-full rounded-[6px] border border-axis-base/50 bg-white px-[12px] py-[12px] text-sm text-axis-core placeholder:text-axis-core/30 focus:outline-none focus:border-axis-core/60 focus:ring-2 focus:ring-axis-core/10";
 
 export function FormShell({
   slug,
@@ -134,7 +136,7 @@ export function FormShell({
 
     for (const [fieldName, file] of entries) {
       if (!file) continue;
-      const path = `${slug}/${Date.now()}-${file.name}`;
+      const path = `${slug}/${Date.now()}-${sanitizeFileNameForStorageKey(file.name)}`;
       const { error } = await supabase.storage
         .from("attachments")
         .upload(path, file, { cacheControl: "3600", upsert: false });
@@ -222,11 +224,11 @@ export function FormShell({
   }
 
   return (
-    <main className="min-h-screen bg-white">
-      <div className="mx-auto max-w-[1000px] px-6 py-16 text-left">
+    <PageShell navItems={getPublicNavItems()} footer={<PublicSidebarFooter />}>
+      <header className="border-b border-axis-base/30 bg-white px-10 py-6">
         <Link
           href="/"
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-black"
+          className="inline-flex items-center gap-1.5 text-sm text-axis-core/50 transition-colors hover:text-axis-core"
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path
@@ -237,207 +239,211 @@ export function FormShell({
               strokeLinejoin="round"
             />
           </svg>
-          Back to Axis Operations Hub
+          Back to Operations Hub Center
         </Link>
-        <div className="mb-6 h-1 w-10 bg-black" />
-        <h1 className="text-[28px] font-bold text-black sm:text-[32px]">{title}</h1>
-        <div className="mt-4 max-w-2xl">
-          {descriptionParagraphs.map((paragraph) => (
-            <p key={paragraph} className="text-[15px] text-gray-600">
-              {paragraph}
-            </p>
-          ))}
-        </div>
+      </header>
 
-        {state !== "success" && beforeForm}
-
-        {state === "success" ? (
-          <div className="mt-12 rounded-[6px] border border-gray-200 px-6 py-10 text-center">
-            <h2 className="text-lg font-bold text-black">Request submitted</h2>
-            <p className="mt-1.5 text-sm text-gray-600">
-              Your {title.toLowerCase()} has been received.
-            </p>
-            <Link
-              href="/"
-              className="mt-6 inline-flex items-center justify-center rounded-[6px] bg-black px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-gray-900"
-            >
-              Back to Axis Operations Hub
-            </Link>
+      <div className="px-10 py-10">
+        <div className="mx-auto max-w-[1000px] rounded-card border border-axis-base/30 bg-white p-10 text-left shadow-card">
+          <div className="mb-6 h-1 w-10 bg-axis-signal" />
+          <h1 className="text-[28px] font-bold text-axis-core sm:text-[32px]">{title}</h1>
+          <div className="mt-4 max-w-2xl">
+            {descriptionParagraphs.map((paragraph) => (
+              <p key={paragraph} className="text-[15px] text-axis-core/65">
+                {paragraph}
+              </p>
+            ))}
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="mt-10">
-            <div className="grid grid-cols-1 gap-x-10 gap-y-8 sm:grid-cols-2">
-              {fields.map((field) => (
-                <div key={field.name} className={field.fullWidth ? "sm:col-span-2" : undefined}>
-                  <FieldLabel label={field.label} required={field.required} />
-                  {field.helper && <p className="mt-1 text-xs text-gray-500">{field.helper}</p>}
 
-                  <div className="mt-2">
-                  {field.kind === "text" && (
-                    <input
-                      type="text"
-                      required={field.required}
-                      placeholder={field.placeholder}
-                      value={values[field.name] ?? ""}
-                      onChange={(e) => setValue(field.name, e.target.value)}
-                      className={inputClass}
-                    />
-                  )}
+          {state !== "success" && beforeForm}
 
-                  {field.kind === "email" && (
-                    <input
-                      type="email"
-                      required={field.required}
-                      placeholder={field.placeholder}
-                      value={values[field.name] ?? ""}
-                      onChange={(e) => setValue(field.name, e.target.value)}
-                      className={inputClass}
-                    />
-                  )}
+          {state === "success" ? (
+            <div className="mt-12 rounded-[6px] border border-axis-base/40 bg-axis-cream px-6 py-10 text-center">
+              <h2 className="text-lg font-bold text-axis-core">Request submitted</h2>
+              <p className="mt-1.5 text-sm text-axis-core/65">
+                Your {title.toLowerCase()} has been received.
+              </p>
+              <Link
+                href="/"
+                className="mt-6 inline-flex items-center justify-center rounded-[6px] bg-axis-core px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-axis-core/90"
+              >
+                Back to Operations Hub Center
+              </Link>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="mt-10">
+              <div className="grid grid-cols-1 gap-x-10 gap-y-8 sm:grid-cols-2">
+                {fields.map((field) => (
+                  <div key={field.name} className={field.fullWidth ? "sm:col-span-2" : undefined}>
+                    <FieldLabel label={field.label} required={field.required} />
+                    {field.helper && <p className="mt-1 text-xs text-axis-core/50">{field.helper}</p>}
 
-                  {field.kind === "number" && (
-                    <input
-                      type="number"
-                      required={field.required}
-                      placeholder={field.placeholder}
-                      value={values[field.name] ?? ""}
-                      onChange={(e) => setValue(field.name, e.target.value)}
-                      className={inputClass}
-                    />
-                  )}
+                    <div className="mt-2">
+                    {field.kind === "text" && (
+                      <input
+                        type="text"
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        value={values[field.name] ?? ""}
+                        onChange={(e) => setValue(field.name, e.target.value)}
+                        className={inputClass}
+                      />
+                    )}
 
-                  {field.kind === "currency" && (
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      required={field.required}
-                      placeholder={field.placeholder}
-                      value={values[field.name] ?? ""}
-                      onChange={(e) => setValue(field.name, e.target.value)}
-                      className={inputClass}
-                    />
-                  )}
+                    {field.kind === "email" && (
+                      <input
+                        type="email"
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        value={values[field.name] ?? ""}
+                        onChange={(e) => setValue(field.name, e.target.value)}
+                        className={inputClass}
+                      />
+                    )}
 
-                  {field.kind === "date" && (
-                    <input
-                      type="date"
-                      required={field.required}
-                      value={values[field.name] ?? ""}
-                      onChange={(e) => setValue(field.name, e.target.value)}
-                      className={inputClass}
-                    />
-                  )}
+                    {field.kind === "number" && (
+                      <input
+                        type="number"
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        value={values[field.name] ?? ""}
+                        onChange={(e) => setValue(field.name, e.target.value)}
+                        className={inputClass}
+                      />
+                    )}
 
-                  {field.kind === "textarea" && (
-                    <textarea
-                      required={field.required}
-                      placeholder={field.placeholder}
-                      rows={5}
-                      value={values[field.name] ?? ""}
-                      onChange={(e) => setValue(field.name, e.target.value)}
-                      className={inputClass}
-                    />
-                  )}
+                    {field.kind === "currency" && (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        value={values[field.name] ?? ""}
+                        onChange={(e) => setValue(field.name, e.target.value)}
+                        className={inputClass}
+                      />
+                    )}
 
-                  {field.kind === "select" && (
-                    <div className="relative">
-                      <select
+                    {field.kind === "date" && (
+                      <input
+                        type="date"
                         required={field.required}
                         value={values[field.name] ?? ""}
                         onChange={(e) => setValue(field.name, e.target.value)}
-                        className={`${inputClass} appearance-none pr-9`}
-                      >
-                        <option value="" disabled hidden>
-                          {field.placeholder}
-                        </option>
-                        {field.options.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
+                        className={inputClass}
+                      />
+                    )}
+
+                    {field.kind === "textarea" && (
+                      <textarea
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        rows={5}
+                        value={values[field.name] ?? ""}
+                        onChange={(e) => setValue(field.name, e.target.value)}
+                        className={inputClass}
+                      />
+                    )}
+
+                    {field.kind === "select" && (
+                      <div className="relative">
+                        <select
+                          required={field.required}
+                          value={values[field.name] ?? ""}
+                          onChange={(e) => setValue(field.name, e.target.value)}
+                          className={`${inputClass} appearance-none pr-9`}
+                        >
+                          <option value="" disabled hidden>
+                            {field.placeholder}
                           </option>
-                        ))}
-                      </select>
-                      <svg
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-                        width="12"
-                        height="8"
-                        viewBox="0 0 12 8"
-                        fill="none"
-                      >
-                        <path
-                          d="M1 1.5L6 6.5L11 1.5"
-                          stroke="#9CA3AF"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                          {field.options.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        <svg
+                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+                          width="12"
+                          height="8"
+                          viewBox="0 0 12 8"
+                          fill="none"
+                        >
+                          <path
+                            d="M1 1.5L6 6.5L11 1.5"
+                            stroke="#8A8178"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                    )}
+
+                    {field.kind === "checkbox" && (
+                      <label className="flex items-center gap-2 text-sm text-axis-core/80">
+                        <input
+                          type="checkbox"
+                          required={field.required}
+                          checked={values[field.name] === "Yes"}
+                          onChange={(e) => setValue(field.name, e.target.checked ? "Yes" : "")}
+                          className="h-4 w-4 rounded border-axis-base/60 text-axis-core focus:ring-axis-core/10"
                         />
-                      </svg>
-                    </div>
-                  )}
+                        {field.checkboxLabel ?? "Yes"}
+                      </label>
+                    )}
 
-                  {field.kind === "checkbox" && (
-                    <label className="flex items-center gap-2.5 py-1">
-                      <input
-                        type="checkbox"
-                        checked={values[field.name] === "Yes"}
-                        onChange={(e) => setValue(field.name, e.target.checked ? "Yes" : "")}
-                        className="h-4 w-4 rounded border-gray-300 text-black focus:ring-black/20"
-                      />
-                      <span className="text-sm text-gray-600">
-                        {field.checkboxLabel ?? field.label}
-                      </span>
-                    </label>
-                  )}
-
-                  {field.kind === "file" && (
-                    <label className="flex h-[110px] cursor-pointer flex-col items-center justify-center rounded-[6px] border border-dashed border-gray-300 px-4 text-center text-sm text-gray-400 transition-colors hover:border-gray-400">
-                      <span>
-                        Drop your files here to{" "}
-                        <span className="text-gray-500 underline">upload</span>
-                      </span>
-                      {files[field.name] && (
-                        <span className="mt-1.5 max-w-full truncate text-xs text-gray-600">
-                          {files[field.name]?.name}
+                    {field.kind === "file" && (
+                      <label className="flex h-[110px] cursor-pointer flex-col items-center justify-center rounded-[6px] border border-dashed border-axis-base/60 px-4 text-center text-sm text-axis-core/40 transition-colors hover:border-axis-core/50">
+                        <span>
+                          Drop your files here to{" "}
+                          <span className="text-axis-core/60 underline">upload</span>
                         </span>
-                      )}
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => setFile(field.name, e.target.files?.[0] ?? null)}
-                      />
-                    </label>
-                  )}
+                        {files[field.name] && (
+                          <span className="mt-1.5 max-w-full truncate text-xs text-axis-core/60">
+                            {files[field.name]?.name}
+                          </span>
+                        )}
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={(e) => setFile(field.name, e.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                    )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            {state === "error" && (
-              <p className="mt-6 rounded-[6px] bg-red-50 px-3 py-2 text-sm text-red-700">
-                {errorMessage}
-              </p>
-            )}
+              {state === "error" && (
+                <p className="mt-6 rounded-[6px] bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {errorMessage}
+                </p>
+              )}
 
-            <div className="mt-10">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full rounded-[6px] bg-black py-3 text-center text-sm font-bold text-white transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {state === "uploading" ? "Uploading..." : state === "submitting" ? "Submitting..." : "Submit"}
-              </button>
-            </div>
-          </form>
-        )}
+              <div className="mt-10">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full rounded-[6px] bg-axis-signal py-3 text-center text-sm font-bold text-axis-core transition-colors hover:bg-axis-signal/85 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {state === "uploading" ? "Uploading..." : state === "submitting" ? "Submitting..." : "Submit"}
+                </button>
+              </div>
+            </form>
+          )}
 
-        <ClickUpSyncNotice />
+          <ClickUpSyncNotice />
+        </div>
       </div>
-    </main>
+    </PageShell>
   );
 }
 
 function FieldLabel({ label, required }: { label: string; required?: boolean }) {
   return (
-    <label className="block text-[15px] font-bold text-black">
+    <label className="block text-[15px] font-bold text-axis-core">
       {label}
       {required && <span className="text-red-600">*</span>}
     </label>

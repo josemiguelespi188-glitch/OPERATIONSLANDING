@@ -50,7 +50,7 @@ export function DynamicFormRenderer({
       <div className="mx-auto max-w-[1000px] px-6 py-16 text-left">
         {previewMode && (
           <div className="mb-6 rounded-[6px] border border-axis-signal bg-axis-signal/20 px-3 py-2 text-xs font-semibold text-axis-core">
-            Preview only — not connected to ClickUp or the live site yet.
+            Preview only, not connected to ClickUp or the live site yet.
           </div>
         )}
 

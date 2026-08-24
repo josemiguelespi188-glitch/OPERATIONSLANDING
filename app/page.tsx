@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Logo } from "@/components/Logo";
+import { PageShell } from "@/components/layout/PageShell";
+import { getPublicNavItems, PublicSidebarFooter } from "@/components/layout/nav";
 import { RequestCard } from "@/components/RequestCard";
 import { RequestModal } from "@/components/RequestModal";
 import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
@@ -14,30 +15,25 @@ export default function HomePage() {
   const activeRequestType = REQUEST_TYPES.find((t) => t.slug === activeType);
 
   return (
-    <main className="min-h-screen">
-      <header className="border-b border-axis-base/30 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-          <Logo />
-          <Link
-            href="/admin"
-            className="rounded-[8px] border border-axis-base/50 px-4 py-2 text-sm font-semibold text-axis-core/70 transition-colors hover:border-axis-core hover:text-axis-core hover:shadow-[inset_0_0_0_1px_theme(colors.axis-signal)]"
-          >
-            Admin
-          </Link>
-        </div>
+    <PageShell navItems={getPublicNavItems()} footer={<PublicSidebarFooter />}>
+      <header className="flex items-center justify-between border-b border-axis-base/30 bg-white px-10 py-4">
+        <h1 className="font-head text-2xl font-bold tracking-tight text-axis-core">
+          Operations Hub Center
+        </h1>
+        <Link
+          href="/admin"
+          className="rounded-[8px] border border-axis-base/50 bg-white px-4 py-2 text-sm font-semibold text-axis-core/70 transition-colors hover:border-axis-core hover:text-axis-core"
+        >
+          Admin
+        </Link>
       </header>
 
-      <section className="mx-auto max-w-5xl px-6 pb-24 pt-16">
-        <div className="mb-14">
-          <h1 className="font-head text-2xl font-medium tracking-tight text-axis-core sm:text-3xl">
-            Axis Operations Hub
-          </h1>
-          <p className="mt-2.5 text-sm text-axis-core/55">
-            Internal Request Center
-          </p>
-        </div>
+      <section className="px-10 pb-10 pt-5">
+        <p className="max-w-lg text-sm text-axis-core/55">
+          Choose the process you need below to start a new request.
+        </p>
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {REQUEST_TYPES.map((type) => (
             <RequestCard key={type.slug} type={type} onOpen={setActiveType} />
           ))}
@@ -52,6 +48,6 @@ export default function HomePage() {
           onClose={() => setActiveType(null)}
         />
       )}
-    </main>
+    </PageShell>
   );
 }

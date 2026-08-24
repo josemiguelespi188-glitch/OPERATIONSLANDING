@@ -17,6 +17,7 @@ const TASK_LABEL: Record<string, string> = {
   "account-maintenance-request": "Account Maintenance",
   "document-request": "Document Request",
   "custom-request": "Custom Request",
+  "axiskey-report-request": "AxisKey Report",
 };
 
 /**
@@ -38,13 +39,16 @@ function getListIdMap(): Record<string, string> {
 
 /**
  * One ClickUp custom field target for a payload.customFields key. "text"
- * passes the value through as-is; "number" strips non-numeric characters
- * (covers both ClickUp's number and currency field types); "dropdown"
- * translates our form's option text into the option's ClickUp UUID.
+ * passes the value through as-is (also used for ClickUp's "email" field
+ * type, which just takes a string); "number" strips non-numeric
+ * characters (covers both ClickUp's number and currency field types);
+ * "dropdown" translates our form's option text into the option's ClickUp
+ * UUID; "checkbox" maps our "Yes"/"" convention to a boolean.
  */
 type ClickUpFieldTarget =
   | { id: string; kind: "text" }
   | { id: string; kind: "number" }
+  | { id: string; kind: "checkbox" }
   | { id: string; kind: "dropdown"; options: Record<string, string> };
 
 /**
@@ -92,6 +96,101 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
     ],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
   },
+  // Confirmed by running scripts/clickup/provision-forms.mjs against the
+  // real lists (Aug 2026) — see CLAUDE.md for the list ID table. "Note"
+  // and "Additional File" are shared/workspace-level fields, so the same
+  // field ID shows up across several of these lists (and matches the
+  // "Additional File" id already used above for title-transfer-request
+  // and redemption-request).
+  "side-letter-request": {
+    orderNumber: [{ id: "dd1e7aa6-164d-445a-a0a8-c66618120fa7", kind: "text" }],
+    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
+    offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
+    sideLetterTerms: [{ id: "53a674ee-9839-44d6-8985-012f0371634b", kind: "text" }],
+    issuerApprovedSideLetter: [{ id: "705f584b-7e41-40f9-8b5a-08eaca0ba21b", kind: "checkbox" }],
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+  },
+  "investor-information-update": {
+    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
+    offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
+    updateType: [
+      {
+        id: "5c551cca-8001-47a0-a421-5f4fca11270e",
+        kind: "dropdown",
+        options: {
+          "Contact Info": "b42e6a1b-4243-4826-8aa4-54e0fd7ef88d",
+          "Mailing Address": "69217967-695a-4c73-a3e2-6e44be9fcd67",
+          "Banking Details": "472920b7-f253-4de8-b339-fa2f6158051b",
+          "Tax Information": "f2e76507-36b0-41fc-8279-300807e1176e",
+          Other: "43f487cb-5946-43ee-a852-4531daeb76e2",
+        },
+      },
+    ],
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+  },
+  "account-maintenance-request": {
+    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
+    maintenanceType: [
+      {
+        id: "f0c64991-2281-49a8-bede-e05aa44364fa",
+        kind: "dropdown",
+        options: {
+          "Portal Access Issue": "5566daf3-668e-47da-97a7-1b781cd5d8dc",
+          "Duplicate Account Merge": "c291c072-ded7-4729-85e5-6bb691d0fbd2",
+          "Account Deactivation": "67ada694-d7c3-4868-a6be-5d194ee539ef",
+          "Login Reset": "12f3694a-ad02-4746-8f11-f765748479c1",
+          Other: "5a6bfa83-7b8a-45d2-b3c9-6244e448d226",
+        },
+      },
+    ],
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+  },
+  "custom-request": {
+    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
+    offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    priority: [
+      {
+        id: "b5618224-f429-4b24-a801-fe28becb3b64",
+        kind: "dropdown",
+        options: {
+          Low: "4a04343f-6a56-49a6-a515-cf87fca3a869",
+          Medium: "b046de21-4767-40fb-95d3-2b1106929862",
+          High: "54e4f30b-e83f-4873-843b-3e59ed30ebc1",
+        },
+      },
+    ],
+    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+  },
+  "axiskey-report-request": {
+    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
+    offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
+    reportType: [
+      {
+        id: "1e60783b-1e29-43c0-bedb-b70f41592fbf",
+        kind: "dropdown",
+        options: {
+          "Distribution History": "dff963c1-c5a4-4caa-9a85-32e71ac69820",
+          "Account Statement": "2f4cbbf4-7c23-4178-a7e3-1876baceeca2",
+          "Tax Document Status": "bd1edc2c-1d21-48c9-970f-23565c858ffe",
+          "Portfolio Summary": "e7e88b20-49fb-4cfe-95f2-2fc51784beb7",
+          "Order History": "41d3e108-990d-403a-9a88-c1c21baa1eca",
+          Other: "62c3d203-d400-45c9-823d-09d2e8f9347a",
+        },
+      },
+    ],
+    reportPeriod: [{ id: "cb587ee2-a6fc-479e-9bd3-ed9c3ab9b2ce", kind: "text" }],
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+  },
 };
 
 /**
@@ -109,6 +208,19 @@ const ATTACHMENT_FIELD_MAP: Record<string, Record<string, string>> = {
   "redemption-request": {
     redemptionAgreement: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
   },
+  "side-letter-request": {
+    sideLetterDocument: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
+  },
+  "investor-information-update": {
+    supportingDocumentation: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
+  },
+  "account-maintenance-request": {
+    supportingDocumentation: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
+  },
+  "custom-request": {
+    supportingDocumentation: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
+  },
+  // axiskey-report-request has no file upload field per its form spec.
 };
 
 /** ClickUp number/currency fields take a plain number, e.g. 23211 or 23211.5. */
@@ -126,6 +238,8 @@ function resolveFieldValue(target: ClickUpFieldTarget, rawValue: string): unknow
       return rawValue;
     case "number":
       return parseNumericValue(rawValue);
+    case "checkbox":
+      return rawValue === "Yes";
     case "dropdown":
       return target.options[rawValue] ?? null;
   }
@@ -159,14 +273,14 @@ function buildTaskName(payload: RequestPayload): string {
 function buildTaskDescription(payload: RequestPayload): string {
   const lines = [
     `**Request Type:** ${payload.requestTypeName}`,
-    `**Investor Name:** ${payload.investorName || "—"}`,
-    `**Deal Name:** ${payload.dealName || "—"}`,
+    `**Investor Name:** ${payload.investorName || "N/A"}`,
+    `**Deal Name:** ${payload.dealName || "N/A"}`,
     `**Email:** ${payload.requestorEmail}`,
     `**Created By:** ${payload.requestorName}`,
     `**Submission Date:** ${payload.submittedAt}`,
     "",
     "**Notes:**",
-    payload.notes || "—",
+    payload.notes || "N/A",
   ];
 
   if (payload.attachments.length > 0) {

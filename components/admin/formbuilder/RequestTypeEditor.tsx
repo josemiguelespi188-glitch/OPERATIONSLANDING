@@ -9,6 +9,9 @@ import {
   type DynamicFieldType,
   type RequestTypeDetail,
 } from "@/lib/dynamicForms/types";
+import { LOCKED_FORM_FIELD_TYPES, mergeAdminFields } from "@/lib/dynamicForms/fieldConfigBridge";
+import { FORM_SPECS } from "@/lib/formSpecs";
+import type { RequestTypeSlug } from "@/lib/requestTypes";
 import { FieldEditorPanel } from "./FieldEditorPanel";
 import { FieldRow } from "./FieldRow";
 import { FieldTypePicker } from "./FieldTypePicker";
@@ -16,10 +19,12 @@ import { FieldTypePicker } from "./FieldTypePicker";
 const inputClass =
   "w-full rounded-[8px] border border-axis-base/50 bg-white px-3.5 py-2.5 text-sm text-axis-core placeholder:text-axis-core/35 focus:border-axis-signal focus:outline-none focus:ring-2 focus:ring-axis-signal/50";
 
+type EditableField = DynamicField & { isCodeManaged: boolean };
+
 export function RequestTypeEditor({ id }: { id: string }) {
   const adminFetch = useAdminFetch();
   const [detail, setDetail] = useState<RequestTypeDetail | null>(null);
-  const [fields, setFields] = useState<DynamicField[]>([]);
+  const [fields, setFields] = useState<EditableField[]>([]);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [openIsNew, setOpenIsNew] = useState(false);
   const [error, setError] = useState("");
@@ -33,6 +38,10 @@ export function RequestTypeEditor({ id }: { id: string }) {
   const [buttonLabel, setButtonLabel] = useState("");
   const [isActive, setIsActive] = useState(false);
 
+  // Only set for a locked (code-driven) type — the base structure its
+  // fields get merged against. See lib/dynamicForms/fieldConfigBridge.ts.
+  const spec = detail?.isLocked ? FORM_SPECS[detail.slug as RequestTypeSlug] : undefined;
+
   const load = useCallback(async () => {
     setError("");
     try {
@@ -44,7 +53,12 @@ export function RequestTypeEditor({ id }: { id: string }) {
       }
       if (!res.ok) throw new Error(`${body.error ?? "Failed to load."} (status ${res.status})`);
       setDetail(body);
-      setFields(body.fields);
+      const typeSpec = body.isLocked ? FORM_SPECS[body.slug as RequestTypeSlug] : undefined;
+      setFields(
+        typeSpec
+          ? mergeAdminFields(typeSpec, body.fields)
+          : (body.fields as DynamicField[]).map((f) => ({ ...f, isCodeManaged: false }))
+      );
       setName(body.name);
       setDescription(body.description);
       setButtonLabel(body.buttonLabel);
@@ -65,7 +79,9 @@ export function RequestTypeEditor({ id }: { id: string }) {
     try {
       const res = await adminFetch(`/api/admin/request-types/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ name, description, buttonLabel, isActive }),
+        body: JSON.stringify(
+          detail?.isLocked ? { description } : { name, description, buttonLabel, isActive }
+        ),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -103,7 +119,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
   }
 
   function addField(fieldType: DynamicFieldType) {
-    setFields((prev) => [...prev, { ...emptyField(prev.length), fieldType }]);
+    setFields((prev) => [...prev, { ...emptyField(prev.length), fieldType, isCodeManaged: false }]);
     setOpenIndex(fields.length);
     setOpenIsNew(true);
   }
@@ -112,10 +128,19 @@ export function RequestTypeEditor({ id }: { id: string }) {
     setFields((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)));
   }
 
+  /** For a code-managed field this resets its copy back to the code
+   *  default (it can never be truly removed — the code still renders it);
+   *  for a normal field it removes it outright. */
   function removeField(index: number) {
-    setFields((prev) =>
-      prev.filter((_, i) => i !== index).map((f, i) => ({ ...f, displayOrder: i }))
-    );
+    setFields((prev) => {
+      const target = prev[index];
+      if (target.isCodeManaged && spec) {
+        const defaults = mergeAdminFields(spec, []);
+        const fresh = defaults[index];
+        return fresh ? prev.map((f, i) => (i === index ? fresh : f)) : prev;
+      }
+      return prev.filter((_, i) => i !== index).map((f, i) => ({ ...f, displayOrder: i }));
+    });
     setOpenIndex(null);
     setOpenIsNew(false);
   }
@@ -151,14 +176,17 @@ export function RequestTypeEditor({ id }: { id: string }) {
     return <p className="rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>;
   }
 
-  if (detail.isLocked) {
+  const isLocked = detail.isLocked;
+
+  if (isLocked && !spec) {
     return (
       <div>
         <Link href="/admin/forms" className="text-sm text-axis-core/50 hover:text-axis-core">
           ← Back to Form Builder
         </Link>
         <p className="mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
-          &ldquo;{detail.name}&rdquo; is locked (code-driven) and can&rsquo;t be edited here.
+          &ldquo;{detail.name}&rdquo; is locked but has no known code spec (lib/formSpecs), so it can&rsquo;t
+          be edited here.
         </p>
       </div>
     );
@@ -192,48 +220,64 @@ export function RequestTypeEditor({ id }: { id: string }) {
         <p className="mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
 
+      {isLocked && (
+        <p className="mt-4 rounded-[8px] border border-axis-base/40 bg-axis-light/60 px-4 py-3 text-xs text-axis-core/60">
+          This is a code-driven form. Its field structure, types, and ClickUp mapping live in code, not
+          here. You can edit each question&rsquo;s wording/description/required state, edit the form intro,
+          and add new questions (they show up on the live form and flow into the ClickUp task&rsquo;s notes).
+          Changes here apply to the live public form immediately.
+        </p>
+      )}
+
       <div className="mt-6 rounded-card border border-axis-base/30 bg-white p-6">
         <h2 className="font-head text-sm font-medium tracking-tight text-axis-core">
-          Request type settings
+          {isLocked ? "Form intro" : "Request type settings"}
         </h2>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-axis-core/80">Name</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-              Submit button label
-            </span>
-            <input
-              value={buttonLabel}
-              onChange={(e) => setButtonLabel(e.target.value)}
-              className={inputClass}
-            />
-          </label>
+          {!isLocked && (
+            <>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-axis-core/80">Name</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
+                  Submit button label
+                </span>
+                <input
+                  value={buttonLabel}
+                  onChange={(e) => setButtonLabel(e.target.value)}
+                  className={inputClass}
+                />
+              </label>
+            </>
+          )}
           <label className="block sm:col-span-2">
             <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-              Card description
+              {isLocked ? "Intro paragraph shown at the top of the form" : "Card description"}
             </span>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={2}
+              rows={isLocked ? 4 : 2}
+              placeholder={isLocked ? "Leave blank to keep the current wording." : undefined}
               className={inputClass}
             />
           </label>
-          <label className="flex items-center gap-2 sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="h-4 w-4 rounded border-axis-base/50"
-            />
-            <span className="text-sm text-axis-core/80">
-              Active (has no live effect yet — the homepage doesn&rsquo;t read from the
-              database until Phase 6)
-            </span>
-          </label>
+          {!isLocked && (
+            <label className="flex items-center gap-2 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="h-4 w-4 rounded border-axis-base/50"
+              />
+              <span className="text-sm text-axis-core/80">
+                Active (has no live effect yet: the homepage doesn&rsquo;t read from the
+                database until Phase 6)
+              </span>
+            </label>
+          )}
         </div>
         <button
           type="button"
@@ -241,7 +285,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
           disabled={savingSettings}
           className="mt-5 rounded-[8px] bg-axis-core px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-axis-core/90 disabled:opacity-60"
         >
-          {savingSettings ? "Saving..." : "Save settings"}
+          {savingSettings ? "Saving..." : "Save"}
         </button>
       </div>
 
@@ -257,6 +301,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
               field={field}
               index={index}
               total={fields.length}
+              isCodeManaged={field.isCodeManaged}
               onOpen={() => {
                 setOpenIndex(index);
                 setOpenIsNew(false);
@@ -266,7 +311,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
           ))}
 
           <div className="sm:col-span-2">
-            <FieldTypePicker onSelect={addField} />
+            <FieldTypePicker onSelect={addField} allowedTypes={isLocked ? LOCKED_FORM_FIELD_TYPES : undefined} />
           </div>
         </div>
 
@@ -274,6 +319,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
           <FieldEditorPanel
             field={fields[openIndex]}
             isNew={openIsNew}
+            isCodeManaged={fields[openIndex].isCodeManaged}
             onChange={(patch) => updateField(openIndex, patch)}
             onClose={() => {
               setOpenIndex(null);

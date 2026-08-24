@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "AxisKey | Operations Hub",
-  description: "Internal Request Center — AxisKey Operations Hub",
+  description: "Internal Request Center, AxisKey Operations Hub",
   robots: {
     index: false,
     follow: false,

@@ -44,7 +44,7 @@ export function NewRequestTypeForm() {
         New Request Type
       </h1>
       <p className="mt-1.5 max-w-xl text-sm text-axis-core/60">
-        Starts inactive and with no fields — add fields on the next screen, then activate it
+        Starts inactive and with no fields. Add fields on the next screen, then activate it
         when it&rsquo;s ready.
       </p>
 

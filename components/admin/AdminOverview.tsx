@@ -93,7 +93,7 @@ export function AdminOverview() {
         {stats && (
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <KpiCard label="Total Requests" value={stats.total} />
+              <KpiCard label="Total Requests" value={stats.total} tone="tan" />
               <KpiCard label="Submitted" value={stats.byStatus.submitted} />
               <KpiCard label="In Review" value={stats.byStatus.in_review} />
               <KpiCard label="Completed" value={stats.byStatus.completed} />
@@ -195,13 +195,25 @@ export function AdminOverview() {
   );
 }
 
-function KpiCard({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+function KpiCard({
+  label,
+  value,
+  accent,
+  tone,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+  tone?: "tan";
+}) {
+  const styles = accent
+    ? "border-axis-signal/60 bg-axis-signal/20"
+    : tone === "tan"
+      ? "border-axis-base/50 bg-axis-base"
+      : "border-axis-base/30 bg-white";
+
   return (
-    <div
-      className={`rounded-card border px-4 py-3 ${
-        accent ? "border-axis-signal/60 bg-axis-signal/20" : "border-axis-base/30 bg-white"
-      }`}
-    >
+    <div className={`rounded-card border px-4 py-3 ${styles}`}>
       <p className="text-2xl font-bold text-axis-core">{value}</p>
       <p className="mt-0.5 text-xs text-axis-core/55">{label}</p>
     </div>

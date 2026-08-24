@@ -93,26 +93,36 @@ export async function PATCH(
     .maybeSingle();
 
   if (!existing) return NextResponse.json({ error: "Request type not found." }, { status: 404 });
-  if (existing.is_locked) {
-    return NextResponse.json(
-      { error: "This request type is locked and can't be edited here." },
-      { status: 403 }
-    );
-  }
 
   const body = await request.json().catch(() => ({}));
   const update: Record<string, unknown> = {};
-  if (typeof body.name === "string") update.name = body.name.trim();
-  if (typeof body.description === "string") update.description = body.description.trim();
-  if (typeof body.buttonLabel === "string") {
-    update.button_label = body.buttonLabel.trim() || "Open Request";
-  }
-  if (typeof body.icon === "string") update.icon = body.icon.trim() || null;
-  if (typeof body.isActive === "boolean") update.is_active = body.isActive;
-  if (typeof body.sortOrder === "number") update.sort_order = body.sortOrder;
 
-  if (Object.keys(update).length === 0) {
-    return NextResponse.json({ error: "No valid fields to update." }, { status: 400 });
+  if (existing.is_locked) {
+    // Locked types are code-driven pages — only their intro copy
+    // (`description`, which the public page shows in place of its coded
+    // descriptionParagraphs once set) can be overridden here. Name, button
+    // label, icon, sort order, and active state all come from the
+    // hardcoded page/home-grid and aren't read from this table.
+    if (typeof body.description === "string") update.description = body.description.trim();
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json(
+        { error: "This request type is locked. Only its description can be edited here." },
+        { status: 400 }
+      );
+    }
+  } else {
+    if (typeof body.name === "string") update.name = body.name.trim();
+    if (typeof body.description === "string") update.description = body.description.trim();
+    if (typeof body.buttonLabel === "string") {
+      update.button_label = body.buttonLabel.trim() || "Open Request";
+    }
+    if (typeof body.icon === "string") update.icon = body.icon.trim() || null;
+    if (typeof body.isActive === "boolean") update.is_active = body.isActive;
+    if (typeof body.sortOrder === "number") update.sort_order = body.sortOrder;
+
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update." }, { status: 400 });
+    }
   }
 
   const { error } = await supabase.from("request_types").update(update).eq("id", id);

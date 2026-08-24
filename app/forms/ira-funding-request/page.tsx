@@ -1,95 +1,26 @@
 import type { Metadata } from "next";
-import { FormShell, type FieldConfig } from "@/components/axiskey-forms/FormShell";
+import { FormShell } from "@/components/axiskey-forms/FormShell";
+import { iraFundingRequestSpec } from "@/lib/formSpecs/iraFundingRequest";
+import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
+import { mergePublicFields } from "@/lib/dynamicForms/fieldConfigBridge";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "IRA Funding Request | AxisKey",
 };
 
-const fields: FieldConfig[] = [
-  {
-    kind: "text",
-    name: "investorAccountName",
-    label: "Investor Account Name",
-    required: true,
-    helper: "Make sure it's the same name on the AxisKey system.",
-    placeholder: "Enter text",
-  },
-  {
-    kind: "text",
-    name: "dealName",
-    label: "What's the deal name he is investing in?",
-    required: true,
-    helper: "Enter the exact name of the deal or offering the investor is funding.",
-    placeholder: "Enter text",
-  },
-  {
-    kind: "text",
-    name: "iraName",
-    label: "IRA Name",
-    required: true,
-    helper: "Enter the name of the IRA custodian.",
-    placeholder: "Enter text",
-  },
-  {
-    kind: "currency",
-    name: "investingAmount",
-    label: "What's the investing amount?",
-    required: true,
-    helper: "Enter the exact amount being invested, in USD.",
-    placeholder: "Enter currency",
-  },
-  {
-    kind: "file",
-    name: "subscriptionAgreement",
-    label: "Upload the Subscription Agreement",
-    helper:
-      "You will find this on the AxisKey portal. Go to the investor order. It must be fully signed.",
-  },
-  {
-    kind: "text",
-    name: "orderNumber",
-    label: "Order Number",
-    helper: "You can find this number on the AxisKey portal.",
-    placeholder: "Enter text",
-  },
-  {
-    kind: "email",
-    name: "ccEmail",
-    label: "Add your email so you can be CC'd on the process",
-    required: true,
-    helper: "Add your email so you can track this request.",
-    placeholder: "Enter email",
-    fullWidth: true,
-  },
-];
+export default async function IraFundingRequestPage() {
+  const overrides = await loadFormOverrides("ira-funding-request");
+  const { fields, submissionMapping } = mergePublicFields(iraFundingRequestSpec, overrides.fields);
 
-export default function IraFundingRequestPage() {
   return (
     <FormShell
       slug="ira-funding-request"
-      title="IRA Funding Request"
-      descriptionParagraphs={[
-        "By filling out this form, AxisKey will request the funds from the specific IRA custodian. To complete this process, the client or Capital Raiser must fill out this form.",
-      ]}
+      title={iraFundingRequestSpec.title}
+      descriptionParagraphs={overrides.description ? [overrides.description] : iraFundingRequestSpec.descriptionParagraphs}
       fields={fields}
-      submissionMapping={{
-        requestorNameFields: ["investorAccountName"],
-        requestorEmailFields: ["ccEmail"],
-        investorNameField: "investorAccountName",
-        dealNameField: "dealName",
-        notesFields: [
-          { label: "IRA Name", field: "iraName" },
-          { label: "Investing Amount", field: "investingAmount" },
-          { label: "Order Number", field: "orderNumber" },
-        ],
-        customFields: [
-          { key: "offeringName", field: "dealName" },
-          { key: "custodian", field: "iraName" },
-          { key: "amountInvesting", field: "investingAmount" },
-          { key: "orderNumber", field: "orderNumber" },
-          { key: "ccEmail", field: "ccEmail" },
-        ],
-      }}
+      submissionMapping={submissionMapping}
     />
   );
 }

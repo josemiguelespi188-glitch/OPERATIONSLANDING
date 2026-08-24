@@ -68,8 +68,10 @@ export function FormBuilderList() {
             Form Builder
           </h1>
           <p className="mt-1.5 max-w-xl text-sm text-axis-core/60">
-            Manage request types and their fields. Changes here don&rsquo;t affect the live
-            site yet — the public dynamic form renderer is a later phase.
+            Manage request types and their fields. Locked (code-driven) types let you edit
+            question copy and add new questions, and changes apply to the live form immediately.
+            Non-locked types are still a work in progress: saved here, but not yet rendered on
+            the live site.
           </p>
         </div>
         <Link
@@ -115,7 +117,12 @@ export function FormBuilderList() {
 
             <div className="flex shrink-0 items-center gap-2">
               {type.isLocked ? (
-                <span className="text-xs text-axis-core/40">Managed in code</span>
+                <Link
+                  href={`/admin/forms/${type.id}`}
+                  className="rounded-[6px] border border-axis-base/50 px-3 py-1.5 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core"
+                >
+                  Edit copy
+                </Link>
               ) : (
                 <>
                   <button

@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useAdminFetch } from "@/components/admin/AdminAuthContext";
 import { DynamicFormRenderer } from "@/components/dynamic-forms/DynamicFormRenderer";
 import type { RequestTypeDetail } from "@/lib/dynamicForms/types";
+import { mergeAdminFields } from "@/lib/dynamicForms/fieldConfigBridge";
+import { FORM_SPECS } from "@/lib/formSpecs";
+import type { RequestTypeSlug } from "@/lib/requestTypes";
 
 export function RequestTypePreview({ id }: { id: string }) {
   const adminFetch = useAdminFetch();
@@ -54,7 +57,11 @@ export function RequestTypePreview({ id }: { id: string }) {
       <DynamicFormRenderer
         title={detail.name}
         description={detail.description}
-        fields={detail.fields}
+        fields={
+          detail.isLocked && FORM_SPECS[detail.slug as RequestTypeSlug]
+            ? mergeAdminFields(FORM_SPECS[detail.slug as RequestTypeSlug]!, detail.fields)
+            : detail.fields
+        }
         buttonLabel={detail.buttonLabel}
         previewMode
       />

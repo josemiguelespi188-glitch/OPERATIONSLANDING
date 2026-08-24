@@ -12,6 +12,9 @@ interface FieldRowProps {
   total: number;
   onOpen: () => void;
   onMove: (direction: -1 | 1) => void;
+  /** True for a locked form's code-defined field — its order always comes
+   *  from the code, so reordering here would be a dead interaction. */
+  isCodeManaged?: boolean;
 }
 
 /**
@@ -19,7 +22,7 @@ interface FieldRowProps {
  * anywhere on the card opens the FieldEditorPanel — this never edits state
  * directly (that's the panel's job), it only renders + reorders.
  */
-export function FieldRow({ field, index, total, onOpen, onMove }: FieldRowProps) {
+export function FieldRow({ field, index, total, onOpen, onMove, isCodeManaged }: FieldRowProps) {
   return (
     <div
       className={`group relative rounded-[8px] border border-axis-base/30 bg-white p-4 transition-colors hover:border-axis-core/40 ${
@@ -27,36 +30,46 @@ export function FieldRow({ field, index, total, onOpen, onMove }: FieldRowProps)
       }`}
     >
       <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onMove(-1);
-          }}
-          disabled={index === 0}
-          aria-label="Move up"
-          className="rounded-[6px] bg-white px-1.5 py-1 text-xs text-axis-core/50 shadow-sm ring-1 ring-axis-base/30 hover:text-axis-core disabled:opacity-30"
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onMove(1);
-          }}
-          disabled={index === total - 1}
-          aria-label="Move down"
-          className="rounded-[6px] bg-white px-1.5 py-1 text-xs text-axis-core/50 shadow-sm ring-1 ring-axis-base/30 hover:text-axis-core disabled:opacity-30"
-        >
-          ↓
-        </button>
+        {!isCodeManaged && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMove(-1);
+              }}
+              disabled={index === 0}
+              aria-label="Move up"
+              className="rounded-[6px] bg-white px-1.5 py-1 text-xs text-axis-core/50 shadow-sm ring-1 ring-axis-base/30 hover:text-axis-core disabled:opacity-30"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMove(1);
+              }}
+              disabled={index === total - 1}
+              aria-label="Move down"
+              className="rounded-[6px] bg-white px-1.5 py-1 text-xs text-axis-core/50 shadow-sm ring-1 ring-axis-base/30 hover:text-axis-core disabled:opacity-30"
+            >
+              ↓
+            </button>
+          </>
+        )}
         <span className="rounded-[6px] bg-white px-2 py-1 text-xs font-semibold text-axis-core shadow-sm ring-1 ring-axis-base/30">
           Edit
         </span>
       </div>
 
-      <button type="button" onClick={onOpen} className="block w-full text-left">
+      {isCodeManaged && (
+        <span className="absolute left-2.5 top-2.5 rounded-full bg-axis-light px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-axis-core/50">
+          Code
+        </span>
+      )}
+
+      <button type="button" onClick={onOpen} className={`block w-full text-left ${isCodeManaged ? "mt-5" : ""}`}>
         <FieldPreviewBody field={field} />
       </button>
     </div>

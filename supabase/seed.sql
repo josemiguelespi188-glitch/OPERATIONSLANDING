@@ -1,15 +1,19 @@
 -- Seed the request_types catalog. Safe to re-run.
--- is_locked = true on the 3 hardcoded forms means the future Form Builder
--- UI must refuse to edit/delete them — they stay code-driven pages, not
--- database-driven ones (uses_dynamic_form stays false for every row here).
+-- is_locked = true means the row is backed by a code-driven page under
+-- app/forms/<slug> (not database-driven — uses_dynamic_form stays false
+-- for every row here), so the future Form Builder UI must refuse to
+-- edit/delete it. document-request has no dedicated page yet (falls back
+-- to the generic request modal), so it stays unlocked.
 insert into request_types (slug, name, description, sort_order, is_locked) values
   ('ira-funding-request', 'IRA Funding Request', 'Request funds from an IRA custodian.', 1, true),
   ('title-transfer-request', 'Title Transfer Request', 'Submit a title transfer request.', 2, true),
   ('redemption-request', 'Redemption Request', 'Submit an investor redemption request.', 3, true),
-  ('investor-information-update', 'Investor Information Update', 'Request updates to investor records.', 4, false),
-  ('account-maintenance-request', 'Account Maintenance Request', 'General account maintenance requests.', 5, false),
-  ('document-request', 'Document Request', 'Request investor or deal documentation.', 6, false),
-  ('custom-request', 'Custom Request', 'Submit a request not covered by standard processes.', 7, false)
+  ('side-letter-request', 'Side Letter Request', 'Request the creation of a side letter for an investor.', 4, true),
+  ('investor-information-update', 'Investor Information Update', 'Request updates to investor records.', 5, true),
+  ('account-maintenance-request', 'Account Maintenance Request', 'General account maintenance requests.', 6, true),
+  ('document-request', 'Document Request', 'Request investor or deal documentation.', 7, false),
+  ('custom-request', 'Custom Request', 'Submit a request not covered by standard processes.', 8, true),
+  ('axiskey-report-request', 'Request an AxisKey Report', 'Request a report on an investor account: distributions, statements, or tax status.', 9, true)
 on conflict (slug) do update set
   name = excluded.name,
   description = excluded.description,

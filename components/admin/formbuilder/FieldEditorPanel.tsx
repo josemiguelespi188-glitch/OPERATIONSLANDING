@@ -14,10 +14,15 @@ interface FieldEditorPanelProps {
   onChange: (patch: Partial<DynamicField>) => void;
   onClose: () => void;
   onDelete: () => void;
+  /** True for a locked form's code-defined field: its internal name, type,
+   *  and options (when it's a dropdown wired to a specific ClickUp field)
+   *  are fixed in code and can't be edited here — only copy and
+   *  required-ness can. */
+  isCodeManaged?: boolean;
 }
 
 /** ClickUp-style right-hand slide-over for configuring a single form field. */
-export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete }: FieldEditorPanelProps) {
+export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete, isCodeManaged }: FieldEditorPanelProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const meta = FIELD_TYPE_META[field.fieldType];
 
@@ -36,17 +41,21 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete }: 
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-axis-light text-axis-core/70">
               <FieldTypeIcon type={field.fieldType} />
             </span>
-            <select
-              value={field.fieldType}
-              onChange={(e) => onChange({ fieldType: e.target.value as DynamicFieldType })}
-              className="truncate rounded-[6px] border-0 bg-transparent py-1 text-sm font-semibold text-axis-core focus:outline-none focus:ring-2 focus:ring-axis-signal/50"
-            >
-              {FIELD_TYPE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            {isCodeManaged ? (
+              <span className="truncate text-sm font-semibold text-axis-core">{meta.label}</span>
+            ) : (
+              <select
+                value={field.fieldType}
+                onChange={(e) => onChange({ fieldType: e.target.value as DynamicFieldType })}
+                className="truncate rounded-[6px] border-0 bg-transparent py-1 text-sm font-semibold text-axis-core focus:outline-none focus:ring-2 focus:ring-axis-signal/50"
+              >
+                {FIELD_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <button
             type="button"
@@ -59,6 +68,14 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete }: 
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
+          {isCodeManaged && (
+            <p className="mb-4 rounded-[8px] bg-axis-light/70 px-3.5 py-2.5 text-xs text-axis-core/60">
+              This question is defined in code (it&rsquo;s wired to ClickUp). You can edit its wording,
+              description, and required state. Its internal name, type{meta.hasOptions ? ", and options" : ""}{" "}
+              stay fixed.
+            </p>
+          )}
+
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
               {meta.isLayoutOnly ? "Text" : "Field name"}
@@ -82,10 +99,13 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete }: 
                 value={field.fieldKey}
                 onChange={(e) => onChange({ fieldKey: e.target.value })}
                 placeholder="e.g. investorName"
-                className={`${inputClass} font-mono text-xs`}
+                disabled={isCodeManaged}
+                className={`${inputClass} font-mono text-xs ${isCodeManaged ? "cursor-not-allowed opacity-60" : ""}`}
               />
               <span className="mt-1 block text-xs text-axis-core/40">
-                Used internally to key this field&rsquo;s value — not shown to requesters.
+                {isCodeManaged
+                  ? "Fixed: this is how the code maps this question's answer to ClickUp."
+                  : "Used internally to key this field's value, not shown to requesters."}
               </span>
             </label>
           )}
@@ -112,7 +132,26 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete }: 
             </label>
           )}
 
-          {meta.hasOptions && (
+          {meta.hasOptions && isCodeManaged && (
+            <div className="mt-4">
+              <span className="mb-1.5 block text-sm font-medium text-axis-core/80">Options (fixed)</span>
+              <div className="flex flex-wrap gap-1.5">
+                {field.options.map((o, i) => (
+                  <span
+                    key={i}
+                    className="rounded-full border border-axis-base/40 bg-axis-light/40 px-2.5 py-1 text-xs text-axis-core/60"
+                  >
+                    {o.label}
+                  </span>
+                ))}
+              </div>
+              <span className="mt-1.5 block text-xs text-axis-core/40">
+                Mapped to specific ClickUp option values in code. Ask engineering to change these.
+              </span>
+            </div>
+          )}
+
+          {meta.hasOptions && !isCodeManaged && (
             <div className="mt-4">
               <OptionsEditor options={field.options} onChange={(options) => onChange({ options })} />
             </div>
@@ -163,7 +202,7 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete }: 
 
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                    Validation rules (advanced — raw JSON, optional)
+                    Validation rules (advanced, raw JSON, optional)
                   </span>
                   <textarea
                     value={field.validationRules}
@@ -203,9 +242,13 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete }: 
           <button
             type="button"
             onClick={onDelete}
-            className="rounded-[8px] border border-red-200 px-3.5 py-2 text-sm font-semibold text-red-700 hover:border-red-400"
+            className={
+              isCodeManaged
+                ? "rounded-[8px] border border-axis-base/50 px-3.5 py-2 text-sm font-semibold text-axis-core/70 hover:border-axis-core"
+                : "rounded-[8px] border border-red-200 px-3.5 py-2 text-sm font-semibold text-red-700 hover:border-red-400"
+            }
           >
-            Delete
+            {isCodeManaged ? "Reset to default" : "Delete"}
           </button>
           <div className="flex items-center gap-2">
             <button

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/supabase/adminAuth";
+import { FORM_SPECS } from "@/lib/formSpecs";
+import { codeFieldTypesByKey } from "@/lib/dynamicForms/fieldConfigBridge";
+import type { RequestTypeSlug } from "@/lib/requestTypes";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +45,15 @@ interface IncomingField {
  * correct approach for a builder UI that edits the whole form locally and
  * saves once. Not wrapped in a DB transaction (Supabase's REST client
  * doesn't expose one for arbitrary multi-statement logic); acceptable here
- * since nothing public reads these tables yet (the dynamic renderer and
- * ClickUp sync for database-driven request types are later phases).
+ * since nothing writes to these rows outside this endpoint.
+ *
+ * For a locked (code-driven) type, these rows are read live by its public
+ * page (see lib/formSpecs/loadOverrides.ts + lib/dynamicForms/
+ * fieldConfigBridge.ts's mergePublicFields) — a row whose field_key matches
+ * a code-defined field overrides that field's copy, and any other row is
+ * appended as a brand-new question. The dynamic renderer/ClickUp sync for
+ * *non-locked*, fully database-driven request types is still a later
+ * phase.
  */
 export async function PUT(
   request: Request,
@@ -57,17 +67,19 @@ export async function PUT(
 
   const { data: existing } = await supabase
     .from("request_types")
-    .select("is_locked")
+    .select("is_locked, slug")
     .eq("id", id)
     .maybeSingle();
 
   if (!existing) return NextResponse.json({ error: "Request type not found." }, { status: 404 });
-  if (existing.is_locked) {
-    return NextResponse.json(
-      { error: "This request type is locked and can't be edited here." },
-      { status: 403 }
-    );
-  }
+
+  // Locked types are code-driven pages (see lib/formSpecs) — their field
+  // *structure* (keys, types, ClickUp mapping) can't come from the
+  // database, but their copy can be overridden and new questions appended
+  // (see lib/dynamicForms/fieldConfigBridge.ts, which the public page uses
+  // to merge these rows onto the code spec at render time).
+  const lockedSpec = existing.is_locked ? FORM_SPECS[existing.slug as RequestTypeSlug] : undefined;
+  const codeFieldTypes = lockedSpec ? codeFieldTypesByKey(lockedSpec) : null;
 
   const body = await request.json().catch(() => null);
   const fields: IncomingField[] | null = Array.isArray(body?.fields) ? body.fields : null;
@@ -94,6 +106,17 @@ export async function PUT(
       } catch {
         return NextResponse.json(
           { error: `Invalid validation rules JSON for field "${f.label}".` },
+          { status: 400 }
+        );
+      }
+    }
+    if (codeFieldTypes) {
+      const codeType = codeFieldTypes[f.fieldKey.trim()];
+      if (codeType && codeType !== f.fieldType) {
+        return NextResponse.json(
+          {
+            error: `"${f.label}" is a code-managed field on this locked form. Its type can't be changed here (expected "${codeType}").`,
+          },
           { status: 400 }
         );
       }

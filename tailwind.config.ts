@@ -13,6 +13,10 @@ const config: Config = {
         "axis-signal": "#E3F464",
         "axis-base": "#CEC1A9",
         "axis-light": "#F2F2F2",
+        // Warm off-white page background used behind the sidebar shell —
+        // distinct from axis-light, which is a cooler gray meant for
+        // in-card surfaces (badges, progress tracks, hover states).
+        "axis-cream": "#F7F3EA",
       },
       fontFamily: {
         head: ["var(--font-eurostile)", "Eurostile", "Univers", "Helvetica Neue", "Arial", "sans-serif"],

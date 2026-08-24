@@ -48,6 +48,11 @@ async function cu(path, options = {}) {
   if (!res.ok) {
     throw new Error(`${options.method ?? "GET"} ${path} -> ${res.status}: ${JSON.stringify(body)}`);
   }
+  // ClickUp sometimes returns an error payload (e.g. {"err":"...","ECODE":"..."})
+  // with a 200 status, which res.ok wouldn't catch on its own.
+  if (body && typeof body === "object" && "err" in body) {
+    throw new Error(`${options.method ?? "GET"} ${path} -> 200 with error body: ${JSON.stringify(body)}`);
+  }
   return body;
 }
 
@@ -197,8 +202,22 @@ async function ensureFields(listId, plan) {
         method: "POST",
         body: JSON.stringify(body),
       });
-      console.log(`    Created field "${field.name}" (${field.type}) -> ${created.id}`);
-      results.push({ ...field, id: created.id, options: created.type_config?.options });
+      // Defensive: extract the id from whichever shape ClickUp actually
+      // returned — seen response shapes vary (bare object vs. nested
+      // under "field"). Always log the raw body too, so a shape this
+      // doesn't anticipate is still visible instead of silently printing
+      // "undefined".
+      const fieldId = created?.id ?? created?.field?.id ?? created?.field_id ?? null;
+      if (!fieldId) {
+        console.log(`    RAW response for "${field.name}": ${JSON.stringify(created)}`);
+      }
+      console.log(`    Created field "${field.name}" (${field.type}) -> ${fieldId ?? "no id in response, see RAW above"}`);
+      results.push({
+        ...field,
+        id: fieldId,
+        error: fieldId ? undefined : "created, but no id found in the response — see RAW line above",
+        options: (created?.type_config ?? created?.field?.type_config)?.options,
+      });
     } catch (err) {
       console.error(`    FAILED to create field "${field.name}": ${err.message}`);
       results.push({ ...field, id: null, error: err.message });

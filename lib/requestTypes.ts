@@ -6,7 +6,8 @@ export type RequestTypeSlug =
   | "investor-information-update"
   | "account-maintenance-request"
   | "document-request"
-  | "custom-request";
+  | "custom-request"
+  | "axiskey-report-request";
 
 export interface RequestTypeConfig {
   slug: RequestTypeSlug;
@@ -68,6 +69,12 @@ export const REQUEST_TYPES: RequestTypeConfig[] = [
     slug: "custom-request",
     name: "Custom Request",
     description: "Submit a request not covered by standard processes.",
+    buttonLabel: "Open Request",
+  },
+  {
+    slug: "axiskey-report-request",
+    name: "Request an AxisKey Report",
+    description: "Request a report on an investor account — distributions, statements, or tax status.",
     buttonLabel: "Open Request",
   },
 ];

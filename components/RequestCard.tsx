@@ -15,6 +15,10 @@ const DEDICATED_FORM_SLUGS = new Set<RequestTypeSlug>([
   "title-transfer-request",
   "redemption-request",
   "side-letter-request",
+  "investor-information-update",
+  "account-maintenance-request",
+  "custom-request",
+  "axiskey-report-request",
 ]);
 
 export function RequestCard({ type, onOpen }: RequestCardProps) {

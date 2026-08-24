@@ -17,6 +17,7 @@ const TASK_LABEL: Record<string, string> = {
   "account-maintenance-request": "Account Maintenance",
   "document-request": "Document Request",
   "custom-request": "Custom Request",
+  "axiskey-report-request": "AxisKey Report",
 };
 
 /**

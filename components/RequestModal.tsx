@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { RequestTypeConfig } from "@/lib/requestTypes";
 import type { AttachmentInput } from "@/lib/types";
+import { sanitizeFileNameForStorageKey } from "@/lib/storageKey";
 
 interface RequestModalProps {
   requestType: RequestTypeConfig;
@@ -31,7 +32,7 @@ export function RequestModal({ requestType, onClose }: RequestModalProps) {
     const uploaded: AttachmentInput[] = [];
 
     for (const file of files) {
-      const path = `${requestType.slug}/${Date.now()}-${file.name}`;
+      const path = `${requestType.slug}/${Date.now()}-${sanitizeFileNameForStorageKey(file.name)}`;
       const { error } = await supabase.storage
         .from("attachments")
         .upload(path, file, { cacheControl: "3600", upsert: false });

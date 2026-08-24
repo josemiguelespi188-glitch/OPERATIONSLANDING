@@ -6,6 +6,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
 import type { RequestTypeSlug } from "@/lib/requestTypes";
 import type { AttachmentInput } from "@/lib/types";
+import { sanitizeFileNameForStorageKey } from "@/lib/storageKey";
 
 export type FieldConfig =
   | {
@@ -133,7 +134,7 @@ export function FormShell({
 
     for (const [fieldName, file] of entries) {
       if (!file) continue;
-      const path = `${slug}/${Date.now()}-${file.name}`;
+      const path = `${slug}/${Date.now()}-${sanitizeFileNameForStorageKey(file.name)}`;
       const { error } = await supabase.storage
         .from("attachments")
         .upload(path, file, { cacheControl: "3600", upsert: false });

@@ -160,14 +160,14 @@ function buildTaskName(payload: RequestPayload): string {
 function buildTaskDescription(payload: RequestPayload): string {
   const lines = [
     `**Request Type:** ${payload.requestTypeName}`,
-    `**Investor Name:** ${payload.investorName || "—"}`,
-    `**Deal Name:** ${payload.dealName || "—"}`,
+    `**Investor Name:** ${payload.investorName || "N/A"}`,
+    `**Deal Name:** ${payload.dealName || "N/A"}`,
     `**Email:** ${payload.requestorEmail}`,
     `**Created By:** ${payload.requestorName}`,
     `**Submission Date:** ${payload.submittedAt}`,
     "",
     "**Notes:**",
-    payload.notes || "—",
+    payload.notes || "N/A",
   ];
 
   if (payload.attachments.length > 0) {

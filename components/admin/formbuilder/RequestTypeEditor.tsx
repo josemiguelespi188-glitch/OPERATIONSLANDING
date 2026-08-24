@@ -185,7 +185,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
           ← Back to Form Builder
         </Link>
         <p className="mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
-          &ldquo;{detail.name}&rdquo; is locked but has no known code spec (lib/formSpecs) — can&rsquo;t
+          &ldquo;{detail.name}&rdquo; is locked but has no known code spec (lib/formSpecs), so it can&rsquo;t
           be edited here.
         </p>
       </div>
@@ -222,7 +222,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
 
       {isLocked && (
         <p className="mt-4 rounded-[8px] border border-axis-base/40 bg-axis-light/60 px-4 py-3 text-xs text-axis-core/60">
-          This is a code-driven form — its field structure, types, and ClickUp mapping live in code, not
+          This is a code-driven form. Its field structure, types, and ClickUp mapping live in code, not
           here. You can edit each question&rsquo;s wording/description/required state, edit the form intro,
           and add new questions (they show up on the live form and flow into the ClickUp task&rsquo;s notes).
           Changes here apply to the live public form immediately.
@@ -273,7 +273,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
                 className="h-4 w-4 rounded border-axis-base/50"
               />
               <span className="text-sm text-axis-core/80">
-                Active (has no live effect yet — the homepage doesn&rsquo;t read from the
+                Active (has no live effect yet: the homepage doesn&rsquo;t read from the
                 database until Phase 6)
               </span>
             </label>

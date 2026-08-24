@@ -69,7 +69,7 @@ export function FormBuilderList() {
           </h1>
           <p className="mt-1.5 max-w-xl text-sm text-axis-core/60">
             Manage request types and their fields. Locked (code-driven) types let you edit
-            question copy and add new questions — changes apply to the live form immediately.
+            question copy and add new questions, and changes apply to the live form immediately.
             Non-locked types are still a work in progress: saved here, but not yet rendered on
             the live site.
           </p>

@@ -106,7 +106,7 @@ export async function PATCH(
     if (typeof body.description === "string") update.description = body.description.trim();
     if (Object.keys(update).length === 0) {
       return NextResponse.json(
-        { error: "This request type is locked — only its description can be edited here." },
+        { error: "This request type is locked. Only its description can be edited here." },
         { status: 400 }
       );
     }

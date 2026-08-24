@@ -74,7 +74,7 @@ export const REQUEST_TYPES: RequestTypeConfig[] = [
   {
     slug: "axiskey-report-request",
     name: "Request an AxisKey Report",
-    description: "Request a report on an investor account — distributions, statements, or tax status.",
+    description: "Request a report on an investor account: distributions, statements, or tax status.",
     buttonLabel: "Open Request",
   },
 ];

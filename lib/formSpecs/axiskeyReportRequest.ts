@@ -79,7 +79,7 @@ const fields: FieldConfig[] = [
 export const axiskeyReportRequestSpec: FormSpec = {
   title: "Request an AxisKey Report",
   descriptionParagraphs: [
-    "Use this form to request a report on a specific investor account — such as a distribution history, account statement, or tax document status. This is client-facing: the investor or authorized signatory can request a report on their own account.",
+    "Use this form to request a report on a specific investor account, such as a distribution history, account statement, or tax document status. This is client-facing: the investor or authorized signatory can request a report on their own account.",
   ],
   fields,
   submissionMapping: {

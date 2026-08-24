@@ -115,7 +115,7 @@ export async function PUT(
       if (codeType && codeType !== f.fieldType) {
         return NextResponse.json(
           {
-            error: `"${f.label}" is a code-managed field on this locked form — its type can't be changed here (expected "${codeType}").`,
+            error: `"${f.label}" is a code-managed field on this locked form. Its type can't be changed here (expected "${codeType}").`,
           },
           { status: 400 }
         );

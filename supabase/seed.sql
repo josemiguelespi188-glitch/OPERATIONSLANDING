@@ -13,7 +13,7 @@ insert into request_types (slug, name, description, sort_order, is_locked) value
   ('account-maintenance-request', 'Account Maintenance Request', 'General account maintenance requests.', 6, true),
   ('document-request', 'Document Request', 'Request investor or deal documentation.', 7, false),
   ('custom-request', 'Custom Request', 'Submit a request not covered by standard processes.', 8, true),
-  ('axiskey-report-request', 'Request an AxisKey Report', 'Request a report on an investor account — distributions, statements, or tax status.', 9, true)
+  ('axiskey-report-request', 'Request an AxisKey Report', 'Request a report on an investor account: distributions, statements, or tax status.', 9, true)
 on conflict (slug) do update set
   name = excluded.name,
   description = excluded.description,

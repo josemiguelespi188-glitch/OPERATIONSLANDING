@@ -71,7 +71,7 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete, is
           {isCodeManaged && (
             <p className="mb-4 rounded-[8px] bg-axis-light/70 px-3.5 py-2.5 text-xs text-axis-core/60">
               This question is defined in code (it&rsquo;s wired to ClickUp). You can edit its wording,
-              description, and required state — its internal name, type{meta.hasOptions ? ", and options" : ""}{" "}
+              description, and required state. Its internal name, type{meta.hasOptions ? ", and options" : ""}{" "}
               stay fixed.
             </p>
           )}
@@ -104,8 +104,8 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete, is
               />
               <span className="mt-1 block text-xs text-axis-core/40">
                 {isCodeManaged
-                  ? "Fixed — this is how the code maps this question's answer to ClickUp."
-                  : "Used internally to key this field's value — not shown to requesters."}
+                  ? "Fixed: this is how the code maps this question's answer to ClickUp."
+                  : "Used internally to key this field's value, not shown to requesters."}
               </span>
             </label>
           )}
@@ -146,7 +146,7 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete, is
                 ))}
               </div>
               <span className="mt-1.5 block text-xs text-axis-core/40">
-                Mapped to specific ClickUp option values in code — ask engineering to change these.
+                Mapped to specific ClickUp option values in code. Ask engineering to change these.
               </span>
             </div>
           )}
@@ -202,7 +202,7 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete, is
 
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-axis-core/80">
-                    Validation rules (advanced — raw JSON, optional)
+                    Validation rules (advanced, raw JSON, optional)
                   </span>
                   <textarea
                     value={field.validationRules}

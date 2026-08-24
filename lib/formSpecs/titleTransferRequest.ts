@@ -70,7 +70,7 @@ const fields: FieldConfig[] = [
 export const titleTransferRequestSpec: FormSpec = {
   title: "Create a Title Transfer Request on AxisKey",
   descriptionParagraphs: [
-    "A title transfer is the process of moving an existing investment order from one investor account to another, without affecting the order itself. The investment, amount, and terms remain exactly the same — only the account holding the order is updated in AxisKey's internal system and portal. The investor or authorized signatory must complete this form to initiate the change.",
+    "A title transfer is the process of moving an existing investment order from one investor account to another, without affecting the order itself. The investment, amount, and terms remain exactly the same, only the account holding the order is updated in AxisKey's internal system and portal. The investor or authorized signatory must complete this form to initiate the change.",
   ],
   fields,
   submissionMapping: {

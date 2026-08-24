@@ -18,7 +18,7 @@ const fields: FieldConfig[] = [
   {
     kind: "email",
     name: "investorEmail",
-    label: "Investor email",
+    label: "Investor Email",
     required: true,
     helper: "Enter the email address of the investor account that will receive the transferred order.",
     placeholder: "Enter email",
@@ -52,7 +52,7 @@ const fields: FieldConfig[] = [
     name: "newAccountName",
     label: "New Investor Account Name",
     required: true,
-    helper: "Enter the New Name of the Account we are transfering",
+    helper: "Enter the new name of the account we are transferring the order to.",
     placeholder: "Enter text",
   },
   {
@@ -66,8 +66,8 @@ const fields: FieldConfig[] = [
   {
     kind: "file",
     name: "titleTransferComplete",
-    label: "Title Transfer Complete",
-    helper: "If there is a title Transfer Please Attach",
+    label: "Title Transfer Document",
+    helper: "If there is a signed title transfer document, please attach it here.",
   },
 ];
 
@@ -75,9 +75,9 @@ export default function TitleTransferRequestPage() {
   return (
     <FormShell
       slug="title-transfer-request"
-      title="CREATE A TITLE TRANSFER REQUEST ON AXISKEY"
+      title="Create a Title Transfer Request on AxisKey"
       descriptionParagraphs={[
-        "A title transfer is the process of moving an existing investment order from one investor account to another, without affecting the order itself. The investment, amount, and terms remain exactly the same, only the account holding the order is updated in AxisKey's internal system and portal. The investor or authorized signatory must complete this form to initiate the change.",
+        "A title transfer is the process of moving an existing investment order from one investor account to another, without affecting the order itself. The investment, amount, and terms remain exactly the same — only the account holding the order is updated in AxisKey's internal system and portal. The investor or authorized signatory must complete this form to initiate the change.",
       ]}
       fields={fields}
       submissionMapping={{

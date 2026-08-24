@@ -3,8 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAdminFetch } from "@/components/admin/AdminAuthContext";
-import { emptyField, type DynamicField, type RequestTypeDetail } from "@/lib/dynamicForms/types";
+import {
+  emptyField,
+  type DynamicField,
+  type DynamicFieldType,
+  type RequestTypeDetail,
+} from "@/lib/dynamicForms/types";
+import { FieldEditorPanel } from "./FieldEditorPanel";
 import { FieldRow } from "./FieldRow";
+import { FieldTypePicker } from "./FieldTypePicker";
 
 const inputClass =
   "w-full rounded-[8px] border border-axis-base/50 bg-white px-3.5 py-2.5 text-sm text-axis-core placeholder:text-axis-core/35 focus:border-axis-signal focus:outline-none focus:ring-2 focus:ring-axis-signal/50";
@@ -13,7 +20,8 @@ export function RequestTypeEditor({ id }: { id: string }) {
   const adminFetch = useAdminFetch();
   const [detail, setDetail] = useState<RequestTypeDetail | null>(null);
   const [fields, setFields] = useState<DynamicField[]>([]);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [openIsNew, setOpenIsNew] = useState(false);
   const [error, setError] = useState("");
   const [notFound, setNotFound] = useState(false);
   const [savingFields, setSavingFields] = useState(false);
@@ -85,7 +93,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
         throw new Error(`${body.error ?? "Failed to save fields."} (status ${res.status})`);
       }
       setFieldsSaved(true);
-      setEditingIndex(null);
+      setOpenIndex(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save fields.");
@@ -94,9 +102,10 @@ export function RequestTypeEditor({ id }: { id: string }) {
     }
   }
 
-  function addField() {
-    setFields((prev) => [...prev, emptyField(prev.length)]);
-    setEditingIndex(fields.length);
+  function addField(fieldType: DynamicFieldType) {
+    setFields((prev) => [...prev, { ...emptyField(prev.length), fieldType }]);
+    setOpenIndex(fields.length);
+    setOpenIsNew(true);
   }
 
   function updateField(index: number, patch: Partial<DynamicField>) {
@@ -107,7 +116,8 @@ export function RequestTypeEditor({ id }: { id: string }) {
     setFields((prev) =>
       prev.filter((_, i) => i !== index).map((f, i) => ({ ...f, displayOrder: i }))
     );
-    setEditingIndex(null);
+    setOpenIndex(null);
+    setOpenIsNew(false);
   }
 
   function moveField(index: number, direction: -1 | 1) {
@@ -236,39 +246,42 @@ export function RequestTypeEditor({ id }: { id: string }) {
       </div>
 
       <div className="mt-6 rounded-card border border-axis-base/30 bg-white p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="font-head text-sm font-medium tracking-tight text-axis-core">
-            Fields ({fields.length})
-          </h2>
-          <button
-            type="button"
-            onClick={addField}
-            className="rounded-[6px] border border-axis-base/50 px-3 py-1.5 text-xs font-semibold text-axis-core hover:border-axis-core"
-          >
-            + Add field
-          </button>
-        </div>
+        <h2 className="font-head text-sm font-medium tracking-tight text-axis-core">
+          Fields ({fields.length})
+        </h2>
 
-        <div className="mt-4 space-y-2">
-          {fields.length === 0 && (
-            <p className="py-6 text-center text-sm text-axis-core/50">
-              No fields yet — add one above.
-            </p>
-          )}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {fields.map((field, index) => (
             <FieldRow
               key={index}
               field={field}
               index={index}
               total={fields.length}
-              isEditing={editingIndex === index}
-              onToggleEdit={() => setEditingIndex(editingIndex === index ? null : index)}
-              onChange={(patch) => updateField(index, patch)}
-              onRemove={() => removeField(index)}
+              onOpen={() => {
+                setOpenIndex(index);
+                setOpenIsNew(false);
+              }}
               onMove={(dir) => moveField(index, dir)}
             />
           ))}
+
+          <div className="sm:col-span-2">
+            <FieldTypePicker onSelect={addField} />
+          </div>
         </div>
+
+        {openIndex !== null && fields[openIndex] && (
+          <FieldEditorPanel
+            field={fields[openIndex]}
+            isNew={openIsNew}
+            onChange={(patch) => updateField(openIndex, patch)}
+            onClose={() => {
+              setOpenIndex(null);
+              setOpenIsNew(false);
+            }}
+            onDelete={() => removeField(openIndex)}
+          />
+        )}
 
         <button
           type="button"

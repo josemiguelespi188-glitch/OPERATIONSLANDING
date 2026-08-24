@@ -11,16 +11,15 @@ const fields: FieldConfig[] = [
     name: "investorName",
     label: "Investor Name",
     required: true,
-    helper:
-      "Enter the full legal name of the investor who currently holds the investment order being transferred.",
+    helper: "Enter the full legal name of the investor requesting the redemption.",
     placeholder: "Enter text",
   },
   {
     kind: "email",
     name: "investorEmail",
-    label: "Investor email",
+    label: "Investor Email",
     required: true,
-    helper: "Enter the email address of the investor account that will receive the transferred order.",
+    helper: "Enter the email address of the investor account associated with this redemption.",
     placeholder: "Enter email",
   },
   {
@@ -29,7 +28,7 @@ const fields: FieldConfig[] = [
     label: "Order Number",
     required: true,
     helper:
-      "Enter the order number associated with the investment being transferred. You can find this on the AxisKey portal under the investor's order.",
+      "Enter the order number associated with the investment being redeemed. You can find this on the AxisKey portal under the investor's order.",
     placeholder: "Enter text",
   },
   {
@@ -37,13 +36,13 @@ const fields: FieldConfig[] = [
     name: "offeringName",
     label: "What's the Offering name invested in?",
     required: true,
-    helper: "Enter the exact name of the deal or offering where the title transfer is being requested.",
+    helper: "Enter the exact name of the deal or offering where the redemption is being requested.",
     placeholder: "Enter text",
   },
   {
     kind: "text",
     name: "investorAccountName",
-    label: "Investor account name",
+    label: "Investor Account Name",
     required: true,
     helper: "Enter the name currently registered on the AxisKey portal for this investment order.",
     placeholder: "Enter text",
@@ -51,33 +50,48 @@ const fields: FieldConfig[] = [
   {
     kind: "select",
     name: "redemptionType",
-    label: "Redemption type",
+    label: "Redemption Type",
     required: true,
     helper: "Select whether this is a full or partial redemption of the investment.",
     placeholder: "Select whether this is a full or partial redemption of the investment.",
     options: ["Full Redemption", "Partial Redemption"],
   },
   {
-    kind: "number",
+    kind: "currency",
     name: "redemptionAmount",
-    label: "Redemption amount (USD)",
+    label: "Redemption Amount",
     required: true,
     helper: "If partial, enter the exact amount to be redeemed in USD.",
-    placeholder: "Enter number",
+    placeholder: "Enter currency",
   },
   {
-    kind: "file",
-    name: "redemptionAgreement",
-    label: "Upload the signed Redemption Agreement",
-    helper: "Attach the signed redemption request/agreement document.",
+    kind: "checkbox",
+    name: "issuerApprovedRedemption",
+    label: "Issuer Approved Redemption",
+    helper: "Check this box if the issuer has already approved the redemption.",
   },
   {
     kind: "textarea",
     name: "notes",
-    label: "Notes",
-    helper: "Please explain the reason for the redemption request and any additional details relevant to processing it.",
+    label: "Note",
+    helper: "Explain the reason for the redemption request and any additional details relevant to processing it.",
     placeholder: "Enter text",
     fullWidth: true,
+  },
+  {
+    kind: "email",
+    name: "requesterEmail",
+    label: "Requester Email",
+    required: true,
+    helper:
+      "Enter your email address so you can track the status of this redemption request and receive updates as it is processed.",
+    placeholder: "Enter email",
+  },
+  {
+    kind: "file",
+    name: "redemptionAgreement",
+    label: "Supporting Documentation",
+    helper: "If there is a signed redemption request or authorization letter, please attach it here.",
   },
 ];
 
@@ -85,26 +99,33 @@ export default function RedemptionRequestPage() {
   return (
     <FormShell
       slug="redemption-request"
-      title="CREATE A REDEMPTION REQUEST ON AXISKEY"
+      title="Create a Redemption Request on AxisKey"
       descriptionParagraphs={[
         "A redemption is the process of withdrawing all or part of an investor's capital from an investment. The investment amount or terms may change. The investor or authorized signatory must complete this form to initiate the request.",
       ]}
       fields={fields}
       submissionMapping={{
         requestorNameFields: ["investorName"],
-        requestorEmailFields: ["investorEmail"],
+        requestorEmailFields: ["requesterEmail", "investorEmail"],
         investorNameField: "investorName",
         dealNameField: "offeringName",
         notesFields: [
+          { label: "Investor Email", field: "investorEmail" },
           { label: "Investor Account Name", field: "investorAccountName" },
           { label: "Order Number", field: "orderNumber" },
           { label: "Redemption Type", field: "redemptionType" },
           { label: "Redemption Amount (USD)", field: "redemptionAmount" },
-          { label: "Notes", field: "notes", skipIfEmpty: true },
+          { label: "Issuer Approved Redemption", field: "issuerApprovedRedemption", skipIfEmpty: true },
+          { label: "Requester Email", field: "requesterEmail" },
+          { label: "Note", field: "notes", skipIfEmpty: true },
         ],
         // Confirmed against real submitted tasks in the "Redemptions
-        // Requests" ClickUp list (see the ClickUp sync notice for caveats —
-        // Investor email has no confirmed destination field yet).
+        // Requests" ClickUp list (see the ClickUp sync notice for caveats).
+        // "requesterEmail" and "issuerApprovedRedemption" are new fields
+        // added to match the form spec — they have no confirmed ClickUp
+        // custom field destination yet, so they're only sent via notes
+        // above until a field ID is confirmed and added to
+        // lib/integrations/clickup.ts's CUSTOM_FIELD_MAP.
         customFields: [
           { key: "investorAccountName", field: "investorAccountName" },
           { key: "offeringName", field: "offeringName" },

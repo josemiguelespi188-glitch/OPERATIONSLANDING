@@ -43,6 +43,15 @@ export type FieldConfig =
       required?: boolean;
       helper?: string;
       fullWidth?: boolean;
+    }
+  | {
+      kind: "checkbox";
+      name: string;
+      label: string;
+      required?: boolean;
+      helper?: string;
+      checkboxLabel?: string;
+      fullWidth?: boolean;
     };
 
 /**
@@ -362,6 +371,19 @@ export function FormShell({
                         />
                       </svg>
                     </div>
+                  )}
+
+                  {field.kind === "checkbox" && (
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        required={field.required}
+                        checked={values[field.name] === "Yes"}
+                        onChange={(e) => setValue(field.name, e.target.checked ? "Yes" : "")}
+                        className="h-4 w-4 rounded border-gray-300 text-black focus:ring-black/10"
+                      />
+                      {field.checkboxLabel ?? "Yes"}
+                    </label>
                   )}
 
                   {field.kind === "file" && (

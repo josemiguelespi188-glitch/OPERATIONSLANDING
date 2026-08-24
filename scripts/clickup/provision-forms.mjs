@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * Provisions ClickUp Lists + Custom Fields for the AxisKey Operations Hub
- * forms that don't have them yet (Side Letter gets fields added to its
- * existing list; Investor Information Update, Account Maintenance
- * Request, Custom Request, and Request an AxisKey Report get brand-new
- * Lists created under the same "Axis Operations Hub" folder as the
- * original 3 forms).
+ * Provisions Custom Fields on the AxisKey Operations Hub's ClickUp Lists
+ * for the forms that don't have them wired up yet: Side Letter, Investor
+ * Information Update, Account Maintenance Request, Custom Request, and
+ * Request an AxisKey Report. All 9 Lists already exist (see CLAUDE.md for
+ * the full slug -> List ID table) — this only fills in each one's missing
+ * fields, never creates a List.
  *
- * Idempotent: re-running it skips any List or Custom Field that already
- * exists (matched by name), so it's safe to run more than once (e.g.
- * after fixing an error on one field).
+ * Idempotent: re-running it skips any Custom Field that already exists
+ * (matched by name), so it's safe to run more than once (e.g. after
+ * fixing an error on one field).
  *
  * Usage:
  *   CLICKUP_API_TOKEN=pk_xxx node scripts/clickup/provision-forms.mjs
@@ -56,19 +56,21 @@ async function cu(path, options = {}) {
 // the existing 4 instead of requiring the folder ID to be hardcoded here.
 const BOOTSTRAP_LIST_ID = "901112504693";
 
-// Lists that already exist — only their custom fields get filled in.
+// All 9 lists already exist under the Axis Operations Hub folder (see
+// CLAUDE.md for the full slug -> List ID table) — this script now only
+// fills in each one's missing custom fields, never creates a list.
 const EXISTING_LISTS = {
   "side-letter-request": "901114320630",
+  "investor-information-update": "901114375425",
+  "account-maintenance-request": "901114375429",
+  "custom-request": "901114375433",
+  "axiskey-report-request": "901114375435",
 };
 
-// Lists to create (name -> slug), if a list with that name isn't already
-// in the folder.
-const NEW_LISTS = {
-  "investor-information-update": "Investor Information Update Requests",
-  "account-maintenance-request": "Account Maintenance Requests",
-  "custom-request": "Custom Requests",
-  "axiskey-report-request": "AxisKey Report Requests",
-};
+// No lists left to create — kept as an empty map (rather than removing
+// the create-list code path below) in case a future form needs a brand
+// new list.
+const NEW_LISTS = {};
 
 // name -> ClickUp custom field definition, per slug. Every list also gets
 // an "Additional File" attachment field unless includeAttachment: false.

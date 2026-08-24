@@ -5,7 +5,7 @@ import type { SidebarNavItem } from "./Sidebar";
  *  catalog — so every page (the home grid and each individual request
  *  form) highlights it as active. */
 export function getPublicNavItems(): SidebarNavItem[] {
-  return [{ label: "Request Center", href: "/", icon: GridIcon, active: true }];
+  return [{ label: "Operations Hub Center", href: "/", icon: GridIcon, active: true }];
 }
 
 /** Small caption block filling the sidebar footer on public pages —
@@ -14,8 +14,8 @@ export function getPublicNavItems(): SidebarNavItem[] {
 export function PublicSidebarFooter() {
   return (
     <div className="px-2 py-1">
-      <p className="text-xs font-semibold text-white/70">AxisKey Operations Hub</p>
-      <p className="mt-0.5 text-xs text-white/40">Internal Request Center</p>
+      <p className="text-xs font-semibold text-white/70">AxisKey</p>
+      <p className="mt-0.5 text-xs text-white/40">Internal use only</p>
     </div>
   );
 }

@@ -7,7 +7,7 @@ interface RequestCardProps {
 }
 
 const buttonClass =
-  "mt-7 inline-flex w-full items-center justify-center rounded-[8px] bg-axis-core px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-axis-core/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-axis-signal focus-visible:ring-offset-2";
+  "block w-full rounded-[8px] bg-axis-signal px-4 py-2.5 text-center text-sm font-bold text-axis-core transition-colors hover:bg-axis-signal/85 focus:outline-none focus-visible:ring-2 focus-visible:ring-axis-core focus-visible:ring-offset-2";
 
 /** Slugs with a dedicated page under app/forms/<slug> instead of the generic modal. */
 const DEDICATED_FORM_SLUGS = new Set<RequestTypeSlug>([
@@ -25,24 +25,32 @@ export function RequestCard({ type, onOpen }: RequestCardProps) {
   const hasDedicatedForm = DEDICATED_FORM_SLUGS.has(type.slug);
 
   return (
-    <div className="flex flex-col justify-between rounded-card border border-axis-base/40 bg-white p-7 shadow-card transition-all duration-150 hover:-translate-y-0.5 hover:border-axis-signal/70 hover:shadow-card-hover">
-      <div>
-        <h3 className="font-head text-base font-medium tracking-tight text-axis-core">
+    <div className="flex flex-col overflow-hidden rounded-card border border-axis-base/30 bg-white shadow-card transition-all duration-150 hover:-translate-y-0.5 hover:shadow-card-hover">
+      <div className="relative h-20 overflow-hidden bg-axis-core">
+        <div className="absolute -right-6 -top-8 h-24 w-24 rounded-full bg-axis-signal/20 blur-2xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.04)_50%,transparent_100%)]" />
+      </div>
+
+      <div className="flex flex-1 flex-col p-6">
+        <h3 className="font-head text-base font-semibold tracking-tight text-axis-core">
           {type.name}
         </h3>
-        <p className="mt-2.5 text-sm leading-relaxed text-axis-core/65">
+        <p className="mt-2 flex-1 text-sm leading-relaxed text-axis-core/65">
           {type.description}
         </p>
+
+        <div className="mt-6">
+          {hasDedicatedForm ? (
+            <Link href={`/forms/${type.slug}`} className={buttonClass}>
+              {type.buttonLabel}
+            </Link>
+          ) : (
+            <button type="button" onClick={() => onOpen(type.slug)} className={buttonClass}>
+              {type.buttonLabel}
+            </button>
+          )}
+        </div>
       </div>
-      {hasDedicatedForm ? (
-        <Link href={`/forms/${type.slug}`} className={buttonClass}>
-          {type.buttonLabel}
-        </Link>
-      ) : (
-        <button type="button" onClick={() => onOpen(type.slug)} className={buttonClass}>
-          {type.buttonLabel}
-        </button>
-      )}
     </div>
   );
 }

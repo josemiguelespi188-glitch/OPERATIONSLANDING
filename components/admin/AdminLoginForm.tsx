@@ -44,7 +44,7 @@ export function AdminLoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-axis-light px-4">
+    <main className="flex min-h-screen items-center justify-center bg-axis-cream px-4">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-card border border-axis-base/30 bg-white p-8 shadow-card"

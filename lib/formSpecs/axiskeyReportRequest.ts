@@ -95,8 +95,16 @@ export const axiskeyReportRequestSpec: FormSpec = {
       { label: "Requester Email", field: "requesterEmail" },
       { label: "Additional Details", field: "notes", skipIfEmpty: true },
     ],
-    // No confirmed ClickUp custom field IDs yet — see
-    // scripts/clickup/provision-forms.mjs, which creates them, and wire
-    // the returned field IDs into CUSTOM_FIELD_MAP once run.
+    // Confirmed against the real "Request an AxisKey Report" ClickUp
+    // list (Aug 2026) — see CUSTOM_FIELD_MAP in lib/integrations/clickup.ts.
+    customFields: [
+      { key: "investorAccountName", field: "investorAccountName" },
+      { key: "offeringName", field: "offeringName" },
+      { key: "reportType", field: "reportType" },
+      { key: "reportPeriod", field: "reportPeriod" },
+      { key: "notes", field: "notes" },
+      { key: "investorEmail", field: "investorEmail" },
+      { key: "requesterEmail", field: "requesterEmail" },
+    ],
   },
 };

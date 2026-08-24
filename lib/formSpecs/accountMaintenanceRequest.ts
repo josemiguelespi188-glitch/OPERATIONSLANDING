@@ -83,8 +83,14 @@ export const accountMaintenanceRequestSpec: FormSpec = {
       { label: "Requester Email", field: "requesterEmail" },
       { label: "Note", field: "notes" },
     ],
-    // No confirmed ClickUp custom field IDs yet — see
-    // scripts/clickup/provision-forms.mjs, which creates them, and wire
-    // the returned field IDs into CUSTOM_FIELD_MAP once run.
+    // Confirmed against the real "Account Maintenance Request" ClickUp
+    // list (Aug 2026) — see CUSTOM_FIELD_MAP in lib/integrations/clickup.ts.
+    customFields: [
+      { key: "investorAccountName", field: "investorAccountName" },
+      { key: "maintenanceType", field: "maintenanceType" },
+      { key: "notes", field: "notes" },
+      { key: "investorEmail", field: "investorEmail" },
+      { key: "requesterEmail", field: "requesterEmail" },
+    ],
   },
 };

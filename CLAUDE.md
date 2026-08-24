@@ -32,20 +32,23 @@ Full JSON for `CLICKUP_LIST_ID_MAP` (see `.env.example`):
 {"ira-funding-request":"901112504693","title-transfer-request":"901114002885","redemption-request":"901114014583","side-letter-request":"901114320630","investor-information-update":"901114375425","account-maintenance-request":"901114375429","document-request":"901114375430","custom-request":"901114375433","axiskey-report-request":"901114375435"}
 ```
 
-**This is an env var only — it is never committed to the repo.** It has to
-be pasted into wherever this app's environment variables are actually
-configured (the user's hosting provider — ask them which one if unknown;
-not established as of this writing). The same applies to
+**This is an env var only — it is never committed to the repo.** It's set
+on Vercel (confirmed live, Aug 2026). The same applies to
 `CLICKUP_API_TOKEN`.
 
 Per-list custom field IDs (`CUSTOM_FIELD_MAP` / `ATTACHMENT_FIELD_MAP` in
-`lib/integrations/clickup.ts`) are only wired for the 3 original forms
-(`ira-funding-request`, `title-transfer-request`, `redemption-request`),
-confirmed against real submitted tasks. The other 6 lists' custom fields
-(if any exist) are not wired yet — their form fields flow into the
-ClickUp task's notes/description only. `scripts/clickup/provision-forms.mjs`
-can create missing fields and print their IDs when run from a machine
-that can reach `api.clickup.com`.
+`lib/integrations/clickup.ts`) are wired for 8 of the 9 lists: the 3
+original forms (`ira-funding-request`, `title-transfer-request`,
+`redemption-request`, confirmed against real submitted tasks) plus
+`side-letter-request`, `investor-information-update`,
+`account-maintenance-request`, `custom-request`, and
+`axiskey-report-request` (confirmed by running
+`scripts/clickup/provision-forms.mjs` from a GitHub Codespace, Aug 2026 —
+see that script's output history in the session that ran it for the raw
+field/option IDs). Only `document-request` has no wiring, since it has no
+dedicated form page yet. If a list's fields ever change in ClickUp,
+re-run the script (it's idempotent — matches by field name) and update
+`CUSTOM_FIELD_MAP` with whatever it prints.
 
 ## Network access from a Claude Code (web/remote) session
 

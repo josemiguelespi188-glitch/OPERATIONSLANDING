@@ -11,7 +11,7 @@ const fields: FieldConfig[] = [
     name: "investorAccountName",
     label: "Investor Account Name",
     required: true,
-    helper: "Make sure it's the same name on IFT system",
+    helper: "Make sure it's the same name on the AxisKey system.",
     placeholder: "Enter text",
   },
   {
@@ -19,6 +19,7 @@ const fields: FieldConfig[] = [
     name: "dealName",
     label: "What's the deal name he is investing in?",
     required: true,
+    helper: "Enter the exact name of the deal or offering the investor is funding.",
     placeholder: "Enter text",
   },
   {
@@ -26,7 +27,7 @@ const fields: FieldConfig[] = [
     name: "iraName",
     label: "IRA Name",
     required: true,
-    helper: "IRA Name",
+    helper: "Enter the name of the IRA custodian.",
     placeholder: "Enter text",
   },
   {
@@ -34,6 +35,7 @@ const fields: FieldConfig[] = [
     name: "investingAmount",
     label: "What's the investing amount?",
     required: true,
+    helper: "Enter the exact amount being invested, in USD.",
     placeholder: "Enter currency",
   },
   {
@@ -41,21 +43,21 @@ const fields: FieldConfig[] = [
     name: "subscriptionAgreement",
     label: "Upload the Subscription Agreement",
     helper:
-      "You will find this on IFT portal. Go to the investor order. It need to be completely sign.",
+      "You will find this on the AxisKey portal. Go to the investor order. It must be fully signed.",
   },
   {
     kind: "text",
     name: "orderNumber",
     label: "Order Number",
-    helper: "You can find this number on IFT portal.",
+    helper: "You can find this number on the AxisKey portal.",
     placeholder: "Enter text",
   },
   {
     kind: "email",
     name: "ccEmail",
-    label: "Add your email so you can be CC on the process",
+    label: "Add your email so you can be CC'd on the process",
     required: true,
-    helper: "(Add your email so you can track this)",
+    helper: "Add your email so you can track this request.",
     placeholder: "Enter email",
     fullWidth: true,
   },
@@ -67,8 +69,7 @@ export default function IraFundingRequestPage() {
       slug="ira-funding-request"
       title="IRA Funding Request"
       descriptionParagraphs={[
-        "By filling out this form, IFT it's gonna request for the funds to the specific IRA custodian.",
-        "In order to IFT follow this process. The client or Capital Raiser needs to fill out this form.",
+        "By filling out this form, AxisKey will request the funds from the specific IRA custodian. To complete this process, the client or Capital Raiser must fill out this form.",
       ]}
       fields={fields}
       submissionMapping={{

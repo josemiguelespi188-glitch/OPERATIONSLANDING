@@ -3,16 +3,9 @@
 import { useState, type FormEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-// TEMP (testing convenience): pre-fills the login form with the IR team's
-// test credentials so QA doesn't have to retype them on every sign-in.
-// Remove before shipping this to anyone outside the testing team — this
-// puts a real password in client-side source.
-const TEST_EMAIL = "ir@axiskey.com";
-const TEST_PASSWORD = "AxisKey@2026!";
-
 export function AdminLoginForm() {
-  const [email, setEmail] = useState(TEST_EMAIL);
-  const [password, setPassword] = useState(TEST_PASSWORD);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 

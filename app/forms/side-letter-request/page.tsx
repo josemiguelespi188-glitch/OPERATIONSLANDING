@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FormShell } from "@/components/axiskey-forms/FormShell";
+import { SideLetterRequestForm } from "@/components/axiskey-forms/SideLetterRequestForm";
 import { sideLetterRequestSpec } from "@/lib/formSpecs/sideLetterRequest";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
 import { mergePublicFields } from "@/lib/dynamicForms/fieldConfigBridge";
@@ -15,8 +15,7 @@ export default async function SideLetterRequestPage() {
   const { fields, submissionMapping } = mergePublicFields(sideLetterRequestSpec, overrides.fields);
 
   return (
-    <FormShell
-      slug="side-letter-request"
+    <SideLetterRequestForm
       title={sideLetterRequestSpec.title}
       descriptionParagraphs={overrides.description ? [overrides.description] : sideLetterRequestSpec.descriptionParagraphs}
       fields={fields}

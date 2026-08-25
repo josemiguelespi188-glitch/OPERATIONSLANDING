@@ -91,10 +91,11 @@ ClickUp task description fallbacks. It's fine in source code comments,
 README.md, SQL comments, and CLI/script console output — none of that
 renders to a user.
 
-## Admin login test credentials
+## Admin login
 
-`components/admin/AdminLoginForm.tsx` currently pre-fills the login form
-with `ir@axiskey.com` / a test password, for faster QA sign-in. Clearly
-marked `// TEMP` in that file — remove before this is rolled out beyond
-the internal testing team, since it puts a real password in client-side
-source.
+`components/admin/AdminLoginForm.tsx` no longer pre-fills any credentials
+(it briefly did, for QA convenience — that put a real admin password in
+client-side source, visible to anyone who loaded `/admin` without signing
+in, so it was removed). Since that password was exposed both in this
+source and in chat history, treat it as compromised and rotate it (and
+any other admin password shared the same way) in the Supabase dashboard.

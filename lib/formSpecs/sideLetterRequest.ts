@@ -73,15 +73,15 @@ export const sideLetterRequestSpec: FormSpec = {
       { label: "Requester Email", field: "requesterEmail" },
       { label: "Note", field: "notes" },
     ],
-    // Confirmed shared fields (Offering Name, Note, Requester Email) —
-    // Side Letter Type is a new dropdown replacing the old free-text
-    // "Side Letter Terms" field; re-run scripts/clickup/provision-forms.mjs
-    // to create it in ClickUp and add it here with its option IDs.
+    // All confirmed via scripts/clickup/provision-forms.mjs (Sept 2026),
+    // including sideLetterType's dropdown option IDs — see
+    // CUSTOM_FIELD_MAP in lib/integrations/clickup.ts.
     customFields: [
       { key: "orderNumber", field: "orderNumber" },
       { key: "offeringName", field: "offeringName" },
       { key: "notes", field: "notes" },
       { key: "requesterEmail", field: "requesterEmail" },
+      { key: "sideLetterType", field: "sideLetterType" },
     ],
   },
 };

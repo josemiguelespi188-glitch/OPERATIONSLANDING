@@ -54,11 +54,8 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
     newAccountName: [{ id: "0de379f0-b634-44ad-b5cc-ef75f46359ed", kind: "text" }],
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
     orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
-    // investorEmail and requesterEmail are collected on the form (see
-    // titleTransferRequest.ts) but were never wired to a real ClickUp
-    // field — an audit found they only ever landed in the task
-    // description. Re-run scripts/clickup/provision-forms.mjs (now
-    // covers this list) and add both keys here with the returned IDs.
+    investorEmail: [{ id: "fdf10d51-2efb-4b6a-8e02-8d0135fa99cf", kind: "text" }],
+    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
   },
   "redemption-request": {
     investorAccountName: [{ id: "3026a4c9-b01c-41cb-ab92-87b2cf417ba1", kind: "text" }],
@@ -85,11 +82,14 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
       },
     ],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
-    // investorEmail, requesterEmail, and issuerApprovedRedemption are
-    // collected on the form (see redemptionRequest.ts) but, like Title
-    // Transfer above, were never wired to a real field — description
-    // only. Re-run scripts/clickup/provision-forms.mjs (now covers this
-    // list) and add all 3 keys here with the returned IDs.
+    // Investor Email is a *different* ClickUp field here than the one
+    // reused on investor-information-update/refund-request (same name,
+    // different field, confirmed by running the provisioning script
+    // against this list directly) — don't assume it's the same ID as
+    // elsewhere without re-confirming.
+    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    issuerApprovedRedemption: [{ id: "4fdc8130-8d98-4172-8003-7f3e39ff5c5a", kind: "checkbox" }],
   },
   "ira-funding-request": {
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
@@ -98,41 +98,74 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
     orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
     ccEmail: [{ id: "715f4b75-677f-40ab-98e7-42c21bcb4a02", kind: "text" }],
   },
-  // refund-request has no entry yet — it's a brand-new ClickUp list
-  // (901114418101). Run scripts/clickup/provision-forms.mjs and add the
-  // returned field IDs here.
-  //
-  // The 4 lists below were re-provisioned (Aug 2026) after their fields
-  // changed — "Note", "Offering Name", "Investor Email", and "Requester
-  // Email" are shared/workspace-level fields, so the same field ID shows
-  // up across several lists.
+  "refund-request": {
+    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    reasonForRefund: [{ id: "cbe6e8ba-b3d0-4d15-891a-6135dc0fa5d2", kind: "text" }],
+    refundAmount: [{ id: "16bbdf7a-3426-45db-bdb2-d027a4e88173", kind: "number" }],
+  },
   "side-letter-request": {
     orderNumber: [{ id: "dd1e7aa6-164d-445a-a0a8-c66618120fa7", kind: "text" }],
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
-    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    // This list's own "Note" field, confirmed distinct from the
+    // 42b9ef7f... field reused on the other lists below.
+    notes: [{ id: "5cd3b348-1415-4f23-83bf-522ca45b293f", kind: "text" }],
     requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
-    // sideLetterType (dropdown: Double Bonus Months / Additional
-    // Annualized Return / Fee Waiver / Other) replaces the old free-text
-    // "Side Letter Terms" field — re-run the provisioning script to
-    // create it and add it here with its option IDs.
+    // The ClickUp dropdown already existed with slightly different option
+    // wording than the form ("Double Bonus Payment" / "Higher Interest
+    // Rate" vs the form's "Double Bonus Months" / "Additional Annualized
+    // Return") — mapped by matching intent below. Rename either side in
+    // ClickUp/the form if you want them to read identically.
+    sideLetterType: [
+      {
+        id: "c09fee99-4a44-4a86-9850-a882229f1596",
+        kind: "dropdown",
+        options: {
+          "Double Bonus Months": "ee707490-a583-4c1e-ae5e-1aaf4b4af8ac",
+          "Additional Annualized Return": "d68e77ca-1bc7-4f37-8ff2-c716922dbfb1",
+          "Fee Waiver": "07bb27a8-a845-423b-9cc3-6dd2c66cf43d",
+          Other: "6fce4750-d8ad-4e8b-b588-a685f3fd130c",
+        },
+      },
+    ],
   },
   "investor-information-update": {
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
+    orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
     investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
     requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
-    // orderNumber is new on this list — re-run the provisioning script to
-    // create it and add it here.
   },
   "account-maintenance-request": {
-    offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
+    // offeringName and investorEmail were previously pointing at the
+    // wrong field IDs (copied from the investor-information-update
+    // group instead of this list's own fields) — a Sept 2026 audit
+    // re-ran the provisioning script directly against this list and
+    // confirmed the IDs below are the real ones.
+    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
-    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    investorEmail: [{ id: "fdf10d51-2efb-4b6a-8e02-8d0135fa99cf", kind: "text" }],
     requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
   },
-  // document-request has no entry yet — this list has never been
-  // provisioned. Run scripts/clickup/provision-forms.mjs and add the
-  // returned field IDs here.
+  "document-request": {
+    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
+    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    documentNeeded: [
+      {
+        id: "86e46ade-ece1-481e-9361-66d905e1cdc3",
+        kind: "dropdown",
+        options: {
+          "Government ID": "8dfda3e5-946c-49f4-afff-fec726c2d3ba",
+          "Articles of Incorporation": "a99fa563-1d3a-4f33-a70e-1f4a2335970f",
+          "Trust Agreement": "e4d70b69-f190-4350-8ee2-acbce0a0bb2c",
+          "Accreditation Letter": "306a8d59-bdb4-4207-90e5-503b4d693622",
+          "Custodian Letter": "91058048-8bb2-414d-9313-c23c35e98440",
+          "Operating Agreement": "dda80410-8c24-4849-9429-82706d1c0711",
+          Other: "dd69cd20-e3e7-45c3-9d65-f4cb3bc1b76a",
+        },
+      },
+    ],
+  },
   "axiskey-report-request": {
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
     reportPeriod: [{ id: "cb587ee2-a6fc-479e-9bd3-ed9c3ab9b2ce", kind: "text" }],
@@ -162,8 +195,9 @@ const ATTACHMENT_FIELD_MAP: Record<string, Record<string, string>> = {
   "ira-funding-request": {
     subscriptionAgreement: "8438e487-dd9b-4cf1-846e-426ee12722ef",
   },
-  // refund-request has a required file field (refundDocumentation) but no
-  // confirmed attachment field ID yet — pending provisioning.
+  "refund-request": {
+    refundDocumentation: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
+  },
   // Side Letter, Investor Information Update, and Account Maintenance no
   // longer have a file upload field per the current form spec.
   // Investor Documentation Request and Request an AxisKey Report never

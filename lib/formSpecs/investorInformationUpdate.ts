@@ -70,12 +70,12 @@ export const investorInformationUpdateSpec: FormSpec = {
       { label: "Requester Email", field: "requesterEmail" },
       { label: "Information to Update", field: "informationToUpdate" },
     ],
-    // "Order Number" is new on this list — re-run
-    // scripts/clickup/provision-forms.mjs to create it, then add it here.
-    // Offering Name, Note (used for informationToUpdate), Investor Email,
-    // and Requester Email are already confirmed/shared.
+    // All confirmed via scripts/clickup/provision-forms.mjs (Sept 2026),
+    // including the "Order Number" field — see CUSTOM_FIELD_MAP in
+    // lib/integrations/clickup.ts.
     customFields: [
       { key: "offeringName", field: "offeringName" },
+      { key: "orderNumber", field: "orderNumber" },
       { key: "notes", field: "informationToUpdate" },
       { key: "investorEmail", field: "investorEmail" },
       { key: "requesterEmail", field: "requesterEmail" },

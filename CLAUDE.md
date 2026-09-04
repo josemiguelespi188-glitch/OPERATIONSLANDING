@@ -36,21 +36,36 @@ original 8 went live. The same "env var only" rule applies to
 `CLICKUP_API_TOKEN`.
 
 Per-list custom field IDs (`CUSTOM_FIELD_MAP` / `ATTACHMENT_FIELD_MAP` in
-`lib/integrations/clickup.ts`) are current as of the Aug 2026 field-spec
-rewrite for: `title-transfer-request`, `redemption-request`,
-`ira-funding-request` (all 3 confirmed against real submitted tasks,
-unchanged by the rewrite), `side-letter-request`,
-`investor-information-update`, and `account-maintenance-request`
-(re-provisioned after their fields changed). Still pending a
+`lib/integrations/clickup.ts`) are only fully wired for `ira-funding-request`
+and `account-maintenance-request` — every field on their form has a
+confirmed ClickUp field ID. Every other list is missing at least one field
+(a Sept 2026 audit found several fields that were silently landing in the
+task description only, never in their own ClickUp Field, because
+`CUSTOM_FIELD_MAP` had no entry for them). Still pending a
 `scripts/clickup/provision-forms.mjs` run (from a machine with real
 internet access — this sandbox can't reach clickup.com) for:
-- `refund-request` — brand-new list, no fields created yet.
-- `document-request` — existing list, never provisioned (it had no
-  dedicated form page before the rewrite).
+- `refund-request` — brand-new list, no fields created yet (Investor
+  Email, Reason for Refund, Refund Amount, Additional File).
+- `document-request` — existing list, never provisioned (Offering Name,
+  Document Needed, Requester Email, Note).
+- `title-transfer-request` — otherwise fully confirmed, but Investor
+  Email and Requester Email were never wired to a field.
+- `redemption-request` — otherwise fully confirmed, but Investor Email,
+  Requester Email, and the "Issuer Approved Redemption" checkbox were
+  never wired to a field.
+- `side-letter-request`'s "Side Letter Type" dropdown — new field
+  replacing the old free-text "Side Letter Terms".
+- `investor-information-update`'s "Order Number" — new field on this
+  list.
 - `axiskey-report-request`'s "Report Type" dropdown — its option set
   changed entirely; the script only creates a dropdown once and won't
   update an existing one's options, so replace them manually in ClickUp
   first, then add the field/option IDs to `CUSTOM_FIELD_MAP` by hand.
+
+The form specs already send all of the above in `submissionMapping.
+customFields` (see each `lib/formSpecs/<slug>.ts`) — once the script
+returns real field IDs, wiring them into `CUSTOM_FIELD_MAP` is the only
+remaining step, no form code needs to change.
 
 If a list's fields ever change again, re-run the script (it's idempotent
 for field *creation* — matches by field name — but never edits an

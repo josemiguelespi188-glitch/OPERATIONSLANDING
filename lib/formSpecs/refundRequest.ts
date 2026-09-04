@@ -59,9 +59,13 @@ export const refundRequestSpec: FormSpec = {
       { label: "Reason for Refund", field: "reasonForRefund" },
       { label: "Refund Amount (USD)", field: "refundAmount" },
     ],
-    // No confirmed ClickUp custom field IDs yet — this is a brand-new
-    // list (901114418101). Run scripts/clickup/provision-forms.mjs to
-    // create the fields and wire the returned IDs into CUSTOM_FIELD_MAP
-    // in lib/integrations/clickup.ts.
+    // Confirmed via scripts/clickup/provision-forms.mjs (Sept 2026) —
+    // see CUSTOM_FIELD_MAP / ATTACHMENT_FIELD_MAP in
+    // lib/integrations/clickup.ts.
+    customFields: [
+      { key: "investorEmail", field: "investorEmail" },
+      { key: "reasonForRefund", field: "reasonForRefund" },
+      { key: "refundAmount", field: "refundAmount" },
+    ],
   },
 };

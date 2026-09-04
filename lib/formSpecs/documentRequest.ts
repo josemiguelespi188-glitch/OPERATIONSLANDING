@@ -72,8 +72,13 @@ export const documentRequestSpec: FormSpec = {
       { label: "Requester Email", field: "requesterEmail" },
       { label: "Note", field: "notes" },
     ],
-    // No confirmed ClickUp custom field IDs yet — this list has never
-    // been provisioned. Run scripts/clickup/provision-forms.mjs and wire
-    // the returned IDs into CUSTOM_FIELD_MAP.
+    // Confirmed via scripts/clickup/provision-forms.mjs (Sept 2026) —
+    // see CUSTOM_FIELD_MAP in lib/integrations/clickup.ts.
+    customFields: [
+      { key: "offeringName", field: "offeringName" },
+      { key: "documentNeeded", field: "documentNeeded" },
+      { key: "requesterEmail", field: "requesterEmail" },
+      { key: "notes", field: "notes" },
+    ],
   },
 };

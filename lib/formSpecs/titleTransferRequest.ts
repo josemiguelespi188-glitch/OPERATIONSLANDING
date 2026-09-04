@@ -84,12 +84,9 @@ export const titleTransferRequestSpec: FormSpec = {
       { label: "Current Account Name", field: "currentAccountName" },
       { label: "New Account Name", field: "newAccountName" },
     ],
-    // currentAccountName/newAccountName/offeringName/orderNumber confirmed
-    // against real submitted tasks in the "Title Transfer Requests"
-    // ClickUp list. investorEmail/requesterEmail are included here so
-    // they start flowing the moment CUSTOM_FIELD_MAP gets their field IDs
-    // (see lib/integrations/clickup.ts) — until then they're simply
-    // ignored server-side, same as today, and still land in the notes.
+    // All confirmed — currentAccountName/newAccountName/offeringName/
+    // orderNumber against real submitted tasks, investorEmail/
+    // requesterEmail via scripts/clickup/provision-forms.mjs (Sept 2026).
     customFields: [
       { key: "currentAccountName", field: "currentAccountName" },
       { key: "newAccountName", field: "newAccountName" },

@@ -6,6 +6,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { RequestTypeSlug } from "@/lib/requestTypes";
 import type { AttachmentInput } from "@/lib/types";
 import { sanitizeFileNameForStorageKey } from "@/lib/storageKey";
+import { formatCurrencyInput } from "@/lib/formatCurrency";
 
 export type FieldConfig =
   | {
@@ -310,15 +311,20 @@ export function FormShell({
                     )}
 
                     {field.kind === "currency" && (
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        required={field.required}
-                        placeholder={field.placeholder}
-                        value={values[field.name] ?? ""}
-                        onChange={(e) => setValue(field.name, e.target.value)}
-                        className={inputClass}
-                      />
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-[12px] top-1/2 -translate-y-1/2 text-sm text-axis-core/40">
+                          $
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          required={field.required}
+                          placeholder={field.placeholder}
+                          value={values[field.name] ?? ""}
+                          onChange={(e) => setValue(field.name, formatCurrencyInput(e.target.value))}
+                          className={`${inputClass} pl-[22px]`}
+                        />
+                      </div>
                     )}
 
                     {field.kind === "date" && (

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { DynamicField } from "@/lib/dynamicForms/types";
+import { formatCurrencyInput } from "@/lib/formatCurrency";
 
 /**
  * Renders a field list built in the Form Builder, in the same visual
@@ -151,9 +152,7 @@ function FieldBlock({
       {field.description && <p className="mt-1 text-xs text-gray-500">{field.description}</p>}
 
       <div className="mt-2">
-        {(field.fieldType === "short_text" ||
-          field.fieldType === "phone" ||
-          field.fieldType === "currency") && (
+        {(field.fieldType === "short_text" || field.fieldType === "phone") && (
           <input
             type="text"
             value={value}
@@ -161,6 +160,22 @@ function FieldBlock({
             placeholder={field.placeholder}
             className={inputClass}
           />
+        )}
+
+        {field.fieldType === "currency" && (
+          <div className="relative">
+            <span className="pointer-events-none absolute left-[12px] top-1/2 -translate-y-1/2 text-sm text-gray-400">
+              $
+            </span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={value}
+              onChange={(e) => onChange(formatCurrencyInput(e.target.value))}
+              placeholder={field.placeholder}
+              className={`${inputClass} pl-[22px]`}
+            />
+          </div>
         )}
 
         {field.fieldType === "email" && (

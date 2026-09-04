@@ -27,7 +27,7 @@ const fields: FieldConfig[] = [
     placeholder: "Sterling Custodial Trust",
   },
   {
-    kind: "text",
+    kind: "currency",
     name: "investingAmount",
     label: "What's the investing amount?",
     required: true,

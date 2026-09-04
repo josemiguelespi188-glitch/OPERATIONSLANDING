@@ -53,7 +53,7 @@ const fields: FieldConfig[] = [
     options: ["Full", "Partial"],
   },
   {
-    kind: "text",
+    kind: "currency",
     name: "redemptionAmount",
     label: "How much is being redeemed?",
     required: true,

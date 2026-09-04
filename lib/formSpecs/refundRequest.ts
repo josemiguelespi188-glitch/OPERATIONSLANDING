@@ -28,7 +28,7 @@ const fields: FieldConfig[] = [
     fullWidth: true,
   },
   {
-    kind: "text",
+    kind: "currency",
     name: "refundAmount",
     label: "How much is being refunded?",
     required: true,

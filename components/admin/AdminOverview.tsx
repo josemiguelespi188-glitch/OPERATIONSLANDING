@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { REQUEST_TYPES } from "@/lib/requestTypes";
 import type { ClickUpSyncStatus, RequestStatus } from "@/lib/types";
+import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
 import { useAdminAuth } from "./AdminAuthContext";
 
 interface AdminStats {
@@ -188,6 +189,8 @@ export function AdminOverview() {
                 ))}
               </div>
             </div>
+
+            <ClickUpSyncNotice />
           </>
         )}
       </div>

@@ -2,18 +2,23 @@
 -- is_locked = true means the row is backed by a code-driven page under
 -- app/forms/<slug> (not database-driven — uses_dynamic_form stays false
 -- for every row here), so the future Form Builder UI must refuse to
--- edit/delete it. document-request has no dedicated page yet (falls back
--- to the generic request modal), so it stays unlocked.
+-- edit/delete it. Every current request type has a dedicated page.
+--
+-- custom-request was removed from the Operations Hub — delete it outright
+-- rather than leaving a dead row (requests.request_type_slug is a plain
+-- text column, not a foreign key, so this can't break historical rows).
+delete from request_types where slug = 'custom-request';
+
 insert into request_types (slug, name, description, sort_order, is_locked) values
-  ('ira-funding-request', 'IRA Funding Request', 'Request funds from an IRA custodian.', 1, true),
-  ('title-transfer-request', 'Title Transfer Request', 'Submit a title transfer request.', 2, true),
-  ('redemption-request', 'Redemption Request', 'Submit an investor redemption request.', 3, true),
-  ('side-letter-request', 'Side Letter Request', 'Request the creation of a side letter for an investor.', 4, true),
-  ('investor-information-update', 'Investor Information Update', 'Request updates to investor records.', 5, true),
-  ('account-maintenance-request', 'Account Maintenance Request', 'General account maintenance requests.', 6, true),
-  ('document-request', 'Document Request', 'Request investor or deal documentation.', 7, false),
-  ('custom-request', 'Custom Request', 'Submit a request not covered by standard processes.', 8, true),
-  ('axiskey-report-request', 'Request an AxisKey Report', 'Request a report on an investor account: distributions, statements, or tax status.', 9, true)
+  ('title-transfer-request', 'Title Transfer Request', 'Submit a title transfer request.', 1, true),
+  ('redemption-request', 'Redemption Request', 'Submit an investor redemption request.', 2, true),
+  ('ira-funding-request', 'IRA Funding Request', 'Request funds from an IRA custodian.', 3, true),
+  ('refund-request', 'Refund Request', 'Request a refund of an investor payment made in error.', 4, true),
+  ('side-letter-request', 'Side Letter Request', 'Request the creation of a side letter for an investor.', 5, true),
+  ('investor-information-update', 'Investor Information Update', 'Request updates to investor records.', 6, true),
+  ('account-maintenance-request', 'Account Maintenance Request', 'General account maintenance requests.', 7, true),
+  ('document-request', 'Investor Documentation Request', 'Request outstanding documentation from an investor.', 8, true),
+  ('axiskey-report-request', 'Request an AxisKey Report', 'Request a report on investors, orders, or account activity.', 9, true)
 on conflict (slug) do update set
   name = excluded.name,
   description = excluded.description,

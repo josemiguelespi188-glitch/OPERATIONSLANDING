@@ -8,18 +8,6 @@ export interface ClickUpSyncResult {
 
 const CLICKUP_API_BASE = "https://api.clickup.com/api/v2";
 
-const TASK_LABEL: Record<string, string> = {
-  "title-transfer-request": "Title Transfer",
-  "redemption-request": "Redemption",
-  "ira-funding-request": "IRA Funding",
-  "refund-request": "Refund",
-  "side-letter-request": "Side Letter",
-  "investor-information-update": "Investor Update",
-  "account-maintenance-request": "Account Maintenance",
-  "document-request": "Investor Documentation",
-  "axiskey-report-request": "AxisKey Report",
-};
-
 /**
  * Request type slug -> ClickUp List ID. Configured entirely through
  * CLICKUP_LIST_ID_MAP (a JSON object), never hardcoded, e.g.:
@@ -195,28 +183,18 @@ function resolveFieldValue(target: ClickUpFieldTarget, rawValue: string): unknow
 }
 
 /**
- * These 3 lists want the task name to be just the investor's name (no
- * label/pipe prefix) — matches how the ops team names tasks manually:
- *   ira-funding-request    -> Investor Account Name
- *   title-transfer-request -> Investor Name
- *   redemption-request     -> Investor Name
- * payload.investorName is already sourced from the right form field for
- * each of these (see each page's submissionMapping.investorNameField).
+ * The ClickUp task name must be the literal name field value — no label
+ * prefix, no " | offering" suffix. Every form's submissionMapping sets
+ * investorNameField to the relevant person's name (see each
+ * lib/formSpecs/<slug>.ts), so payload.investorName already carries it
+ * for all 9 request types.
+ *
+ * This used to compose "<Label> | <requestor> | <offering>" for 6 of the
+ * 9 types, which broke the ClickUp automations that send status emails
+ * off of the task name (they expect it to be just the person's name).
  */
-const INVESTOR_NAME_ONLY_TASK_TYPES = new Set([
-  "ira-funding-request",
-  "title-transfer-request",
-  "redemption-request",
-]);
-
 function buildTaskName(payload: RequestPayload): string {
-  if (INVESTOR_NAME_ONLY_TASK_TYPES.has(payload.requestType)) {
-    return payload.investorName || payload.requestorName;
-  }
-
-  const label = TASK_LABEL[payload.requestType] ?? payload.requestTypeName;
-  const subject = payload.dealName || payload.investorName || payload.requestorName;
-  return `${label} | ${payload.requestorName} | ${subject}`;
+  return payload.investorName || payload.requestorName;
 }
 
 function buildTaskDescription(payload: RequestPayload): string {

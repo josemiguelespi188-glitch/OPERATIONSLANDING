@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
  * Provisions Custom Fields on the AxisKey Operations Hub's ClickUp Lists
- * for the forms that don't have the current field set wired up yet:
- * Refund Request (brand new), Investor Documentation Request (brand new
- * page, existing list), and Side Letter / Investor Information Update /
- * Account Maintenance / Request an AxisKey Report (all re-provisioned
- * after their field sets changed). See CLAUDE.md for the full slug ->
- * List ID table. This only fills in each one's missing fields, never
- * creates a List — every List already exists.
+ * for every field that's missing one: Refund Request (brand new),
+ * Investor Documentation Request (brand new page, existing list), Side
+ * Letter / Investor Information Update / Account Maintenance / Request
+ * an AxisKey Report (re-provisioned after their field sets changed), and
+ * Title Transfer / Redemption (an audit found Investor Email, Requester
+ * Email, and Redemption's "Issuer Approved Redemption" checkbox were
+ * never wired to a real field despite those lists otherwise being fully
+ * confirmed). Only IRA Funding and Account Maintenance need nothing.
+ * See CLAUDE.md for the full slug -> List ID table. This only fills in
+ * each one's missing fields, never creates a List — every List already
+ * exists.
  *
  * Idempotent: re-running it skips any Custom Field that already exists
  * (matched by name), so it's safe to run more than once (e.g. after
@@ -69,7 +73,17 @@ const BOOTSTRAP_LIST_ID = "901112504693";
 // CLAUDE.md for the full slug -> List ID table) — this script only fills
 // in each one's missing custom fields, never creates a list.
 // custom-request was removed from the Hub — deliberately not listed here.
+//
+// title-transfer-request and redemption-request were assumed fully
+// provisioned (their core fields were confirmed against real submitted
+// tasks before the Aug 2026 rewrite), but an audit found their forms
+// collect Investor Email / Requester Email (and, for redemption, an
+// "Issuer Approved Redemption" checkbox) that were never wired to an
+// actual ClickUp field — those answers were only ever landing in the
+// task description. Added here so those get created too.
 const EXISTING_LISTS = {
+  "title-transfer-request": "901114002885",
+  "redemption-request": "901114014583",
   "refund-request": "901114418101",
   "side-letter-request": "901114320630",
   "investor-information-update": "901114375425",
@@ -86,6 +100,21 @@ const NEW_LISTS = {};
 // name -> ClickUp custom field definition, per slug. Every list also gets
 // an "Additional File" attachment field unless includeAttachment: false.
 const FIELD_PLAN = {
+  "title-transfer-request": {
+    fields: [
+      { name: "Investor Email", type: "email" },
+      { name: "Requester Email", type: "email" },
+    ],
+    includeAttachment: false, // "Additional File" already confirmed on this list
+  },
+  "redemption-request": {
+    fields: [
+      { name: "Investor Email", type: "email" },
+      { name: "Requester Email", type: "email" },
+      { name: "Issuer Approved Redemption", type: "checkbox" },
+    ],
+    includeAttachment: false, // "Additional File" already confirmed on this list
+  },
   "refund-request": {
     fields: [
       { name: "Investor Email", type: "email" },

@@ -54,6 +54,11 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
     newAccountName: [{ id: "0de379f0-b634-44ad-b5cc-ef75f46359ed", kind: "text" }],
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
     orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
+    // investorEmail and requesterEmail are collected on the form (see
+    // titleTransferRequest.ts) but were never wired to a real ClickUp
+    // field — an audit found they only ever landed in the task
+    // description. Re-run scripts/clickup/provision-forms.mjs (now
+    // covers this list) and add both keys here with the returned IDs.
   },
   "redemption-request": {
     investorAccountName: [{ id: "3026a4c9-b01c-41cb-ab92-87b2cf417ba1", kind: "text" }],
@@ -80,6 +85,11 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
       },
     ],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    // investorEmail, requesterEmail, and issuerApprovedRedemption are
+    // collected on the form (see redemptionRequest.ts) but, like Title
+    // Transfer above, were never wired to a real field — description
+    // only. Re-run scripts/clickup/provision-forms.mjs (now covers this
+    // list) and add all 3 keys here with the returned IDs.
   },
   "ira-funding-request": {
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],

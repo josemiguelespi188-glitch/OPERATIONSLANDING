@@ -112,12 +112,17 @@ export const redemptionRequestSpec: FormSpec = {
       { label: "Requester Email", field: "requesterEmail" },
       { label: "Note", field: "notes", skipIfEmpty: true },
     ],
-    // Confirmed against real submitted tasks in the "Redemptions
-    // Requests" ClickUp list. redemptionType's dropdown options here are
-    // "Full"/"Partial" (per the current form spec) but still resolve to
-    // the same confirmed ClickUp option UUIDs, which were created under
-    // the names "Full Redemption"/"Partial Redemption" — see
-    // CUSTOM_FIELD_MAP in lib/integrations/clickup.ts.
+    // investorAccountName/offeringName/orderNumber/redemptionAmount/
+    // redemptionType/notes confirmed against real submitted tasks in the
+    // "Redemptions Requests" ClickUp list. redemptionType's dropdown
+    // options here are "Full"/"Partial" (per the current form spec) but
+    // still resolve to the same confirmed ClickUp option UUIDs, which
+    // were created under the names "Full Redemption"/"Partial
+    // Redemption" — see CUSTOM_FIELD_MAP in lib/integrations/clickup.ts.
+    // investorEmail/requesterEmail/issuerApprovedRedemption are included
+    // here so they start flowing the moment CUSTOM_FIELD_MAP gets their
+    // field IDs — until then they're ignored server-side, same as today,
+    // and still land in the notes.
     customFields: [
       { key: "investorAccountName", field: "investorAccountName" },
       { key: "offeringName", field: "offeringName" },
@@ -125,6 +130,9 @@ export const redemptionRequestSpec: FormSpec = {
       { key: "redemptionAmount", field: "redemptionAmount" },
       { key: "redemptionType", field: "redemptionType" },
       { key: "notes", field: "notes" },
+      { key: "investorEmail", field: "investorEmail" },
+      { key: "requesterEmail", field: "requesterEmail" },
+      { key: "issuerApprovedRedemption", field: "issuerApprovedRedemption" },
     ],
   },
 };

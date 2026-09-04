@@ -16,8 +16,14 @@ interface SideLetterRequestFormProps {
  * Thin client wrapper around FormShell that adds the template-picker UX on
  * top of whatever fields the server resolved (code spec + any admin
  * overrides — see app/forms/side-letter-request/page.tsx). Only prefills
- * the "sideLetterTerms" field; everything else about the resolved fields/
- * mapping is passed through untouched, so admin overrides keep working.
+ * the "notes" field (the free-text side letter description); everything
+ * else about the resolved fields/mapping is passed through untouched, so
+ * admin overrides keep working.
+ *
+ * The old "sideLetterTerms" field this used to prefill no longer exists
+ * in the current form spec (replaced by the "sideLetterType" dropdown +
+ * "notes" textarea) — retargeted to "notes" so the template picker keeps
+ * working with the current field set.
  */
 export function SideLetterRequestForm({
   title,
@@ -33,7 +39,7 @@ export function SideLetterRequestForm({
     if (!template) return;
 
     setSelectedTemplateId(templateId);
-    setInitialValues({ sideLetterTerms: template.termsTemplate });
+    setInitialValues({ notes: template.termsTemplate });
   }
 
   return (

@@ -1,7 +1,7 @@
 export interface SideLetterTemplate {
   id: string;
   name: string;
-  /** Prefills the "sideLetterTerms" field. */
+  /** Prefills the "notes" field (see SideLetterRequestForm). */
   termsTemplate: string;
 }
 

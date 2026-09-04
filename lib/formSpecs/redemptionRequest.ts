@@ -5,88 +5,88 @@ const fields: FieldConfig[] = [
   {
     kind: "text",
     name: "investorName",
-    label: "Investor Name",
+    label: "Who is the investor requesting the redemption?",
     required: true,
     helper: "Enter the full legal name of the investor requesting the redemption.",
-    placeholder: "Enter text",
+    placeholder: "Michael Dawson",
   },
   {
     kind: "email",
     name: "investorEmail",
-    label: "Investor Email",
+    label: "What is the investor's email address?",
     required: true,
     helper: "Enter the email address of the investor account associated with this redemption.",
-    placeholder: "Enter email",
+    placeholder: "michael.dawson@email.com",
   },
   {
     kind: "text",
     name: "orderNumber",
-    label: "Order Number",
+    label: "What is the order number?",
     required: true,
     helper:
       "Enter the order number associated with the investment being redeemed. You can find this on the AxisKey portal under the investor's order.",
-    placeholder: "Enter text",
+    placeholder: "10234",
   },
   {
     kind: "text",
     name: "offeringName",
-    label: "What's the Offering name invested in?",
+    label: "What's the offering name invested in?",
     required: true,
-    helper: "Enter the exact name of the deal or offering where the redemption is being requested.",
-    placeholder: "Enter text",
+    helper: "Enter the exact name of the offering where the redemption is being requested.",
+    placeholder: "Northgate Capital Fund",
   },
   {
     kind: "text",
     name: "investorAccountName",
-    label: "Investor Account Name",
+    label: "What is the account name on file?",
     required: true,
     helper: "Enter the name currently registered on the AxisKey portal for this investment order.",
-    placeholder: "Enter text",
+    placeholder: "Michael Dawson",
   },
   {
     kind: "select",
     name: "redemptionType",
-    label: "Redemption Type",
+    label: "Is this a full or partial redemption?",
     required: true,
     helper: "Select whether this is a full or partial redemption of the investment.",
-    placeholder: "Select whether this is a full or partial redemption of the investment.",
-    options: ["Full Redemption", "Partial Redemption"],
+    placeholder: "Select whether this is a full or partial redemption.",
+    options: ["Full", "Partial"],
   },
   {
-    kind: "currency",
+    kind: "text",
     name: "redemptionAmount",
-    label: "Redemption Amount",
+    label: "How much is being redeemed?",
     required: true,
     helper: "If partial, enter the exact amount to be redeemed in USD.",
-    placeholder: "Enter currency",
+    placeholder: "25,000",
   },
   {
     kind: "checkbox",
     name: "issuerApprovedRedemption",
-    label: "Issuer Approved Redemption",
+    label: "Has the issuer already approved this redemption?",
     helper: "Check this box if the issuer has already approved the redemption.",
   },
   {
     kind: "textarea",
     name: "notes",
-    label: "Note",
+    label: "Why is this redemption being requested?",
     helper: "Explain the reason for the redemption request and any additional details relevant to processing it.",
-    placeholder: "Enter text",
+    placeholder: "Investor requesting partial redemption due to personal liquidity needs.",
     fullWidth: true,
   },
   {
     kind: "email",
     name: "requesterEmail",
-    label: "Requester Email",
+    label: "What is your email address?",
     required: true,
     helper:
       "Enter your email address so you can track the status of this redemption request and receive updates as it is processed.",
-    placeholder: "Enter email",
+    placeholder: "agent@axiskey.com",
   },
   {
     kind: "file",
     name: "redemptionAgreement",
-    label: "Supporting Documentation",
+    label: "Do you have supporting documentation to attach?",
     helper: "If there is a signed redemption request or authorization letter, please attach it here.",
   },
 ];
@@ -113,12 +113,11 @@ export const redemptionRequestSpec: FormSpec = {
       { label: "Note", field: "notes", skipIfEmpty: true },
     ],
     // Confirmed against real submitted tasks in the "Redemptions
-    // Requests" ClickUp list (see the ClickUp sync notice for caveats).
-    // "requesterEmail" and "issuerApprovedRedemption" are new fields
-    // added to match the form spec — they have no confirmed ClickUp
-    // custom field destination yet, so they're only sent via notes
-    // above until a field ID is confirmed and added to
-    // lib/integrations/clickup.ts's CUSTOM_FIELD_MAP.
+    // Requests" ClickUp list. redemptionType's dropdown options here are
+    // "Full"/"Partial" (per the current form spec) but still resolve to
+    // the same confirmed ClickUp option UUIDs, which were created under
+    // the names "Full Redemption"/"Partial Redemption" — see
+    // CUSTOM_FIELD_MAP in lib/integrations/clickup.ts.
     customFields: [
       { key: "investorAccountName", field: "investorAccountName" },
       { key: "offeringName", field: "offeringName" },

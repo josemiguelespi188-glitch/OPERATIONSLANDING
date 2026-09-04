@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 /**
  * Provisions Custom Fields on the AxisKey Operations Hub's ClickUp Lists
- * for the forms that don't have them wired up yet: Side Letter, Investor
- * Information Update, Account Maintenance Request, Custom Request, and
- * Request an AxisKey Report. All 9 Lists already exist (see CLAUDE.md for
- * the full slug -> List ID table) — this only fills in each one's missing
- * fields, never creates a List.
+ * for the forms that don't have the current field set wired up yet:
+ * Refund Request (brand new), Investor Documentation Request (brand new
+ * page, existing list), and Side Letter / Investor Information Update /
+ * Account Maintenance / Request an AxisKey Report (all re-provisioned
+ * after their field sets changed). See CLAUDE.md for the full slug ->
+ * List ID table. This only fills in each one's missing fields, never
+ * creates a List — every List already exists.
  *
  * Idempotent: re-running it skips any Custom Field that already exists
  * (matched by name), so it's safe to run more than once (e.g. after
- * fixing an error on one field).
+ * fixing an error on one field). It does NOT update an existing field's
+ * options — see the axiskey-report-request comment below for the one
+ * field that needs a manual ClickUp edit instead.
  *
  * Usage:
  *   CLICKUP_API_TOKEN=pk_xxx node scripts/clickup/provision-forms.mjs
@@ -61,14 +65,16 @@ async function cu(path, options = {}) {
 // the existing 4 instead of requiring the folder ID to be hardcoded here.
 const BOOTSTRAP_LIST_ID = "901112504693";
 
-// All 9 lists already exist under the Axis Operations Hub folder (see
-// CLAUDE.md for the full slug -> List ID table) — this script now only
-// fills in each one's missing custom fields, never creates a list.
+// Lists that already exist under the Axis Operations Hub folder (see
+// CLAUDE.md for the full slug -> List ID table) — this script only fills
+// in each one's missing custom fields, never creates a list.
+// custom-request was removed from the Hub — deliberately not listed here.
 const EXISTING_LISTS = {
+  "refund-request": "901114418101",
   "side-letter-request": "901114320630",
   "investor-information-update": "901114375425",
   "account-maintenance-request": "901114375429",
-  "custom-request": "901114375433",
+  "document-request": "901114375430",
   "axiskey-report-request": "901114375435",
 };
 
@@ -80,74 +86,85 @@ const NEW_LISTS = {};
 // name -> ClickUp custom field definition, per slug. Every list also gets
 // an "Additional File" attachment field unless includeAttachment: false.
 const FIELD_PLAN = {
+  "refund-request": {
+    fields: [
+      { name: "Investor Email", type: "email" },
+      { name: "Reason for Refund", type: "text" },
+      { name: "Refund Amount", type: "number" },
+    ],
+    includeAttachment: true, // required on this form
+  },
   "side-letter-request": {
     fields: [
       { name: "Order Number", type: "text" },
-      { name: "Investor Account Name", type: "text" },
       { name: "Offering Name", type: "text" },
-      { name: "Side Letter Terms", type: "text" },
-      { name: "Issuer Approved Side Letter", type: "checkbox" },
+      {
+        name: "Side Letter Type",
+        type: "drop_down",
+        options: ["Double Bonus Months", "Additional Annualized Return", "Fee Waiver", "Other"],
+      },
       { name: "Note", type: "text" },
-      { name: "Investor Email", type: "email" },
       { name: "Requester Email", type: "email" },
     ],
-    includeAttachment: true,
+    includeAttachment: false, // no file upload field on the current spec
   },
   "investor-information-update": {
     fields: [
-      { name: "Investor Account Name", type: "text" },
       { name: "Offering Name", type: "text" },
-      {
-        name: "Update Type",
-        type: "drop_down",
-        options: ["Contact Info", "Mailing Address", "Banking Details", "Tax Information", "Other"],
-      },
+      { name: "Order Number", type: "text" },
       { name: "Note", type: "text" },
       { name: "Investor Email", type: "email" },
       { name: "Requester Email", type: "email" },
     ],
-    includeAttachment: true,
+    includeAttachment: false,
   },
   "account-maintenance-request": {
     fields: [
-      { name: "Investor Account Name", type: "text" },
-      {
-        name: "Maintenance Type",
-        type: "drop_down",
-        options: ["Portal Access Issue", "Duplicate Account Merge", "Account Deactivation", "Login Reset", "Other"],
-      },
-      { name: "Note", type: "text" },
-      { name: "Investor Email", type: "email" },
-      { name: "Requester Email", type: "email" },
-    ],
-    includeAttachment: true,
-  },
-  "custom-request": {
-    fields: [
-      { name: "Investor Account Name", type: "text" },
       { name: "Offering Name", type: "text" },
       { name: "Note", type: "text" },
-      { name: "Priority", type: "drop_down", options: ["Low", "Medium", "High"] },
       { name: "Investor Email", type: "email" },
       { name: "Requester Email", type: "email" },
     ],
-    includeAttachment: true,
+    includeAttachment: false,
+  },
+  "document-request": {
+    fields: [
+      { name: "Offering Name", type: "text" },
+      {
+        name: "Document Needed",
+        type: "drop_down",
+        options: [
+          "Government ID",
+          "Articles of Incorporation",
+          "Trust Agreement",
+          "Accreditation Letter",
+          "Custodian Letter",
+          "Operating Agreement",
+          "Other",
+        ],
+      },
+      { name: "Requester Email", type: "email" },
+      { name: "Note", type: "text" },
+    ],
+    includeAttachment: false,
   },
   "axiskey-report-request": {
     fields: [
-      { name: "Investor Account Name", type: "text" },
       { name: "Offering Name", type: "text" },
-      {
-        name: "Report Type",
-        type: "drop_down",
-        options: ["Distribution History", "Account Statement", "Tax Document Status", "Portfolio Summary", "Order History", "Other"],
-      },
       { name: "Report Period", type: "text" },
       { name: "Note", type: "text" },
-      { name: "Investor Email", type: "email" },
       { name: "Requester Email", type: "email" },
+      // "Report Type" deliberately left out of this plan: it already
+      // exists in ClickUp with the old option set (Distribution History,
+      // etc.) and this script only creates a field once — it never
+      // updates an existing one's options. Replace its options manually
+      // in ClickUp with the new set (All Investors Accounts / All Active
+      // Orders / All Completed Orders / Pending Orders / Orders Report /
+      // Client Investment Report / Cap Table Report / Activity Summary
+      // Report / Other), then add its field ID + new option IDs to
+      // CUSTOM_FIELD_MAP by hand.
     ],
-    includeAttachment: false, // spec #8 has no file upload field
+    includeAttachment: false,
   },
 };
 

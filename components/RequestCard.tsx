@@ -11,14 +11,18 @@ const buttonClass =
   "block w-full rounded-[6px] bg-axis-signal px-3 py-1.5 text-center text-xs font-bold text-axis-core transition-colors hover:bg-axis-signal/85 focus:outline-none focus-visible:ring-2 focus-visible:ring-axis-core focus-visible:ring-offset-2";
 
 /** Slugs with a dedicated page under app/forms/<slug> instead of the generic modal. */
+// Every current request type has a dedicated page — this stays a Set
+// (rather than assuming so unconditionally) so a future new type without
+// one yet falls back to the generic RequestModal automatically.
 const DEDICATED_FORM_SLUGS = new Set<RequestTypeSlug>([
-  "ira-funding-request",
   "title-transfer-request",
   "redemption-request",
+  "ira-funding-request",
+  "refund-request",
   "side-letter-request",
   "investor-information-update",
   "account-maintenance-request",
-  "custom-request",
+  "document-request",
   "axiskey-report-request",
 ]);
 

@@ -3,9 +3,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
-import { PageShell } from "@/components/layout/PageShell";
-import { getPublicNavItems, PublicSidebarFooter } from "@/components/layout/nav";
 import type { RequestTypeSlug } from "@/lib/requestTypes";
 import type { AttachmentInput } from "@/lib/types";
 import { sanitizeFileNameForStorageKey } from "@/lib/storageKey";
@@ -224,7 +221,7 @@ export function FormShell({
   }
 
   return (
-    <PageShell navItems={getPublicNavItems()} footer={<PublicSidebarFooter />}>
+    <main className="min-h-screen bg-axis-cream">
       <header className="border-b border-axis-base/30 bg-white px-10 py-6">
         <Link
           href="/"
@@ -433,11 +430,9 @@ export function FormShell({
               </div>
             </form>
           )}
-
-          <ClickUpSyncNotice />
         </div>
       </div>
-    </PageShell>
+    </main>
   );
 }
 

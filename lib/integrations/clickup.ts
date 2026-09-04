@@ -9,14 +9,14 @@ export interface ClickUpSyncResult {
 const CLICKUP_API_BASE = "https://api.clickup.com/api/v2";
 
 const TASK_LABEL: Record<string, string> = {
-  "ira-funding-request": "IRA Funding",
   "title-transfer-request": "Title Transfer",
   "redemption-request": "Redemption",
+  "ira-funding-request": "IRA Funding",
+  "refund-request": "Refund",
   "side-letter-request": "Side Letter",
   "investor-information-update": "Investor Update",
   "account-maintenance-request": "Account Maintenance",
-  "document-request": "Document Request",
-  "custom-request": "Custom Request",
+  "document-request": "Investor Documentation",
   "axiskey-report-request": "AxisKey Report",
 };
 
@@ -61,17 +61,10 @@ type ClickUpFieldTarget =
  * the data still lands in the task description via buildTaskDescription.
  */
 const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
-  "ira-funding-request": {
-    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
-    custodian: [{ id: "f2d63342-eb0e-48f8-a930-4c183fa65284", kind: "text" }],
-    amountInvesting: [{ id: "5bbae178-213c-4daf-9af2-becc105f0bbd", kind: "number" }],
-    orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
-    ccEmail: [{ id: "715f4b75-677f-40ab-98e7-42c21bcb4a02", kind: "text" }],
-  },
   "title-transfer-request": {
     currentAccountName: [{ id: "3026a4c9-b01c-41cb-ab92-87b2cf417ba1", kind: "text" }],
     newAccountName: [{ id: "0de379f0-b634-44ad-b5cc-ef75f46359ed", kind: "text" }],
-    dealName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
+    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
     orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
   },
   "redemption-request": {
@@ -84,112 +77,75 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
       { id: "d90c8115-3271-4597-89ac-bfac73e77c28", kind: "number" },
       { id: "e98c4094-ee91-4886-b1c7-78a0da31d092", kind: "number" },
     ],
+    // The form's dropdown now shows "Full"/"Partial" (per the current
+    // spec), but both still resolve to the same confirmed ClickUp option
+    // UUIDs, which live under the ClickUp-side option names "Full
+    // Redemption"/"Partial Redemption" — only our form's label changed.
     redemptionType: [
       {
         id: "be5ab0e3-b125-4f58-ae22-8831e67dc294",
         kind: "dropdown",
         options: {
-          "Full Redemption": "6507524b-2070-4586-b0a9-44177f7822b8",
-          "Partial Redemption": "e93f8731-85ef-4523-a32d-cb3ee259d522",
+          Full: "6507524b-2070-4586-b0a9-44177f7822b8",
+          Partial: "e93f8731-85ef-4523-a32d-cb3ee259d522",
         },
       },
     ],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
   },
-  // Confirmed by running scripts/clickup/provision-forms.mjs against the
-  // real lists (Aug 2026) — see CLAUDE.md for the list ID table. "Note"
-  // and "Additional File" are shared/workspace-level fields, so the same
-  // field ID shows up across several of these lists (and matches the
-  // "Additional File" id already used above for title-transfer-request
-  // and redemption-request).
+  "ira-funding-request": {
+    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
+    custodian: [{ id: "f2d63342-eb0e-48f8-a930-4c183fa65284", kind: "text" }],
+    amountInvesting: [{ id: "5bbae178-213c-4daf-9af2-becc105f0bbd", kind: "number" }],
+    orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
+    ccEmail: [{ id: "715f4b75-677f-40ab-98e7-42c21bcb4a02", kind: "text" }],
+  },
+  // refund-request has no entry yet — it's a brand-new ClickUp list
+  // (901114418101). Run scripts/clickup/provision-forms.mjs and add the
+  // returned field IDs here.
+  //
+  // The 4 lists below were re-provisioned (Aug 2026) after their fields
+  // changed — "Note", "Offering Name", "Investor Email", and "Requester
+  // Email" are shared/workspace-level fields, so the same field ID shows
+  // up across several lists.
   "side-letter-request": {
     orderNumber: [{ id: "dd1e7aa6-164d-445a-a0a8-c66618120fa7", kind: "text" }],
-    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
-    sideLetterTerms: [{ id: "53a674ee-9839-44d6-8985-012f0371634b", kind: "text" }],
-    issuerApprovedSideLetter: [{ id: "705f584b-7e41-40f9-8b5a-08eaca0ba21b", kind: "checkbox" }],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
-    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
     requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    // sideLetterType (dropdown: Double Bonus Months / Additional
+    // Annualized Return / Fee Waiver / Other) replaces the old free-text
+    // "Side Letter Terms" field — re-run the provisioning script to
+    // create it and add it here with its option IDs.
   },
   "investor-information-update": {
-    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
-    updateType: [
-      {
-        id: "5c551cca-8001-47a0-a421-5f4fca11270e",
-        kind: "dropdown",
-        options: {
-          "Contact Info": "b42e6a1b-4243-4826-8aa4-54e0fd7ef88d",
-          "Mailing Address": "69217967-695a-4c73-a3e2-6e44be9fcd67",
-          "Banking Details": "472920b7-f253-4de8-b339-fa2f6158051b",
-          "Tax Information": "f2e76507-36b0-41fc-8279-300807e1176e",
-          Other: "43f487cb-5946-43ee-a852-4531daeb76e2",
-        },
-      },
-    ],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
     investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
     requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    // orderNumber is new on this list — re-run the provisioning script to
+    // create it and add it here.
   },
   "account-maintenance-request": {
-    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
-    maintenanceType: [
-      {
-        id: "f0c64991-2281-49a8-bede-e05aa44364fa",
-        kind: "dropdown",
-        options: {
-          "Portal Access Issue": "5566daf3-668e-47da-97a7-1b781cd5d8dc",
-          "Duplicate Account Merge": "c291c072-ded7-4729-85e5-6bb691d0fbd2",
-          "Account Deactivation": "67ada694-d7c3-4868-a6be-5d194ee539ef",
-          "Login Reset": "12f3694a-ad02-4746-8f11-f765748479c1",
-          Other: "5a6bfa83-7b8a-45d2-b3c9-6244e448d226",
-        },
-      },
-    ],
-    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
-    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
-    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
-  },
-  "custom-request": {
-    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
-    priority: [
-      {
-        id: "b5618224-f429-4b24-a801-fe28becb3b64",
-        kind: "dropdown",
-        options: {
-          Low: "4a04343f-6a56-49a6-a515-cf87fca3a869",
-          Medium: "b046de21-4767-40fb-95d3-2b1106929862",
-          High: "54e4f30b-e83f-4873-843b-3e59ed30ebc1",
-        },
-      },
-    ],
     investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
     requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
   },
+  // document-request has no entry yet — this list has never been
+  // provisioned. Run scripts/clickup/provision-forms.mjs and add the
+  // returned field IDs here.
   "axiskey-report-request": {
-    investorAccountName: [{ id: "5d6a8cbe-aa71-430b-9be1-7dea90e989fa", kind: "text" }],
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
-    reportType: [
-      {
-        id: "1e60783b-1e29-43c0-bedb-b70f41592fbf",
-        kind: "dropdown",
-        options: {
-          "Distribution History": "dff963c1-c5a4-4caa-9a85-32e71ac69820",
-          "Account Statement": "2f4cbbf4-7c23-4178-a7e3-1876baceeca2",
-          "Tax Document Status": "bd1edc2c-1d21-48c9-970f-23565c858ffe",
-          "Portfolio Summary": "e7e88b20-49fb-4cfe-95f2-2fc51784beb7",
-          "Order History": "41d3e108-990d-403a-9a88-c1c21baa1eca",
-          Other: "62c3d203-d400-45c9-823d-09d2e8f9347a",
-        },
-      },
-    ],
     reportPeriod: [{ id: "cb587ee2-a6fc-479e-9bd3-ed9c3ab9b2ce", kind: "text" }],
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
-    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
     requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    // reportType's option set changed entirely (it's no longer
+    // Distribution History/Account Statement/etc.) — the ClickUp
+    // dropdown field still has the old options and needs them replaced
+    // manually in ClickUp before this can be wired back in; the
+    // provisioning script only creates a dropdown once, it doesn't
+    // update an existing one's options.
   },
 };
 
@@ -199,28 +155,21 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
  * as a regular task attachment (see attachTaskFile).
  */
 const ATTACHMENT_FIELD_MAP: Record<string, Record<string, string>> = {
-  "ira-funding-request": {
-    subscriptionAgreement: "8438e487-dd9b-4cf1-846e-426ee12722ef",
-  },
   "title-transfer-request": {
     titleTransferComplete: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
   },
   "redemption-request": {
     redemptionAgreement: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
   },
-  "side-letter-request": {
-    sideLetterDocument: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
+  "ira-funding-request": {
+    subscriptionAgreement: "8438e487-dd9b-4cf1-846e-426ee12722ef",
   },
-  "investor-information-update": {
-    supportingDocumentation: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
-  },
-  "account-maintenance-request": {
-    supportingDocumentation: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
-  },
-  "custom-request": {
-    supportingDocumentation: "3d082ed6-621a-4546-bff8-315544c7bc05", // "Additional File"
-  },
-  // axiskey-report-request has no file upload field per its form spec.
+  // refund-request has a required file field (refundDocumentation) but no
+  // confirmed attachment field ID yet — pending provisioning.
+  // Side Letter, Investor Information Update, and Account Maintenance no
+  // longer have a file upload field per the current form spec.
+  // Investor Documentation Request and Request an AxisKey Report never
+  // had one.
 };
 
 /** ClickUp number/currency fields take a plain number, e.g. 23211 or 23211.5. */

@@ -7,48 +7,55 @@ facts that don't belong in code comments but matter for future work here.
 ## ClickUp workspace layout
 
 Team/workspace id: `9011712515`. Space: **Investor Relations**. Folder:
-**Axis Operations Hub**. Confirmed List IDs (Aug 2026), one per request
-type slug — keep this in sync with `CLICKUP_LIST_ID_MAP` wherever that env
-var is actually set (see below):
+**Axis Operations Hub**. Confirmed List IDs, one per request type slug —
+keep this in sync with `CLICKUP_LIST_ID_MAP` wherever that env var is
+actually set (see below). `custom-request` was removed from the Hub
+(Aug 2026) and no longer has a slug, page, or list mapping at all.
 
 | slug | ClickUp List | List ID |
 |---|---|---|
-| `ira-funding-request` | IRA Funding Request | `901112504693` |
 | `title-transfer-request` | Title Transfer Requests | `901114002885` |
 | `redemption-request` | Redemptions Requests | `901114014583` |
+| `ira-funding-request` | IRA Funding Request | `901112504693` |
+| `refund-request` | Refund Request | `901114418101` |
 | `side-letter-request` | Side Letter Requests | `901114320630` |
 | `investor-information-update` | Investor Information Update | `901114375425` |
 | `account-maintenance-request` | Account Maintenance Request | `901114375429` |
-| `document-request` | Document Request | `901114375430` |
-| `custom-request` | Custom Request | `901114375433` |
+| `document-request` | Investor Documentation Request (renamed from "Document Request") | `901114375430` |
 | `axiskey-report-request` | Request an AxisKey Report | `901114375435` |
-
-`document-request` has no dedicated page under `app/forms/` yet (falls
-back to the generic `RequestModal`), so it's low priority to wire up
-custom fields for, but its List ID is included above for completeness.
 
 Full JSON for `CLICKUP_LIST_ID_MAP` (see `.env.example`):
 ```json
-{"ira-funding-request":"901112504693","title-transfer-request":"901114002885","redemption-request":"901114014583","side-letter-request":"901114320630","investor-information-update":"901114375425","account-maintenance-request":"901114375429","document-request":"901114375430","custom-request":"901114375433","axiskey-report-request":"901114375435"}
+{"title-transfer-request":"901114002885","redemption-request":"901114014583","ira-funding-request":"901112504693","refund-request":"901114418101","side-letter-request":"901114320630","investor-information-update":"901114375425","account-maintenance-request":"901114375429","document-request":"901114375430","axiskey-report-request":"901114375435"}
 ```
 
 **This is an env var only — it is never committed to the repo.** It's set
-on Vercel (confirmed live, Aug 2026). The same applies to
+on Vercel. `refund-request` is new (Aug 2026) — confirm it's been added
+to the live Vercel value, since it was added to this table after the
+original 8 went live. The same "env var only" rule applies to
 `CLICKUP_API_TOKEN`.
 
 Per-list custom field IDs (`CUSTOM_FIELD_MAP` / `ATTACHMENT_FIELD_MAP` in
-`lib/integrations/clickup.ts`) are wired for 8 of the 9 lists: the 3
-original forms (`ira-funding-request`, `title-transfer-request`,
-`redemption-request`, confirmed against real submitted tasks) plus
-`side-letter-request`, `investor-information-update`,
-`account-maintenance-request`, `custom-request`, and
-`axiskey-report-request` (confirmed by running
-`scripts/clickup/provision-forms.mjs` from a GitHub Codespace, Aug 2026 —
-see that script's output history in the session that ran it for the raw
-field/option IDs). Only `document-request` has no wiring, since it has no
-dedicated form page yet. If a list's fields ever change in ClickUp,
-re-run the script (it's idempotent — matches by field name) and update
-`CUSTOM_FIELD_MAP` with whatever it prints.
+`lib/integrations/clickup.ts`) are current as of the Aug 2026 field-spec
+rewrite for: `title-transfer-request`, `redemption-request`,
+`ira-funding-request` (all 3 confirmed against real submitted tasks,
+unchanged by the rewrite), `side-letter-request`,
+`investor-information-update`, and `account-maintenance-request`
+(re-provisioned after their fields changed). Still pending a
+`scripts/clickup/provision-forms.mjs` run (from a machine with real
+internet access — this sandbox can't reach clickup.com) for:
+- `refund-request` — brand-new list, no fields created yet.
+- `document-request` — existing list, never provisioned (it had no
+  dedicated form page before the rewrite).
+- `axiskey-report-request`'s "Report Type" dropdown — its option set
+  changed entirely; the script only creates a dropdown once and won't
+  update an existing one's options, so replace them manually in ClickUp
+  first, then add the field/option IDs to `CUSTOM_FIELD_MAP` by hand.
+
+If a list's fields ever change again, re-run the script (it's idempotent
+for field *creation* — matches by field name — but never edits an
+existing field's options) and update `CUSTOM_FIELD_MAP` with whatever it
+prints.
 
 ## Network access from a Claude Code (web/remote) session
 
@@ -63,10 +70,11 @@ internet access.
 
 ## Locked (code-driven) forms
 
-The forms under `app/forms/<slug>/page.tsx` for `ira-funding-request`,
-`title-transfer-request`, `redemption-request`, `side-letter-request`,
+The forms under `app/forms/<slug>/page.tsx` — all 9 current request
+types (`title-transfer-request`, `redemption-request`,
+`ira-funding-request`, `refund-request`, `side-letter-request`,
 `investor-information-update`, `account-maintenance-request`,
-`custom-request`, and `axiskey-report-request` are all "locked" in the
+`document-request`, `axiskey-report-request`) — are all "locked" in the
 `request_types` table (`is_locked = true`): their field structure, types,
 and ClickUp mapping live in code (`lib/formSpecs/<slug>.ts`), not the
 database. An admin can still edit each field's label/description/required
@@ -82,6 +90,17 @@ overrides server-side on every request — `export const dynamic =
 (`on conflict (slug) do update`), but has to be re-run manually in the
 Supabase SQL editor after it changes in the repo; nothing applies it
 automatically.
+
+## Public site layout
+
+The public site (home page + every request form) is deliberately a single
+screen with no sidebar — a sidebar nav was tried (Aug 2026) and explicitly
+rejected: "no quiero que vaya esa franja negra a la izquierda... está de
+más." Don't reintroduce `PageShell`/`Sidebar` there; those components are
+now admin-only (`app/admin/layout.tsx`). `<ClickUpSyncNotice />` lives on
+the admin Overview page (`components/admin/AdminOverview.tsx`), not on
+any public page — same reasoning, the public Operations Hub Center screen
+should show nothing but the request cards.
 
 ## Style
 

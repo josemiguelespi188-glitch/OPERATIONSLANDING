@@ -48,14 +48,26 @@ type ClickUpFieldTarget =
  * request type or key with no entry here simply skips custom-field sync —
  * the data still lands in the task description via buildTaskDescription.
  */
+// "Requester Email" (9637efe7-f098-4ae7-8494-be2698a1617e) and "Client/
+// Capital Raiser Email" (a655d17c-0108-470a-8d83-acf2a2abfeea) are two
+// DIFFERENT ClickUp fields that both exist on almost every list below —
+// the form spec calls for "Client/Capital Raiser Email" specifically
+// (see AxisKey_Operations_Hub_Forms_Spec.md), so every requesterEmail
+// entry here targets a655d17c, never 9637efe7. A Sept 2026 audit
+// (scripts/clickup/audit-fields.mjs, read-only field enumeration) caught
+// this and several other stale/incorrect field IDs below.
 const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
   "title-transfer-request": {
     currentAccountName: [{ id: "3026a4c9-b01c-41cb-ab92-87b2cf417ba1", kind: "text" }],
     newAccountName: [{ id: "0de379f0-b634-44ad-b5cc-ef75f46359ed", kind: "text" }],
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
     orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
-    investorEmail: [{ id: "fdf10d51-2efb-4b6a-8e02-8d0135fa99cf", kind: "text" }],
-    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    // This list has two distinct fields both literally named "Investor
+    // Email" (fdf10d51... and 6429a23e...) — using 6429a23e since that's
+    // the one shared consistently across every other list. Consider
+    // deleting the duplicate (fdf10d51) in ClickUp to avoid future mixups.
+    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
   },
   "redemption-request": {
     investorAccountName: [{ id: "3026a4c9-b01c-41cb-ab92-87b2cf417ba1", kind: "text" }],
@@ -81,14 +93,11 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
         },
       },
     ],
-    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
-    // Investor Email is a *different* ClickUp field here than the one
-    // reused on investor-information-update/refund-request (same name,
-    // different field, confirmed by running the provisioning script
-    // against this list directly) — don't assume it's the same ID as
-    // elsewhere without re-confirming.
+    // No "Note" field exists on this list at all (the old 42b9ef7f... one
+    // this used to point at isn't on any list anymore) — pending
+    // scripts/clickup/provision-forms.mjs creating a new one.
     investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
-    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
     issuerApprovedRedemption: [{ id: "4fdc8130-8d98-4172-8003-7f3e39ff5c5a", kind: "checkbox" }],
   },
   "ira-funding-request": {
@@ -96,6 +105,9 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
     custodian: [{ id: "f2d63342-eb0e-48f8-a930-4c183fa65284", kind: "text" }],
     amountInvesting: [{ id: "5bbae178-213c-4daf-9af2-becc105f0bbd", kind: "number" }],
     orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
+    // "CC Email" is its own field here, distinct from Requester Email/
+    // Client-Capital Raiser Email used elsewhere — matches this form's
+    // own spec row ("CC Email"), not the other forms'.
     ccEmail: [{ id: "715f4b75-677f-40ab-98e7-42c21bcb4a02", kind: "text" }],
   },
   "refund-request": {
@@ -104,12 +116,10 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
     refundAmount: [{ id: "16bbdf7a-3426-45db-bdb2-d027a4e88173", kind: "number" }],
   },
   "side-letter-request": {
-    orderNumber: [{ id: "dd1e7aa6-164d-445a-a0a8-c66618120fa7", kind: "text" }],
+    orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
-    // This list's own "Note" field, confirmed distinct from the
-    // 42b9ef7f... field reused on the other lists below.
     notes: [{ id: "5cd3b348-1415-4f23-83bf-522ca45b293f", kind: "text" }],
-    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
     // The ClickUp dropdown already existed with slightly different option
     // wording than the form ("Double Bonus Payment" / "Higher Interest
     // Rate" vs the form's "Double Bonus Months" / "Additional Annualized
@@ -131,25 +141,27 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
   "investor-information-update": {
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
     orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
-    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    // This list's own "Information to Update" field, distinct from the
+    // "Note" field used on side-letter-request.
+    notes: [{ id: "49e8aa99-c731-42bd-b27d-dd250eb41f0f", kind: "text" }],
     investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
-    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
   },
   "account-maintenance-request": {
-    // offeringName and investorEmail were previously pointing at the
-    // wrong field IDs (copied from the investor-information-update
-    // group instead of this list's own fields) — a Sept 2026 audit
-    // re-ran the provisioning script directly against this list and
-    // confirmed the IDs below are the real ones.
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
-    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
-    investorEmail: [{ id: "fdf10d51-2efb-4b6a-8e02-8d0135fa99cf", kind: "text" }],
-    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
+    // No "Note" field exists on this list at all — pending
+    // scripts/clickup/provision-forms.mjs creating a new one.
+    // This list also has two fields literally named "Investor Email" —
+    // using 6429a23e since that's the one shared consistently across
+    // every other list (see the title-transfer-request comment above).
+    investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
+    requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
   },
   "document-request": {
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
-    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
-    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
+    requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
+    // No "Note" field exists on this list at all — pending
+    // scripts/clickup/provision-forms.mjs creating a new one.
     documentNeeded: [
       {
         id: "86e46ade-ece1-481e-9361-66d905e1cdc3",
@@ -168,15 +180,36 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
   },
   "axiskey-report-request": {
     offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
-    reportPeriod: [{ id: "cb587ee2-a6fc-479e-9bd3-ed9c3ab9b2ce", kind: "text" }],
-    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
-    requesterEmail: [{ id: "9637efe7-f098-4ae7-8494-be2698a1617e", kind: "text" }],
-    // reportType's option set changed entirely (it's no longer
-    // Distribution History/Account Statement/etc.) — the ClickUp
-    // dropdown field still has the old options and needs them replaced
-    // manually in ClickUp before this can be wired back in; the
-    // provisioning script only creates a dropdown once, it doesn't
-    // update an existing one's options.
+    // The form's "dateRange" field maps to ClickUp's own "Date Range"
+    // field (not "Report Period", an older unrelated field that's still
+    // on this list but no longer used).
+    dateRange: [{ id: "7ed0cab2-f868-4c7e-814a-94daeb040a60", kind: "text" }],
+    // No "Note" field exists on this list at all — pending
+    // scripts/clickup/provision-forms.mjs creating a new one.
+    requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
+    // The dropdown with the current option set is literally named
+    // "Report Type-" (trailing hyphen) in ClickUp, not "Report Type" —
+    // an old "Report Type" field with the outdated options (Distribution
+    // History, etc.) also still exists on this list, unused now. Worth
+    // renaming "Report Type-" to "Report Type" and deleting the old one
+    // in ClickUp to avoid future confusion.
+    reportType: [
+      {
+        id: "8c27d365-14a3-4a67-bfb9-f03a442663fd",
+        kind: "dropdown",
+        options: {
+          "All Investors Accounts": "a1a41738-b9fa-4128-b9c0-236f09791160",
+          "All Active Orders": "1f8e6b0e-f8f0-482f-ad91-4fe4ffd870e5",
+          "All Completed Orders": "6bd05723-cc5e-448e-b67c-f49a545cf583",
+          "Pending Orders": "94606a44-4aaf-4e8a-8ec4-7c92edba9a06",
+          "Orders Report": "eb611c2f-d6fa-4458-b490-c5a96d6e7459",
+          "Client Investment Report": "c7d517de-e5b9-4ac1-bfb3-8825fb6ae6af",
+          "Cap Table Report": "12027e90-3455-490b-9b7e-558bcfd4e1f7",
+          "Activity Summary Report": "d7b435eb-fc36-445c-9221-04b698bf7068",
+          Other: "1a43ab12-0613-4136-9dbb-5a2bcc506a4f",
+        },
+      },
+    ],
   },
 };
 

@@ -82,18 +82,17 @@ export const axiskeyReportRequestSpec: FormSpec = {
       { label: "Requester Email", field: "requesterEmail" },
       { label: "Note", field: "notes" },
     ],
-    // Report Type's option set changed entirely from the previous
-    // version — the ClickUp dropdown field still has the old options
-    // (Distribution History, etc.) and needs its options replaced
-    // manually in ClickUp (the provisioning script only creates a
-    // dropdown field once; it doesn't update an existing one's options).
-    // Offering Name, Note, and Requester Email are confirmed/shared;
-    // Date Range reuses the previously confirmed "Report Period" field.
+    // All confirmed via scripts/clickup/audit-fields.mjs (Sept 2026) —
+    // see CUSTOM_FIELD_MAP in lib/integrations/clickup.ts. reportType
+    // maps to a field ClickUp confusingly named "Report Type-" (trailing
+    // hyphen); dateRange maps to ClickUp's own "Date Range" field, not
+    // the older "Report Period" field this used to point at.
     customFields: [
       { key: "offeringName", field: "offeringName" },
-      { key: "reportPeriod", field: "dateRange" },
+      { key: "dateRange", field: "dateRange" },
       { key: "notes", field: "notes" },
       { key: "requesterEmail", field: "requesterEmail" },
+      { key: "reportType", field: "reportType" },
     ],
   },
 };

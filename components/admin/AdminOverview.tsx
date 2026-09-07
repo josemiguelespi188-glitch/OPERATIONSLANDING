@@ -185,6 +185,15 @@ export function AdminOverview() {
                         </button>
                       )}
                     </div>
+                    {/* A "synced" row can still carry a best-effort warning (an
+                        attachment that didn't link to its field, a rejected
+                        custom field) — syncRequestAndPersist() stores that in
+                        clickup_sync_error even though the task itself was
+                        created. The line above only ever shows the task id in
+                        that case, so without this it silently disappears. */}
+                    {req.clickup_task_id && req.clickup_sync_error && (
+                      <p className="mt-1 break-words text-xs text-red-700">{req.clickup_sync_error}</p>
+                    )}
                   </div>
                 ))}
               </div>

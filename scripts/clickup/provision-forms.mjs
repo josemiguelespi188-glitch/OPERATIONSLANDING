@@ -99,19 +99,30 @@ const NEW_LISTS = {};
 
 // name -> ClickUp custom field definition, per slug. Every list also gets
 // an "Additional File" attachment field unless includeAttachment: false.
+// A Sept 2026 field-by-field audit (scripts/clickup/audit-fields.mjs,
+// read-only) found that "Requester Email" and "Client/Capital Raiser
+// Email" are two DIFFERENT fields on almost every list, and the form
+// spec calls for "Client/Capital Raiser Email" — every plan below
+// targets that name now, never "Requester Email" (matching by name
+// against an existing field never creates a duplicate, so this is safe
+// to re-run).
 const FIELD_PLAN = {
   "title-transfer-request": {
     fields: [
       { name: "Investor Email", type: "email" },
-      { name: "Requester Email", type: "email" },
+      { name: "Client/Capital Raiser Email", type: "email" },
     ],
     includeAttachment: false, // "Additional File" already confirmed on this list
   },
   "redemption-request": {
     fields: [
       { name: "Investor Email", type: "email" },
-      { name: "Requester Email", type: "email" },
+      { name: "Client/Capital Raiser Email", type: "email" },
       { name: "Issuer Approved Redemption", type: "checkbox" },
+      // No "Note" field exists on this list at all (confirmed via
+      // audit-fields.mjs) — created here as short_text per instruction
+      // (not the "text"/long-text type used elsewhere on the workspace).
+      { name: "Note", type: "short_text" },
     ],
     includeAttachment: false, // "Additional File" already confirmed on this list
   },
@@ -132,8 +143,8 @@ const FIELD_PLAN = {
         type: "drop_down",
         options: ["Double Bonus Months", "Additional Annualized Return", "Fee Waiver", "Other"],
       },
-      { name: "Note", type: "text" },
-      { name: "Requester Email", type: "email" },
+      { name: "Note", type: "short_text" }, // already exists as short_text, this just confirms it
+      { name: "Client/Capital Raiser Email", type: "email" },
     ],
     includeAttachment: false, // no file upload field on the current spec
   },
@@ -141,18 +152,23 @@ const FIELD_PLAN = {
     fields: [
       { name: "Offering Name", type: "text" },
       { name: "Order Number", type: "text" },
-      { name: "Note", type: "text" },
+      // No generic "Note" field here — this list already has its own
+      // "Information to Update" field for that role, wired directly by
+      // id in CUSTOM_FIELD_MAP (no plan entry needed since it already
+      // exists under a different name than "Note").
       { name: "Investor Email", type: "email" },
-      { name: "Requester Email", type: "email" },
+      { name: "Client/Capital Raiser Email", type: "email" },
     ],
     includeAttachment: false,
   },
   "account-maintenance-request": {
     fields: [
       { name: "Offering Name", type: "text" },
-      { name: "Note", type: "text" },
+      // No "Note" field exists on this list at all (confirmed via
+      // audit-fields.mjs) — created here as short_text per instruction.
+      { name: "Note", type: "short_text" },
       { name: "Investor Email", type: "email" },
-      { name: "Requester Email", type: "email" },
+      { name: "Client/Capital Raiser Email", type: "email" },
     ],
     includeAttachment: false,
   },
@@ -172,38 +188,31 @@ const FIELD_PLAN = {
           "Other",
         ],
       },
-      { name: "Requester Email", type: "email" },
-      { name: "Note", type: "text" },
+      { name: "Client/Capital Raiser Email", type: "email" },
+      // No "Note" field exists on this list at all (confirmed via
+      // audit-fields.mjs) — created here as short_text per instruction.
+      { name: "Note", type: "short_text" },
     ],
     includeAttachment: false,
   },
   "axiskey-report-request": {
     fields: [
       { name: "Offering Name", type: "text" },
-      { name: "Report Period", type: "text" },
-      { name: "Note", type: "text" },
-      { name: "Requester Email", type: "email" },
-      // "Report Type" already exists in ClickUp and its options were
-      // manually replaced there (Sept 2026) with the current set — this
-      // entry doesn't create anything (the script never edits an
-      // existing field's options), it just makes ensureFields() report
-      // the field's current id + each option's id so they can be wired
-      // into CUSTOM_FIELD_MAP.
-      {
-        name: "Report Type",
-        type: "drop_down",
-        options: [
-          "All Investors Accounts",
-          "All Active Orders",
-          "All Completed Orders",
-          "Pending Orders",
-          "Orders Report",
-          "Client Investment Report",
-          "Cap Table Report",
-          "Activity Summary Report",
-          "Other",
-        ],
-      },
+      // "Date Range" is the field actually used now (the older "Report
+      // Period" field on this list is unused) — listed here only to
+      // confirm its id, not to create anything.
+      { name: "Date Range", type: "text" },
+      // No "Note" field exists on this list at all (confirmed via
+      // audit-fields.mjs) — created here as short_text per instruction.
+      { name: "Note", type: "short_text" },
+      { name: "Client/Capital Raiser Email", type: "email" },
+      // Deliberately NOT listing "Report Type" here: this list has TWO
+      // dropdowns, the old "Report Type" (outdated options) and the one
+      // actually in use, confusingly named "Report Type-" (trailing
+      // hyphen) — both already exist and are wired directly by id in
+      // CUSTOM_FIELD_MAP, so adding either name here risks matching the
+      // wrong one. Consider renaming "Report Type-" to "Report Type" and
+      // deleting the old field in ClickUp to clean this up.
     ],
     includeAttachment: false,
   },

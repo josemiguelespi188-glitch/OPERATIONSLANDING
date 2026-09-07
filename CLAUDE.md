@@ -36,35 +36,55 @@ original 8 went live. The same "env var only" rule applies to
 `CLICKUP_API_TOKEN`.
 
 Per-list custom field IDs (`CUSTOM_FIELD_MAP` / `ATTACHMENT_FIELD_MAP` in
-`lib/integrations/clickup.ts`) are fully wired for every list except
-`axiskey-report-request`'s "Report Type" dropdown (see below). A Sept
-2026 audit found several fields silently landing in the task description
-only, never in their own ClickUp Field, because `CUSTOM_FIELD_MAP` had no
-entry for them (or, for `account-maintenance-request`'s Offering Name and
-Investor Email, had the *wrong* entry — copied from a different list's
-field by mistake); re-running `scripts/clickup/provision-forms.mjs`
-against every list and cross-checking its output fixed all of them.
+`lib/integrations/clickup.ts`) were re-verified in full against a
+read-only field dump (`scripts/clickup/audit-fields.mjs`, distinct from
+the create-if-missing `provision-forms.mjs`) in Sept 2026, against
+`AxisKey_Operations_Hub_Forms_Spec.md`'s Field Name column (the literal
+ClickUp field name for each question). That audit found:
 
-Still pending: `axiskey-report-request`'s "Report Type" dropdown — its
-option set changed entirely; the script only creates a dropdown once and
-won't update an existing one's options, so replace them manually in
-ClickUp first (new options: All Investors Accounts, All Active Orders,
-All Completed Orders, Pending Orders, Orders Report, Client Investment
-Report, Cap Table Report, Activity Summary Report, Other), then add the
-field/option IDs to `CUSTOM_FIELD_MAP` by hand.
+- **"Requester Email" vs "Client/Capital Raiser Email"** — two different
+  fields exist on almost every list; the spec calls for "Client/Capital
+  Raiser Email" specifically, but every form was wired to "Requester
+  Email" instead. Fixed everywhere.
+- **A shared "Note" field (`42b9ef7f...`) no longer exists on any
+  list** — it silently disappeared from ClickUp at some point, so every
+  form pointing `notes` at it was failing silently. `redemption-request`,
+  `account-maintenance-request`, `document-request`, and
+  `axiskey-report-request` each need a brand-new "Note" field (created as
+  Short Text, not Long Text, per instruction) — pending a
+  `provision-forms.mjs` run.
+- `investor-information-update` already has its own "Information to
+  Update" field for this role (not a generic "Note") — now wired
+  correctly.
+- `side-letter-request` and `redemption-request`'s "Order Number" was
+  pointing at an id (`dd1e7aa6...`) that doesn't exist on any list —
+  fixed to the real shared "Order Number" field.
+- `axiskey-report-request`: "Date Range" is its own real field, separate
+  from the older unused "Report Period" field this used to point at —
+  fixed. The dropdown with the current option set (All Investors
+  Accounts, etc.) is confusingly named **"Report Type-"** (trailing
+  hyphen) in ClickUp, not "Report Type" — an old "Report Type" field
+  with outdated options also still exists on the same list, unused now.
+  Consider renaming "Report Type-" -> "Report Type" and deleting the old
+  one in ClickUp.
+- `title-transfer-request` and `account-maintenance-request` each have
+  **two different fields both literally named "Investor Email"** —
+  wired to whichever one is shared consistently across every other list;
+  consider deleting the duplicate in ClickUp.
+
+Still pending: run `scripts/clickup/provision-forms.mjs` once more to
+create the 4 missing "Note" fields above, then add their returned ids to
+`CUSTOM_FIELD_MAP`.
 
 Two ClickUp fields with the same name are not necessarily the same
-field — e.g. "Offering Name" and "Investor Email" each exist as two
-distinct fields across these lists (different UUIDs), grouped roughly by
-which lists were provisioned together. Never assume a field ID carries
-over to a new list without confirming via the provisioning script's
-output for that specific list.
-
-If a list's fields ever change again, re-run the script (it's idempotent
-for field *creation* — matches by field name — but never edits an
-existing field's options) and update `CUSTOM_FIELD_MAP` with whatever it
-prints, double-checking against the previous values rather than assuming
-a shared field ID still applies.
+field, and a field can vanish from ClickUp without any code change here
+noticing (no error, just a silent no-op) — never assume a field ID still
+applies without confirming it live. `scripts/clickup/audit-fields.mjs`
+is the safe way to check (read-only, lists every field that actually
+exists on all 9 lists); use `provision-forms.mjs` only when a field
+genuinely needs to be created (it matches by exact name, so a
+near-miss name creates an unwanted duplicate instead of finding the
+real field).
 
 ## Network access from a Claude Code (web/remote) session
 

@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "clickup:provision": "node scripts/clickup/provision-forms.mjs",
-    "clickup:audit": "node scripts/clickup/audit-fields.mjs"
+    "clickup:audit": "node scripts/clickup/audit-fields.mjs",
+    "test:forms": "node scripts/test-all-forms.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

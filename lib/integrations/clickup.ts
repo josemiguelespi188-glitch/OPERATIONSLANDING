@@ -4,6 +4,14 @@ export interface ClickUpSyncResult {
   synced: boolean;
   taskId: string | null;
   error?: string;
+  /**
+   * Best-effort failures that happened after the task itself was created
+   * successfully (an attachment-field link or a custom field write
+   * ClickUp rejected) — these never fail the sync (the data is still
+   * visible in the task description), but are worth surfacing instead of
+   * disappearing silently.
+   */
+  warnings?: string[];
 }
 
 const CLICKUP_API_BASE = "https://api.clickup.com/api/v2";
@@ -376,6 +384,8 @@ export async function syncRequestToClickUp(
     };
   }
 
+  const warnings: string[] = [];
+
   // Best-effort: attach the actual files when the API allows it, and link
   // them into their matching attachment-type custom field. A failure here
   // never fails the sync — the file URLs are already in the task
@@ -384,9 +394,18 @@ export async function syncRequestToClickUp(
   await Promise.all(
     payload.attachments.map(async (attachment) => {
       const attachmentId = await attachTaskFile(taskId, attachment, token);
+      if (!attachmentId) {
+        warnings.push(`Failed to upload "${attachment.fileName}" as a ClickUp attachment.`);
+        return;
+      }
       const fieldId = attachment.fieldKey ? attachmentFieldIds[attachment.fieldKey] : undefined;
-      if (attachmentId && fieldId) {
-        await setCustomField(taskId, fieldId, { add: [attachmentId] }, token);
+      if (fieldId) {
+        const result = await setCustomField(taskId, fieldId, { add: [attachmentId] }, token);
+        if (!result.ok) {
+          warnings.push(
+            `Uploaded "${attachment.fileName}" but couldn't link it to its attachment field (${attachment.fieldKey}): ${result.error}`
+          );
+        }
       }
     })
   );
@@ -402,23 +421,41 @@ export async function syncRequestToClickUp(
       for (const target of targets) {
         const value = resolveFieldValue(target, rawValue);
         if (value === null) continue;
-        writes.push(setCustomField(taskId, target.id, value, token));
+        writes.push(
+          setCustomField(taskId, target.id, value, token).then((result) => {
+            if (!result.ok) {
+              warnings.push(`Failed to write custom field "${key}" (${target.id}): ${result.error}`);
+            }
+          })
+        );
       }
     }
     await Promise.all(writes);
   }
 
-  return { synced: true, taskId };
+  if (warnings.length > 0) {
+    console.error(`ClickUp sync warnings for task ${taskId}:`, warnings);
+  }
+
+  return { synced: true, taskId, warnings: warnings.length > 0 ? warnings : undefined };
 }
 
+/**
+ * Sets one custom field's value. Returns whether ClickUp actually
+ * accepted it — the caller decides what to do with a failure (this never
+ * throws, since a failure here shouldn't fail the overall sync, but it
+ * must be reported rather than silently dropped: fetch() only rejects on
+ * a network-level failure, never on a non-2xx response, so callers that
+ * don't check the result here would never learn a write was rejected).
+ */
 async function setCustomField(
   taskId: string,
   fieldId: string,
   value: unknown,
   token: string
-): Promise<void> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    await fetch(`${CLICKUP_API_BASE}/task/${taskId}/field/${fieldId}`, {
+    const response = await fetch(`${CLICKUP_API_BASE}/task/${taskId}/field/${fieldId}`, {
       method: "POST",
       headers: {
         Authorization: token,
@@ -426,8 +463,17 @@ async function setCustomField(
       },
       body: JSON.stringify({ value }),
     });
-  } catch {
-    // Non-fatal — the value is already visible in the task description.
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      return { ok: false, error: `${response.status}: ${body.slice(0, 200)}` };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unknown network error.",
+    };
   }
 }
 

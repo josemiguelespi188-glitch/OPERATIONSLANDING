@@ -12,15 +12,22 @@ export async function syncRequestAndPersist(
   supabase: SupabaseClient,
   requestId: string,
   payload: RequestPayload
-): Promise<{ synced: boolean; taskId: string | null; error?: string }> {
+): Promise<{ synced: boolean; taskId: string | null; error?: string; warnings?: string[] }> {
   const result = await syncRequestToClickUp(payload);
+
+  // A synced task can still have best-effort warnings (an attachment that
+  // didn't link to its field, a custom field ClickUp rejected) — surface
+  // those in clickup_sync_error too, prefixed so they read distinctly
+  // from a hard failure, instead of only ever appearing in server logs.
+  const syncError =
+    result.error ?? (result.warnings ? `Synced with warnings: ${result.warnings.join(" | ")}` : null);
 
   await supabase
     .from("requests")
     .update({
       clickup_task_id: result.taskId,
       clickup_sync_status: result.synced ? "synced" : "failed",
-      clickup_sync_error: result.error ?? null,
+      clickup_sync_error: syncError,
       clickup_synced_at: result.synced ? new Date().toISOString() : null,
     })
     .eq("id", requestId);
@@ -28,7 +35,7 @@ export async function syncRequestAndPersist(
   await supabase.from("activity_log").insert({
     request_id: requestId,
     action: result.synced ? "clickup_synced" : "clickup_sync_failed",
-    metadata: { taskId: result.taskId, error: result.error ?? null },
+    metadata: { taskId: result.taskId, error: result.error ?? null, warnings: result.warnings ?? null },
   });
 
   return result;

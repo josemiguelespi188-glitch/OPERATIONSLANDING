@@ -348,19 +348,70 @@ export async function syncRequestToClickUp(
     };
   }
 
+  const warnings: string[] = [];
+
+  // Resolved up front and sent in the *same* create-task call below,
+  // instead of as follow-up writes after the task exists. ClickUp's "task
+  // created" automations (e.g. the notification emails the ops team
+  // built) fire the instant the task is created and only see whatever
+  // was in that one payload — any field set via a separate call afterward
+  // arrives too late for that automation to read, even though it shows up
+  // correctly moments later in the task itself. Including everything
+  // ClickUp allows at creation time (every custom field except
+  // attachments, which can only be linked after the task/file both
+  // exist) closes that race for every field except attachments.
+  const fieldTargets = CUSTOM_FIELD_MAP[payload.requestType];
+  const customFieldsPayload: { id: string; value: unknown }[] = [];
+  if (fieldTargets) {
+    for (const [key, targets] of Object.entries(fieldTargets)) {
+      const rawValue = payload.customFields[key];
+      if (!rawValue) continue;
+      for (const target of targets) {
+        const value = resolveFieldValue(target, rawValue);
+        if (value === null) continue;
+        customFieldsPayload.push({ id: target.id, value });
+      }
+    }
+  }
+
+  const taskName = buildTaskName(payload);
+  const taskDescription = buildTaskDescription(payload);
+
   let taskId: string;
+  let fieldsIncludedAtCreation = true;
   try {
-    const response = await fetch(`${CLICKUP_API_BASE}/list/${listId}/task`, {
+    let response = await fetch(`${CLICKUP_API_BASE}/list/${listId}/task`, {
       method: "POST",
       headers: {
         Authorization: token,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        name: buildTaskName(payload),
-        description: buildTaskDescription(payload),
+        name: taskName,
+        description: taskDescription,
+        custom_fields: customFieldsPayload,
       }),
     });
+
+    // If ClickUp rejects the combined payload (e.g. one field's value in
+    // an unexpected shape), don't lose the whole request over it — retry
+    // bare and fall back to writing those fields as follow-up calls below,
+    // same as before this optimization existed.
+    if (!response.ok && customFieldsPayload.length > 0) {
+      const firstAttemptBody = await response.text().catch(() => "");
+      warnings.push(
+        `Task creation with custom fields included was rejected (${response.status}: ${firstAttemptBody.slice(0, 200)}) — retried without them.`
+      );
+      fieldsIncludedAtCreation = false;
+      response = await fetch(`${CLICKUP_API_BASE}/list/${listId}/task`, {
+        method: "POST",
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: taskName, description: taskDescription }),
+      });
+    }
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
@@ -384,12 +435,30 @@ export async function syncRequestToClickUp(
     };
   }
 
-  const warnings: string[] = [];
+  // Only needed if the combined create-with-fields attempt above failed
+  // and had to fall back to a bare task — apply the same fields as
+  // individual follow-up writes so the data isn't lost, just later than
+  // ideal (any "task created" automation won't see them in time either
+  // way, same as before this optimization existed).
+  if (!fieldsIncludedAtCreation && customFieldsPayload.length > 0) {
+    await Promise.all(
+      customFieldsPayload.map(async ({ id, value }) => {
+        const result = await setCustomField(taskId, id, value, token);
+        if (!result.ok) {
+          warnings.push(`Failed to write custom field ${id} on fallback: ${result.error}`);
+        }
+      })
+    );
+  }
 
   // Best-effort: attach the actual files when the API allows it, and link
-  // them into their matching attachment-type custom field. A failure here
-  // never fails the sync — the file URLs are already in the task
-  // description as a fallback per the attachment requirements.
+  // them into their matching attachment-type custom field. Unlike the
+  // custom fields above, a file can only be uploaded once the task (and
+  // the file's own bytes) exist, so this unavoidably happens after
+  // creation — any "task created" automation still won't see these in
+  // time. A failure here never fails the sync — the file URLs are
+  // already in the task description as a fallback per the attachment
+  // requirements.
   const attachmentFieldIds = ATTACHMENT_FIELD_MAP[payload.requestType] ?? {};
   await Promise.all(
     payload.attachments.map(async (attachment) => {
@@ -409,29 +478,6 @@ export async function syncRequestToClickUp(
       }
     })
   );
-
-  // Best-effort: populate the structured custom fields this list is known
-  // to have (see CUSTOM_FIELD_MAP). Never fails the sync.
-  const fieldTargets = CUSTOM_FIELD_MAP[payload.requestType];
-  if (fieldTargets) {
-    const writes: Promise<void>[] = [];
-    for (const [key, targets] of Object.entries(fieldTargets)) {
-      const rawValue = payload.customFields[key];
-      if (!rawValue) continue;
-      for (const target of targets) {
-        const value = resolveFieldValue(target, rawValue);
-        if (value === null) continue;
-        writes.push(
-          setCustomField(taskId, target.id, value, token).then((result) => {
-            if (!result.ok) {
-              warnings.push(`Failed to write custom field "${key}" (${target.id}): ${result.error}`);
-            }
-          })
-        );
-      }
-    }
-    await Promise.all(writes);
-  }
 
   if (warnings.length > 0) {
     console.error(`ClickUp sync warnings for task ${taskId}:`, warnings);

@@ -46,19 +46,24 @@ ClickUp field name for each question). That audit found:
   fields exist on almost every list; the spec calls for "Client/Capital
   Raiser Email" specifically, but every form was wired to "Requester
   Email" instead. Fixed everywhere.
-- **A shared "Note" field (`42b9ef7f...`) no longer exists on any
-  list** — it silently disappeared from ClickUp at some point, so every
-  form pointing `notes` at it was failing silently. `redemption-request`,
-  `account-maintenance-request`, `document-request`, and
-  `axiskey-report-request` each need a brand-new "Note" field (created as
-  Short Text, not Long Text, per instruction) — pending a
-  `provision-forms.mjs` run.
+- **The shared "Note" field (`42b9ef7f...`) had briefly disappeared from
+  ClickUp**, so every form pointing `notes` at it was failing silently.
+  The user manually restored it (as Long Text) on `redemption-request`,
+  `side-letter-request`, `account-maintenance-request`,
+  `document-request`, and `axiskey-report-request` — all wired to
+  `42b9ef7f...` now. `side-letter-request` also has a second, unrelated
+  "Note" field (Short Text, `5cd3b348...`) — deliberately not used;
+  consider deleting it in ClickUp to avoid future mixups.
 - `investor-information-update` already has its own "Information to
-  Update" field for this role (not a generic "Note") — now wired
-  correctly.
+  Update" field for this role (not a generic "Note") — wired correctly.
 - `side-letter-request` and `redemption-request`'s "Order Number" was
   pointing at an id (`dd1e7aa6...`) that doesn't exist on any list —
   fixed to the real shared "Order Number" field.
+- **"Offering Name" is now a single field shared across every list**
+  (`3a84a910...`) — a second one (`c438a21a...`) that
+  `side-letter-request`, `investor-information-update`, and
+  `axiskey-report-request` used to point at no longer exists (apparently
+  consolidated in ClickUp). Fixed all 3 to the surviving shared field.
 - `axiskey-report-request`: "Date Range" is its own real field, separate
   from the older unused "Report Period" field this used to point at —
   fixed. The dropdown with the current option set (All Investors
@@ -72,9 +77,11 @@ ClickUp field name for each question). That audit found:
   wired to whichever one is shared consistently across every other list;
   consider deleting the duplicate in ClickUp.
 
-Still pending: run `scripts/clickup/provision-forms.mjs` once more to
-create the 4 missing "Note" fields above, then add their returned ids to
-`CUSTOM_FIELD_MAP`.
+Every field on every one of the 9 forms is now wired to a confirmed,
+currently-existing ClickUp field (verified against a live
+`audit-fields.mjs` run) except `axiskey-report-request`'s old, unused
+"Report Type" and "Report Period" fields, which are intentionally left
+unwired.
 
 Two ClickUp fields with the same name are not necessarily the same
 field, and a field can vanish from ClickUp without any code change here

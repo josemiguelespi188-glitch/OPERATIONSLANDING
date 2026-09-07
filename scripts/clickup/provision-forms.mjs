@@ -183,15 +183,27 @@ const FIELD_PLAN = {
       { name: "Report Period", type: "text" },
       { name: "Note", type: "text" },
       { name: "Requester Email", type: "email" },
-      // "Report Type" deliberately left out of this plan: it already
-      // exists in ClickUp with the old option set (Distribution History,
-      // etc.) and this script only creates a field once — it never
-      // updates an existing one's options. Replace its options manually
-      // in ClickUp with the new set (All Investors Accounts / All Active
-      // Orders / All Completed Orders / Pending Orders / Orders Report /
-      // Client Investment Report / Cap Table Report / Activity Summary
-      // Report / Other), then add its field ID + new option IDs to
-      // CUSTOM_FIELD_MAP by hand.
+      // "Report Type" already exists in ClickUp and its options were
+      // manually replaced there (Sept 2026) with the current set — this
+      // entry doesn't create anything (the script never edits an
+      // existing field's options), it just makes ensureFields() report
+      // the field's current id + each option's id so they can be wired
+      // into CUSTOM_FIELD_MAP.
+      {
+        name: "Report Type",
+        type: "drop_down",
+        options: [
+          "All Investors Accounts",
+          "All Active Orders",
+          "All Completed Orders",
+          "Pending Orders",
+          "Orders Report",
+          "Client Investment Report",
+          "Cap Table Report",
+          "Activity Summary Report",
+          "Other",
+        ],
+      },
     ],
     includeAttachment: false,
   },

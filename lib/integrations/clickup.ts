@@ -93,9 +93,10 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
         },
       },
     ],
-    // No "Note" field exists on this list at all (the old 42b9ef7f... one
-    // this used to point at isn't on any list anymore) — pending
-    // scripts/clickup/provision-forms.mjs creating a new one.
+    // The user restored this list's "Note" field (as Long Text, matching
+    // the shared 42b9ef7f... field also used on several other lists
+    // below) after it had gone missing.
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
     investorEmail: [{ id: "6429a23e-370b-40f8-ac77-f8273b2b7787", kind: "text" }],
     requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
     issuerApprovedRedemption: [{ id: "4fdc8130-8d98-4172-8003-7f3e39ff5c5a", kind: "checkbox" }],
@@ -117,8 +118,14 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
   },
   "side-letter-request": {
     orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
-    offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
-    notes: [{ id: "5cd3b348-1415-4f23-83bf-522ca45b293f", kind: "text" }],
+    // "Offering Name" is now a single field shared across every list
+    // (3a84a910...) — the separate c438a21a... field this used to point
+    // at no longer exists (consolidated in ClickUp at some point).
+    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
+    // This list actually has two fields both named "Note" (one Long
+    // Text, one Short Text) — using the Long Text one (42b9ef7f...,
+    // shared with several other lists) per instruction.
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
     requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
     // The ClickUp dropdown already existed with slightly different option
     // wording than the form ("Double Bonus Payment" / "Higher Interest
@@ -139,7 +146,10 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
     ],
   },
   "investor-information-update": {
-    offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
+    // "Offering Name" is now a single field shared across every list
+    // (3a84a910...) — the separate c438a21a... field this used to point
+    // at no longer exists (consolidated in ClickUp at some point).
+    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
     orderNumber: [{ id: "70257f39-e3a9-4c45-88bf-e5c5677ccc03", kind: "text" }],
     // This list's own "Information to Update" field, distinct from the
     // "Note" field used on side-letter-request.
@@ -149,8 +159,9 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
   },
   "account-maintenance-request": {
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
-    // No "Note" field exists on this list at all — pending
-    // scripts/clickup/provision-forms.mjs creating a new one.
+    // The user restored this list's "Note" field (as Long Text, matching
+    // the shared 42b9ef7f... field also used on several other lists).
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
     // This list also has two fields literally named "Investor Email" —
     // using 6429a23e since that's the one shared consistently across
     // every other list (see the title-transfer-request comment above).
@@ -160,8 +171,9 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
   "document-request": {
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
     requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
-    // No "Note" field exists on this list at all — pending
-    // scripts/clickup/provision-forms.mjs creating a new one.
+    // The user restored this list's "Note" field (as Long Text, matching
+    // the shared 42b9ef7f... field also used on several other lists).
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
     documentNeeded: [
       {
         id: "86e46ade-ece1-481e-9361-66d905e1cdc3",
@@ -179,13 +191,17 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
     ],
   },
   "axiskey-report-request": {
-    offeringName: [{ id: "c438a21a-8fc0-4f25-a4c8-cf1ece1ead25", kind: "text" }],
+    // "Offering Name" is now a single field shared across every list
+    // (3a84a910...) — the separate c438a21a... field this used to point
+    // at no longer exists (consolidated in ClickUp at some point).
+    offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],
     // The form's "dateRange" field maps to ClickUp's own "Date Range"
     // field (not "Report Period", an older unrelated field that's still
     // on this list but no longer used).
     dateRange: [{ id: "7ed0cab2-f868-4c7e-814a-94daeb040a60", kind: "text" }],
-    // No "Note" field exists on this list at all — pending
-    // scripts/clickup/provision-forms.mjs creating a new one.
+    // The user restored this list's "Note" field (as Long Text, matching
+    // the shared 42b9ef7f... field also used on several other lists).
+    notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
     requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
     // The dropdown with the current option set is literally named
     // "Report Type-" (trailing hyphen) in ClickUp, not "Report Type" —

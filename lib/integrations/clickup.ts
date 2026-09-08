@@ -66,6 +66,13 @@ type ClickUpFieldTarget =
 // this and several other stale/incorrect field IDs below.
 const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
   "title-transfer-request": {
+    // "Type of Transfer" (dropdown: Title Account Transfer / Regular
+    // Transfer / Transfer Of Death / Donation) was just created in
+    // ClickUp (Sept 2026) and has no confirmed field/option IDs yet —
+    // deliberately left unmapped here so it fails silently (no-op, per
+    // the documented CUSTOM_FIELD_MAP behavior) rather than guessing at
+    // an ID. Run scripts/clickup/audit-fields.mjs after creating the
+    // field in ClickUp and add the entry once the real IDs are known.
     currentAccountName: [{ id: "3026a4c9-b01c-41cb-ab92-87b2cf417ba1", kind: "text" }],
     newAccountName: [{ id: "0de379f0-b634-44ad-b5cc-ef75f46359ed", kind: "text" }],
     offeringName: [{ id: "3a84a910-2a20-4c12-984f-d3e89926550a", kind: "text" }],

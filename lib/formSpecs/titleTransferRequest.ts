@@ -3,6 +3,15 @@ import type { FieldConfig } from "@/components/axiskey-forms/FormShell";
 
 const fields: FieldConfig[] = [
   {
+    kind: "select",
+    name: "typeOfTransfer",
+    label: "What type of transfer is this?",
+    required: true,
+    helper: "Select the type of title transfer being requested.",
+    placeholder: "Select the type of transfer.",
+    options: ["Title Account Transfer", "Regular Transfer", "Transfer Of Death", "Donation"],
+  },
+  {
     kind: "text",
     name: "investorName",
     label: "Who is the investor currently holding the order?",
@@ -79,6 +88,7 @@ export const titleTransferRequestSpec: FormSpec = {
     investorNameField: "investorName",
     dealNameField: "offeringName",
     notesFields: [
+      { label: "Type of Transfer", field: "typeOfTransfer" },
       { label: "Investor Email", field: "investorEmail" },
       { label: "Order Number", field: "orderNumber" },
       { label: "Current Account Name", field: "currentAccountName" },
@@ -87,7 +97,11 @@ export const titleTransferRequestSpec: FormSpec = {
     // All confirmed — currentAccountName/newAccountName/offeringName/
     // orderNumber against real submitted tasks, investorEmail/
     // requesterEmail via scripts/clickup/provision-forms.mjs (Sept 2026).
+    // typeOfTransfer is pending its ClickUp field/option IDs (Sept 2026,
+    // field just created in ClickUp) — see CUSTOM_FIELD_MAP in
+    // lib/integrations/clickup.ts for the placeholder entry to fill in.
     customFields: [
+      { key: "typeOfTransfer", field: "typeOfTransfer" },
       { key: "currentAccountName", field: "currentAccountName" },
       { key: "newAccountName", field: "newAccountName" },
       { key: "offeringName", field: "offeringName" },

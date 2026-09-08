@@ -13,7 +13,7 @@ export function SideLetterTemplateLibrary({
     <div className="mt-10">
       <h2 className="text-base font-bold text-axis-core">Common Side Letter Templates</h2>
       <p className="mt-1 text-sm text-axis-core/60">
-        Pick a starting point — it prefills the terms description below. You can still edit
+        Pick a starting point. It prefills the terms description below. You can still edit
         everything before submitting.
       </p>
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

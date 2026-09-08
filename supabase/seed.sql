@@ -10,15 +10,15 @@
 delete from request_types where slug = 'custom-request';
 
 insert into request_types (slug, name, description, sort_order, is_locked) values
-  ('title-transfer-request', 'Title Transfer Request', 'Submit a title transfer request.', 1, true),
-  ('redemption-request', 'Redemption Request', 'Submit an investor redemption request.', 2, true),
-  ('ira-funding-request', 'IRA Funding Request', 'Request funds from an IRA custodian.', 3, true),
-  ('refund-request', 'Refund Request', 'Request a refund of an investor payment made in error.', 4, true),
-  ('side-letter-request', 'Side Letter Request', 'Request the creation of a side letter for an investor.', 5, true),
-  ('investor-information-update', 'Investor Information Update', 'Request updates to investor records.', 6, true),
-  ('account-maintenance-request', 'Account Maintenance Request', 'General account maintenance requests.', 7, true),
-  ('document-request', 'Investor Documentation Request', 'Request outstanding documentation from an investor.', 8, true),
-  ('axiskey-report-request', 'Request an AxisKey Report', 'Request a report on investors, orders, or account activity.', 9, true)
+  ('title-transfer-request', 'Title Transfer Request', 'A title transfer moves an existing investment order from one investor account to another without changing the investment itself. The amount and terms stay exactly the same; only the account holding the order is updated in AxisKey''s internal system and portal.', 1, true),
+  ('redemption-request', 'Redemption Request', 'A redemption withdraws all or part of an investor''s capital from an active investment, whether the full balance or a partial amount. Submitting this form starts the redemption process and may change the investment''s amount or terms going forward.', 2, true),
+  ('ira-funding-request', 'IRA Funding Request', 'This request asks AxisKey to reach out to an investor''s IRA custodian to release funds for a specific investment. The client or Capital Raiser completes this form to start that funding process.', 3, true),
+  ('refund-request', 'Refund Request', 'A refund returns funds to an investor for a payment made in error, an overpayment, or a canceled order, without affecting any other active investment. This applies before a Subscription Agreement is signed; the client or Capital Raiser completes this form to initiate it.', 4, true),
+  ('side-letter-request', 'Side Letter Request', 'A side letter is a supplemental agreement between an investor and an issuer that adds or modifies terms from the original Subscription Agreement, such as bonus payments or adjusted returns. The client or Capital Raiser completes this form to request one be drafted.', 5, true),
+  ('investor-information-update', 'Investor Information Update', 'Use this request to update an investor''s personal or account information already on file, such as name, address, phone number, or entity details. The client or Capital Raiser completes this form to initiate the update.', 6, true),
+  ('account-maintenance-request', 'Account Maintenance Request', 'An account maintenance request covers corrections or adjustments to an investor''s account or order, such as data entry errors, allocation corrections, or status fixes. It''s for changes outside a standard information update; the client or Capital Raiser completes this form to initiate the correction.', 7, true),
+  ('document-request', 'Investor Documentation Request', 'Use this request to ask an investor for outstanding or updated KYC and due diligence documentation needed to complete or maintain their account. The client or Capital Raiser completes this form to initiate the request.', 8, true),
+  ('axiskey-report-request', 'Request an AxisKey Report', 'This request generates a report from AxisKey covering investors, orders, or overall account activity. Reports aren''t limited to one investor: they can be pulled at the client, offering, or platform-wide level.', 9, true)
 on conflict (slug) do update set
   name = excluded.name,
   description = excluded.description,

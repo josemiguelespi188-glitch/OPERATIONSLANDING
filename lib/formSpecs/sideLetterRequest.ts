@@ -27,15 +27,6 @@ const fields: FieldConfig[] = [
     placeholder: "10234",
   },
   {
-    kind: "select",
-    name: "sideLetterType",
-    label: "What type of side letter is being requested?",
-    required: true,
-    helper: "Select the type of side letter being requested.",
-    placeholder: "Select the type of side letter being requested.",
-    options: ["Double Bonus Months", "Additional Annualized Return", "Fee Waiver", "Other"],
-  },
-  {
     kind: "textarea",
     name: "notes",
     label: "Please describe the side letter needed",
@@ -69,19 +60,21 @@ export const sideLetterRequestSpec: FormSpec = {
     dealNameField: "offeringName",
     notesFields: [
       { label: "Order Number", field: "orderNumber" },
-      { label: "Side Letter Type", field: "sideLetterType" },
       { label: "Requester Email", field: "requesterEmail" },
       { label: "Note", field: "notes" },
     ],
-    // All confirmed via scripts/clickup/provision-forms.mjs (Sept 2026),
-    // including sideLetterType's dropdown option IDs — see
-    // CUSTOM_FIELD_MAP in lib/integrations/clickup.ts.
+    // All confirmed via scripts/clickup/provision-forms.mjs (Sept 2026).
+    // sideLetterType (the "What type of side letter" dropdown) was
+    // removed from this form (Sept 2026) as redundant with the template
+    // picker above it, which already sets the terms description for the
+    // common cases. The ClickUp "Side Letter Type" field itself still
+    // exists (see CUSTOM_FIELD_MAP note in lib/integrations/clickup.ts)
+    // but nothing on this form sends to it anymore.
     customFields: [
       { key: "orderNumber", field: "orderNumber" },
       { key: "offeringName", field: "offeringName" },
       { key: "notes", field: "notes" },
       { key: "requesterEmail", field: "requesterEmail" },
-      { key: "sideLetterType", field: "sideLetterType" },
     ],
   },
 };

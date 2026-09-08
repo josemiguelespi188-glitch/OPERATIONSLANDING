@@ -150,11 +150,10 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
     // shared with several other lists) per instruction.
     notes: [{ id: "42b9ef7f-4cde-41d5-b3b1-64d89fd0c88f", kind: "text" }],
     requesterEmail: [{ id: "a655d17c-0108-470a-8d83-acf2a2abfeea", kind: "text" }],
-    // The ClickUp dropdown already existed with slightly different option
-    // wording than the form ("Double Bonus Payment" / "Higher Interest
-    // Rate" vs the form's "Double Bonus Months" / "Additional Annualized
-    // Return") — mapped by matching intent below. Rename either side in
-    // ClickUp/the form if you want them to read identically.
+    // The "What type of side letter" dropdown was removed from the form
+    // (Sept 2026, redundant with the template picker) so nothing sends
+    // to this anymore, but the ClickUp field still exists and the
+    // mapping is kept in case the question comes back.
     sideLetterType: [
       {
         id: "c09fee99-4a44-4a86-9850-a882229f1596",

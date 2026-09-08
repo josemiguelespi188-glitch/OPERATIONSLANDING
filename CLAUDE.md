@@ -127,6 +127,20 @@ overrides server-side on every request — `export const dynamic =
 Supabase SQL editor after it changes in the repo; nothing applies it
 automatically.
 
+**The paragraph shown under a form's title always comes from
+`request_types.description` (seed.sql), never from the FormSpec's
+`descriptionParagraphs`** (`app/forms/<slug>/page.tsx` passes
+`overrides.description ? [overrides.description] : spec.descriptionParagraphs`,
+and `loadFormOverrides()` returns that DB column's value for every
+existing row, seeded or admin-edited alike — there's no way to tell
+"never customized" from "admin deliberately set this"). A FormSpec's own
+`descriptionParagraphs` only renders if the `request_types` row is
+somehow missing entirely, which doesn't happen for any of the 9 locked
+slugs. So editing `descriptionParagraphs` in `lib/formSpecs/<slug>.ts`
+alone will NOT change what's live; edit the row in `seed.sql` (and
+re-run it in the Supabase SQL editor, or edit the row directly from
+`/admin/forms/<id>`) instead.
+
 ## Public site layout
 
 The public site (home page + every request form) is deliberately a single

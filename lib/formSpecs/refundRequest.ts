@@ -36,6 +36,15 @@ const fields: FieldConfig[] = [
     placeholder: "5,000",
   },
   {
+    kind: "email",
+    name: "requesterEmail",
+    label: "What is your email address?",
+    required: true,
+    helper:
+      "Enter your email address so you can track the status of this refund request and receive updates as it is processed.",
+    placeholder: "agent@axiskey.com",
+  },
+  {
     kind: "file",
     name: "refundDocumentation",
     label: "Do you have supporting documentation to attach?",
@@ -52,16 +61,26 @@ export const refundRequestSpec: FormSpec = {
   fields,
   submissionMapping: {
     requestorNameFields: ["investorName"],
-    requestorEmailFields: ["investorEmail"],
+    requestorEmailFields: ["requesterEmail", "investorEmail"],
     investorNameField: "investorName",
     notesFields: [
       { label: "Investor Email", field: "investorEmail" },
       { label: "Reason for Refund", field: "reasonForRefund" },
       { label: "Refund Amount (USD)", field: "refundAmount" },
+      { label: "Requester Email", field: "requesterEmail" },
     ],
     // Confirmed via scripts/clickup/provision-forms.mjs (Sept 2026) —
     // see CUSTOM_FIELD_MAP / ATTACHMENT_FIELD_MAP in
     // lib/integrations/clickup.ts.
+    // requesterEmail (added Sept 2026, so ops can follow up with whoever
+    // submitted the request) has no customFields entry on purpose: the
+    // Refund Request ClickUp list has no "Requester Email"/"Client/
+    // Capital Raiser Email" field at all (confirmed via
+    // scripts/clickup/audit-fields.mjs), unlike every other list. It
+    // still lands in the task description via notesFields above, and in
+    // our own DB via requestorEmailFields. Create the field in ClickUp
+    // and add an entry to CUSTOM_FIELD_MAP in lib/integrations/clickup.ts
+    // if it should sync to a dedicated field too.
     customFields: [
       { key: "investorEmail", field: "investorEmail" },
       { key: "reasonForRefund", field: "reasonForRefund" },

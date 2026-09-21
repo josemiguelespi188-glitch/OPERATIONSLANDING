@@ -150,7 +150,34 @@ más." Don't reintroduce `PageShell`/`Sidebar` there; those components are
 now admin-only (`app/admin/layout.tsx`). `<ClickUpSyncNotice />` lives on
 the admin Overview page (`components/admin/AdminOverview.tsx`), not on
 any public page — same reasoning, the public Operations Hub Center screen
-should show nothing but the request cards.
+should show nothing but the request cards. `/rate-your-experience` (see
+below) is the one deliberate exception, and it doesn't use `PageShell`
+either — it has no chrome at all, not even the plain header the request
+forms use.
+
+## Investor feedback ("Rate Your Experience")
+
+`app/rate-your-experience` is a standalone public page linked from
+transactional emails (e.g. "Allocation Confirmed"). It lives outside the
+Operations Hub's normal navigation on purpose: no `PageShell`/`Sidebar`
+wraps it, and it isn't gated by the admin auth check (that check only
+applies inside `app/admin`, via `app/admin/layout.tsx`'s client-side
+session gate; there's no global middleware). It reads `?stars=N` from the
+URL to preselect a rating but lets the investor change it before
+submitting.
+
+`POST /api/investor-feedback` is the public, unauthenticated endpoint the
+page posts to; it writes to the `investor_feedback` table (see
+`supabase/migrations/004_investor_feedback.sql`), the same "public insert
+via the service-role client" pattern as `POST /api/requests` writing to
+`requests`. `investor_email` is nullable and currently unused: the
+payload the page sends has no investor identifier (no session/token),
+just `rating`/`comment`/`source`/`submittedAt`.
+
+`GET /api/admin/investor-feedback` (admin-only, same `requireAdmin` gate
+as the rest of `/api/admin/*`) aggregates that table for the "Investor
+Experience Rating" card on `/admin` (average rating, 1-5 histogram,
+recent comments, an 8-week trend) — see `AdminOverview.tsx`.
 
 ## Style
 

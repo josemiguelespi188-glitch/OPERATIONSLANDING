@@ -26,6 +26,18 @@ interface AdminStats {
   }>;
 }
 
+interface InvestorFeedbackStats {
+  total: number;
+  averageRating: number;
+  histogram: Record<1 | 2 | 3 | 4 | 5, number>;
+  recentComments: Array<{
+    id: string;
+    rating: number;
+    comment: string;
+    submittedAt: string;
+  }>;
+}
+
 const STATUS_LABEL: Record<RequestStatus, string> = {
   submitted: "Submitted",
   in_review: "In Review",
@@ -44,6 +56,9 @@ export function AdminOverview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  const [feedback, setFeedback] = useState<InvestorFeedbackStats | null>(null);
+  const [feedbackError, setFeedbackError] = useState("");
 
   const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
@@ -64,9 +79,25 @@ export function AdminOverview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.access_token]);
 
+  const fetchFeedback = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/investor-feedback", { headers: authHeaders });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        console.error("Failed to load investor feedback:", res.status, body);
+        throw new Error(`${body.error ?? "Failed to load investor feedback."} (status ${res.status})`);
+      }
+      setFeedback(body);
+    } catch (err) {
+      setFeedbackError(err instanceof Error ? err.message : "Failed to load investor feedback.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.access_token]);
+
   useEffect(() => {
     fetchStats();
-  }, [fetchStats]);
+    fetchFeedback();
+  }, [fetchStats, fetchFeedback]);
 
   async function handleRetry(id: string) {
     setRetryingId(id);
@@ -201,6 +232,79 @@ export function AdminOverview() {
 
             <ClickUpSyncNotice />
           </>
+        )}
+
+        {feedbackError && (
+          <p className="mt-8 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
+            {feedbackError}
+          </p>
+        )}
+
+        {feedback && (
+          <div className="mt-8">
+            <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
+              Investor Experience Rating
+            </h3>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <KpiCard
+                label="Average Rating"
+                value={feedback.total > 0 ? Math.round(feedback.averageRating * 10) / 10 : 0}
+                accent
+              />
+              <KpiCard label="Total Ratings" value={feedback.total} tone="tan" />
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {([5, 4, 3, 2, 1] as const).map((star) => {
+                const count = feedback.histogram[star] ?? 0;
+                const pct = feedback.total > 0 ? (count / feedback.total) * 100 : 0;
+                return (
+                  <div key={star} className="flex items-center gap-3">
+                    <span className="w-16 shrink-0 text-sm text-axis-core/70">
+                      {star} {star === 1 ? "star" : "stars"}
+                    </span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-axis-light">
+                      <div
+                        className="h-full rounded-full bg-axis-signal"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="w-6 shrink-0 text-right text-sm font-semibold text-axis-core">
+                      {count}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-6">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">
+                Recent Comments
+              </h4>
+              <div className="mt-3 overflow-hidden rounded-card border border-axis-base/30 bg-white">
+                {feedback.recentComments.length === 0 && (
+                  <p className="px-4 py-6 text-center text-sm text-axis-core/50">
+                    No comments yet.
+                  </p>
+                )}
+                {feedback.recentComments.map((c, i) => (
+                  <div
+                    key={c.id}
+                    className={`px-4 py-3 text-sm ${i !== 0 ? "border-t border-axis-base/20" : ""}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium text-axis-core">{"★".repeat(c.rating)}</span>
+                      <span className="shrink-0 text-xs text-axis-core/50">
+                        {new Date(c.submittedAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-axis-core/70">{c.comment}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

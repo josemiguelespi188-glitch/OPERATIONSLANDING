@@ -46,6 +46,24 @@ export interface RequestPayload {
   submittedAt: string;
 }
 
+/** Shape submitted by the "Rate Your Experience" landing page. */
+export interface InvestorFeedbackInput {
+  rating: number;
+  comment?: string | null;
+  source?: string;
+  submittedAt?: string;
+}
+
+export interface InvestorFeedbackRecord {
+  id: string;
+  rating: number;
+  comment: string | null;
+  source: string;
+  investor_email: string | null;
+  submitted_at: string;
+  created_at: string;
+}
+
 export interface RequestRecord {
   id: string;
   request_type_slug: RequestTypeSlug;

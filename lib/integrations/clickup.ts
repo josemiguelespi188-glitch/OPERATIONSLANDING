@@ -253,8 +253,20 @@ const CUSTOM_FIELD_MAP: Record<string, Record<string, ClickUpFieldTarget[]>> = {
 
 /**
  * Request type slug -> { AttachmentInput.fieldKey -> ClickUp
- * attachment-type custom field ID }. Populated after the file is uploaded
- * as a regular task attachment (see attachTaskFile).
+ * attachment-type custom field ID }. Kept only as a record of which field
+ * each upload conceptually "belongs to" — NOT used to write anything.
+ *
+ * ClickUp's Set Custom Field Value endpoint does not support the
+ * "attachment" field type (confirmed Sept 2026: every write attempt
+ * against a real, correctly-IDed, confirmed-attachment-type field like
+ * "Additional File" (3d082ed6..., verified via clickup_get_custom_fields)
+ * fails identically with `401 {"err":"Invalid Attachment Field",
+ * "ECODE":"FIELD_250"}`, on every list, every time — a structural API
+ * limitation, not a stale ID). The file itself still gets attached to the
+ * task correctly (see attachTaskFile below) and is linked in the task
+ * description as a fallback; it just can't be slotted into this specific
+ * named custom field via the API. Don't re-add a write attempt here
+ * without first confirming ClickUp has actually added API support for it.
  */
 const ATTACHMENT_FIELD_MAP: Record<string, Record<string, string>> = {
   "title-transfer-request": {
@@ -465,30 +477,23 @@ export async function syncRequestToClickUp(
     );
   }
 
-  // Best-effort: attach the actual files when the API allows it, and link
-  // them into their matching attachment-type custom field. Unlike the
-  // custom fields above, a file can only be uploaded once the task (and
-  // the file's own bytes) exist, so this unavoidably happens after
-  // creation — any "task created" automation still won't see these in
-  // time. A failure here never fails the sync — the file URLs are
+  // Best-effort: attach the actual files. A file can only be uploaded once
+  // the task (and the file's own bytes) exist, so this unavoidably happens
+  // after creation — any "task created" automation still won't see these
+  // in time. A failure here never fails the sync — the file URLs are
   // already in the task description as a fallback per the attachment
   // requirements.
-  const attachmentFieldIds = ATTACHMENT_FIELD_MAP[payload.requestType] ?? {};
+  //
+  // Deliberately doesn't attempt to also link the upload into
+  // ATTACHMENT_FIELD_MAP's attachment-type custom field — see that
+  // constant's comment: ClickUp's API rejects every such write regardless
+  // of field ID, so trying only produced a guaranteed warning on every
+  // request with a file attached.
   await Promise.all(
     payload.attachments.map(async (attachment) => {
       const attachmentId = await attachTaskFile(taskId, attachment, token);
       if (!attachmentId) {
         warnings.push(`Failed to upload "${attachment.fileName}" as a ClickUp attachment.`);
-        return;
-      }
-      const fieldId = attachment.fieldKey ? attachmentFieldIds[attachment.fieldKey] : undefined;
-      if (fieldId) {
-        const result = await setCustomField(taskId, fieldId, { add: [attachmentId] }, token);
-        if (!result.ok) {
-          warnings.push(
-            `Uploaded "${attachment.fileName}" but couldn't link it to its attachment field (${attachment.fieldKey}): ${result.error}`
-          );
-        }
       }
     })
   );

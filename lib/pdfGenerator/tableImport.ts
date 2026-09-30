@@ -91,6 +91,22 @@ export function mapSheetToFields(
     else if (DOC_NAME_HEADER.test(key) && ![...columns.values()].includes("doc")) columns.set(col, "doc");
     else ignored.push(cell.text);
   }
+  // Second pass: a header that contains a field's name (or vice versa), e.g.
+  // "Offering Name" for a field called "Name", when that's the only candidate.
+  for (const [col, cell] of header) {
+    const key = normalizeLabel(cell.text);
+    if (!key || columns.has(col) || DOC_NAME_HEADER.test(key)) continue;
+    const taken = new Set(columns.values());
+    const words = (s: string) => ` ${s} `;
+    const candidates = fields.filter((f) => {
+      const label = normalizeLabel(f.label);
+      return !taken.has(f) && label && (words(key).includes(words(label)) || words(label).includes(words(key)));
+    });
+    if (candidates.length === 1) {
+      columns.set(col, candidates[0]);
+      ignored.splice(ignored.indexOf(cell.text), 1);
+    }
+  }
   const hasHeader = columns.size > 0;
   if (!hasHeader) {
     // No recognizable header: columns follow the template's field order.

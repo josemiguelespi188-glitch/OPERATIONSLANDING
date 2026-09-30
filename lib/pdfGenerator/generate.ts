@@ -3,7 +3,7 @@
  * client-side with pdf-lib, so nothing about a batch (logos, names,
  * generated files) ever hits our API or Vercel's request-size limits.
  */
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, PDFName, PDFRef, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import { zipSync } from "fflate";
 import type { PdfBox, PdfFontFamily, PdfTemplateConfig } from "./types";
 
@@ -164,12 +164,60 @@ function drawImageBox(page: PDFPage, image: PDFImage, box: PdfBox) {
   page.drawImage(image, { x, y, width: w, height: h, opacity: box.opacity });
 }
 
+/** Drops /Annots entries pointing at objects pdf-lib's flatten() deleted (it leaves them dangling). */
+function pruneDanglingAnnots(doc: PDFDocument) {
+  for (const page of doc.getPages()) {
+    const annots = page.node.Annots();
+    if (!annots) continue;
+    for (let i = annots.size() - 1; i >= 0; i--) {
+      const entry = annots.get(i);
+      if (entry instanceof PDFRef && !doc.context.lookup(entry)) annots.remove(i);
+    }
+    if (annots.size() === 0) page.node.delete(PDFName.of("Annots"));
+  }
+}
+
+/**
+ * Loads the template with any fillable form fields flattened into the
+ * page. Form widgets are drawn above page content, so an empty field
+ * (typically white) sitting where a box was mapped would hide the text or
+ * image we draw there. Flattening bakes each field's current look into the
+ * page itself, so everything we draw afterwards lands on top.
+ *
+ * Tries to keep the PDF's own field appearances first; if the form is
+ * unusual, retries regenerating them, and as a last resort leaves the
+ * form untouched rather than failing the whole document.
+ */
+async function loadTemplate(templateBytes: ArrayBuffer | Uint8Array): Promise<PDFDocument> {
+  const load = () => PDFDocument.load(templateBytes, { ignoreEncryption: true });
+  const first = await load();
+  let fieldCount = 0;
+  try {
+    fieldCount = first.getForm().getFields().length;
+  } catch {
+    return first;
+  }
+  if (!fieldCount) return first;
+
+  for (const updateFieldAppearances of [false, true]) {
+    const doc = updateFieldAppearances ? await load() : first;
+    try {
+      doc.getForm().flatten({ updateFieldAppearances });
+      pruneDanglingAnnots(doc);
+      return doc;
+    } catch {
+      // try the next strategy on a fresh copy
+    }
+  }
+  return load();
+}
+
 export async function generatePdf(
   templateBytes: ArrayBuffer | Uint8Array,
   config: PdfTemplateConfig,
   values: RowValues
 ): Promise<Uint8Array> {
-  const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+  const doc = await loadTemplate(templateBytes);
   const pages = doc.getPages();
   const fonts = new Map<StandardFonts, PDFFont>();
   const images = new Map<string, PDFImage>();

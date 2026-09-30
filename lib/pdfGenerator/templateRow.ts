@@ -1,5 +1,5 @@
 import type { PdfTemplateSummary } from "./types";
-import { sanitizeMapping } from "./types";
+import { sanitizeConfig } from "./types";
 
 /** Private bucket created by supabase/migrations/006_pdf_templates.sql. */
 export const PDF_TEMPLATE_BUCKET = "pdf-templates";
@@ -21,7 +21,7 @@ export function toTemplateSummary(row: PdfTemplateRow): PdfTemplateSummary {
     name: row.name,
     fileName: row.file_name,
     pageCount: row.page_count,
-    mapping: sanitizeMapping(row.mapping),
+    mapping: sanitizeConfig(row.mapping),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

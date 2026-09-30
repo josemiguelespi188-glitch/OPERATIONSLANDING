@@ -133,8 +133,7 @@ export function PdfTemplateList() {
           <p className="px-4 py-6 text-center text-sm text-axis-core/50">No templates yet. Upload your first PDF above.</p>
         )}
         {templates?.map((t, i) => {
-          const names = t.mapping.filter((m) => m.type === "text").length;
-          const logos = t.mapping.filter((m) => m.type === "image").length;
+          const fields = t.mapping.fields;
           return (
             <div
               key={t.id}
@@ -144,8 +143,8 @@ export function PdfTemplateList() {
                 <p className="truncate text-sm font-semibold text-axis-core">{t.name}</p>
                 <p className="mt-0.5 truncate text-xs text-axis-core/50">
                   {t.fileName ?? "No file"}
-                  {t.pageCount ? ` · ${t.pageCount} page${t.pageCount === 1 ? "" : "s"}` : ""} · {names} name box
-                  {names === 1 ? "" : "es"}, {logos} logo box{logos === 1 ? "" : "es"}
+                  {t.pageCount ? ` · ${t.pageCount} page${t.pageCount === 1 ? "" : "s"}` : ""} ·{" "}
+                  {fields.length ? fields.map((f) => f.label).join(", ") : "no fields yet"}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">

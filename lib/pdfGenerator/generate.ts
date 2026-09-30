@@ -3,22 +3,31 @@
  * client-side with pdf-lib, so nothing about a batch (logos, names,
  * generated files) ever hits our API or Vercel's request-size limits.
  */
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import { zipSync } from "fflate";
-import type { PdfFontName, PdfPlacement, PdfTextPlacement } from "./types";
+import type { PdfBox, PdfFontFamily, PdfTemplateConfig } from "./types";
 
 export interface PreparedLogo {
   bytes: Uint8Array;
   kind: "png" | "jpg";
 }
 
-const FONT_MAP: Record<PdfFontName, StandardFonts> = {
-  Helvetica: StandardFonts.Helvetica,
-  "Helvetica-Bold": StandardFonts.HelveticaBold,
-  "Times-Roman": StandardFonts.TimesRoman,
-  "Times-Bold": StandardFonts.TimesRomanBold,
-  Courier: StandardFonts.Courier,
+/** One generated document: text per text field id, image per image field id. */
+export interface RowValues {
+  text: Record<string, string>;
+  images: Record<string, PreparedLogo | null>;
+}
+
+const FONT_MAP: Record<PdfFontFamily, [StandardFonts, StandardFonts, StandardFonts, StandardFonts]> = {
+  // regular, bold, italic, bold italic
+  Helvetica: [StandardFonts.Helvetica, StandardFonts.HelveticaBold, StandardFonts.HelveticaOblique, StandardFonts.HelveticaBoldOblique],
+  Times: [StandardFonts.TimesRoman, StandardFonts.TimesRomanBold, StandardFonts.TimesRomanItalic, StandardFonts.TimesRomanBoldItalic],
+  Courier: [StandardFonts.Courier, StandardFonts.CourierBold, StandardFonts.CourierOblique, StandardFonts.CourierBoldOblique],
 };
+
+export function standardFontFor(box: Pick<PdfBox, "fontFamily" | "bold" | "italic">): StandardFonts {
+  return FONT_MAP[box.fontFamily][(box.bold ? 1 : 0) + (box.italic ? 2 : 0)];
+}
 
 /**
  * pdf-lib can only embed PNG and JPEG. Anything else the browser can
@@ -66,66 +75,130 @@ function hexToRgb(hex: string) {
 /** Standard PDF fonts only cover WinAnsi (Latin-1-ish): swap anything else for a close ASCII fallback. */
 function encodableText(font: PDFFont, text: string): string {
   const supported = new Set(font.getCharacterSet());
+  supported.add(10); // newline is handled by our own line splitting
   return Array.from(text.normalize("NFC"))
     .map((ch) => {
       if (supported.has(ch.codePointAt(0)!)) return ch;
-      const stripped = ch.normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const stripped = ch.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       return stripped && Array.from(stripped).every((c) => supported.has(c.codePointAt(0)!)) ? stripped : "?";
     })
     .join("");
 }
 
-function drawTextBox(page: ReturnType<PDFDocument["getPages"]>[number], font: PDFFont, box: PdfTextPlacement, raw: string) {
-  const text = encodableText(font, raw.trim());
+/** Greedy word wrap; words longer than the box are broken by character. */
+function wrapLines(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    let line = "";
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        line = candidate;
+        continue;
+      }
+      if (line) lines.push(line);
+      line = "";
+      let chunk = "";
+      for (const ch of word) {
+        if (font.widthOfTextAtSize(chunk + ch, size) > maxWidth && chunk) {
+          lines.push(chunk);
+          chunk = ch;
+        } else chunk += ch;
+      }
+      line = chunk;
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+function layoutText(font: PDFFont, box: PdfBox, text: string, size: number) {
+  const lines = box.multiline ? wrapLines(text, font, size, box.width) : [text.replace(/\s*\n\s*/g, " ")];
+  const lineGap = size * box.lineHeight;
+  const blockHeight = font.heightAtSize(size) + (lines.length - 1) * lineGap;
+  const widest = Math.max(...lines.map((l) => font.widthOfTextAtSize(l, size)));
+  return { lines, lineGap, blockHeight, widest };
+}
+
+function drawTextBox(page: PDFPage, font: PDFFont, box: PdfBox, raw: string) {
+  let text = encodableText(font, raw.trim());
+  if (box.uppercase) text = text.toUpperCase();
   if (!text) return;
 
-  // Shrink to fit the box width (and height), never grow past the chosen size.
+  // Shrink until it fits (width, and height), never grow past the chosen size.
   let size = box.fontSize;
-  while (size > 4 && (font.widthOfTextAtSize(text, size) > box.width || font.heightAtSize(size) > box.height)) {
-    size -= 0.5;
+  let layout = layoutText(font, box, text, size);
+  while (box.autoShrink && size > 4 && (layout.widest > box.width || layout.blockHeight > box.height)) {
+    size = Math.max(4, size - 0.5);
+    layout = layoutText(font, box, text, size);
   }
 
-  const width = font.widthOfTextAtSize(text, size);
-  const total = font.heightAtSize(size);
-  const descent = total - font.heightAtSize(size, { descender: false });
-  const x =
-    box.align === "left" ? box.x : box.align === "right" ? box.x + box.width - width : box.x + (box.width - width) / 2;
-  const y = box.y + (box.height - total) / 2 + descent;
+  const ascentOnly = font.heightAtSize(size, { descender: false });
+  // Top of the text block, per vertical alignment.
+  const blockTop =
+    box.vAlign === "top"
+      ? box.y + box.height
+      : box.vAlign === "bottom"
+        ? box.y + layout.blockHeight
+        : box.y + (box.height + layout.blockHeight) / 2;
 
-  page.drawText(text, { x, y, size, font, color: hexToRgb(box.color) });
+  layout.lines.forEach((line, i) => {
+    const width = font.widthOfTextAtSize(line, size);
+    const x =
+      box.align === "left" ? box.x : box.align === "right" ? box.x + box.width - width : box.x + (box.width - width) / 2;
+    const baseline = blockTop - ascentOnly - i * layout.lineGap;
+    page.drawText(line, { x, y: baseline, size, font, color: hexToRgb(box.color) });
+  });
+}
+
+function drawImageBox(page: PDFPage, image: PDFImage, box: PdfBox) {
+  let w = box.width;
+  let h = box.height;
+  if (box.fit === "contain") {
+    const scale = Math.min(box.width / image.width, box.height / image.height);
+    w = image.width * scale;
+    h = image.height * scale;
+  }
+  const x = box.align === "left" ? box.x : box.align === "right" ? box.x + box.width - w : box.x + (box.width - w) / 2;
+  const y = box.vAlign === "bottom" ? box.y : box.vAlign === "top" ? box.y + box.height - h : box.y + (box.height - h) / 2;
+  page.drawImage(image, { x, y, width: w, height: h, opacity: box.opacity });
 }
 
 export async function generatePdf(
   templateBytes: ArrayBuffer | Uint8Array,
-  mapping: PdfPlacement[],
-  data: { name: string; logo: PreparedLogo | null }
+  config: PdfTemplateConfig,
+  values: RowValues
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
   const pages = doc.getPages();
-  const fonts = new Map<PdfFontName, PDFFont>();
-  const image = data.logo
-    ? data.logo.kind === "png"
-      ? await doc.embedPng(data.logo.bytes)
-      : await doc.embedJpg(data.logo.bytes)
-    : null;
+  const fonts = new Map<StandardFonts, PDFFont>();
+  const images = new Map<string, PDFImage>();
+  const fieldById = new Map(config.fields.map((f) => [f.id, f]));
 
-  for (const box of mapping) {
+  for (const box of config.boxes) {
     const page = pages[box.page];
-    if (!page) continue;
+    const field = fieldById.get(box.fieldId);
+    if (!page || !field) continue;
 
-    if (box.type === "text") {
-      let font = fonts.get(box.font);
+    if (field.type === "text") {
+      const value = values.text[field.id]?.trim() ? values.text[field.id] : field.defaultValue;
+      if (!value?.trim()) continue;
+      const fontName = standardFontFor(box);
+      let font = fonts.get(fontName);
       if (!font) {
-        font = await doc.embedFont(FONT_MAP[box.font] ?? StandardFonts.Helvetica);
-        fonts.set(box.font, font);
+        font = await doc.embedFont(fontName);
+        fonts.set(fontName, font);
       }
-      drawTextBox(page, font, box, data.name);
-    } else if (image) {
-      // Contain: keep the logo's aspect ratio, centered in the box.
-      const scale = Math.min(box.width / image.width, box.height / image.height);
-      const w = image.width * scale;
-      const h = image.height * scale;
-      page.drawImage(image, { x: box.x + (box.width - w) / 2, y: box.y + (box.height - h) / 2, width: w, height: h });
+      drawTextBox(page, font, box, value);
+    } else {
+      const prepared = values.images[field.id];
+      if (!prepared) continue;
+      let image = images.get(field.id);
+      if (!image) {
+        image = prepared.kind === "png" ? await doc.embedPng(prepared.bytes) : await doc.embedJpg(prepared.bytes);
+        images.set(field.id, image);
+      }
+      drawImageBox(page, image, box);
     }
   }
 

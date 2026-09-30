@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { useAdminFetch } from "@/components/admin/AdminAuthContext";
 import { loadPdfjs } from "@/lib/pdfGenerator/pdfjs";
-import type { PdfPlacement, PdfTemplateDetail } from "@/lib/pdfGenerator/types";
+import { emptyConfig, type PdfTemplateConfig, type PdfTemplateDetail } from "@/lib/pdfGenerator/types";
 import { MappingEditor } from "./MappingEditor";
 import { BulkGenerator } from "./BulkGenerator";
 
@@ -16,8 +16,8 @@ export function PdfTemplateWorkspace({ id }: { id: string }) {
   const [template, setTemplate] = useState<PdfTemplateDetail | null>(null);
   const [templateBytes, setTemplateBytes] = useState<Uint8Array | null>(null);
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
-  const [mapping, setMapping] = useState<PdfPlacement[]>([]);
-  const [savedMapping, setSavedMapping] = useState("[]");
+  const [mapping, setMapping] = useState<PdfTemplateConfig>(emptyConfig);
+  const [savedMapping, setSavedMapping] = useState(() => JSON.stringify(emptyConfig()));
   const [name, setName] = useState("");
   const [tab, setTab] = useState<Tab>("mapping");
   const [error, setError] = useState("");
@@ -166,9 +166,9 @@ export function PdfTemplateWorkspace({ id }: { id: string }) {
       {pdfDoc && templateBytes && (
         <div className="mt-6">
           {tab === "mapping" ? (
-            <MappingEditor pdfDoc={pdfDoc} templateBytes={templateBytes} mapping={mapping} onChange={setMapping} />
+            <MappingEditor pdfDoc={pdfDoc} templateBytes={templateBytes} config={mapping} onChange={setMapping} />
           ) : (
-            <BulkGenerator templateBytes={templateBytes} mapping={mapping} unsaved={dirty} />
+            <BulkGenerator templateBytes={templateBytes} config={mapping} unsaved={dirty} />
           )}
         </div>
       )}

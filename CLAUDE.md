@@ -251,7 +251,13 @@ the template is persisted (`pdf_templates` table + private
 `pdf-templates` bucket, `supabase/migrations/006_pdf_templates.sql`);
 generation is 100% client-side (`lib/pdfGenerator/generate.ts`, pdf-lib),
 so bulk batches never hit an API route or Vercel's body-size limit.
-Mapping boxes are stored in PDF user-space points (bottom-left origin);
+`pdf_templates.mapping` holds a `PdfTemplateConfig` (`{version: 2,
+fields, boxes, fileNamePattern}`, `lib/pdfGenerator/types.ts`): fields
+are the admin-named variables (each one = one column in the generate
+table / Excel), boxes place a field on a page (many boxes per field
+allowed). `sanitizeConfig` also accepts the original v1 bare array of
+text/image boxes, so never drop that branch while old rows may exist.
+Boxes are stored in PDF user-space points (bottom-left origin);
 the editor converts with pdf.js `viewport.convertToViewportRectangle` /
 `convertToPdfPoint`, so don't hand-roll the y-flip. Names use the 14
 standard PDF fonts (WinAnsi only): characters outside that set are

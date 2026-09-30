@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/supabase/adminAuth";
-import { sanitizeMapping } from "@/lib/pdfGenerator/types";
+import { sanitizeConfig } from "@/lib/pdfGenerator/types";
 import { PDF_TEMPLATE_BUCKET, toTemplateSummary } from "@/lib/pdfGenerator/templateRow";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (!name) return NextResponse.json({ error: "Template name is required." }, { status: 400 });
     update.name = name;
   }
-  if (body.mapping !== undefined) update.mapping = sanitizeMapping(body.mapping);
+  if (body.mapping !== undefined) update.mapping = sanitizeConfig(body.mapping);
   if (typeof body.pageCount === "number" && Number.isInteger(body.pageCount) && body.pageCount > 0) {
     update.page_count = body.pageCount;
   }

@@ -6,28 +6,25 @@
  *   - cell text from the first sheet (shared strings, inline strings, numbers)
  *   - pictures, both kinds Excel produces:
  *       * floating pictures ("Insert > Pictures > Place over Cells"),
- *         matched to the row their top-left corner is anchored in
+ *         matched to the cell their top-left corner is anchored in
  *       * in-cell pictures ("Place in Cell" / =IMAGE), stored as rich values
  *
- * Each data row becomes { name, logoRef, image } where logoRef is the text
- * of a "Logo"/"File" column (a file name to match against bulk-uploaded
- * logos) and image is a picture found on that row, if any.
+ * The result is a plain grid (every row, header included, with text and/or
+ * a picture per cell); lib/pdfGenerator/tableImport.ts maps it onto a
+ * template's fields.
  */
 import { strToU8, unzipSync, zipSync } from "fflate";
 
-export interface ImportedRow {
-  name: string;
-  logoRef: string | null;
+export interface SheetCell {
+  text: string;
   image: Blob | null;
 }
 
-export interface ImportResult {
-  rows: ImportedRow[];
+/** Rows in sheet order; each row maps 0-based column index -> cell. */
+export interface SheetData {
+  rows: Map<number, SheetCell>[];
   warnings: string[];
 }
-
-const NAME_HEADER = /^(name|nombre|company|compa[nñ]ia|empresa|client|cliente|investor|inversionista)/i;
-const LOGO_HEADER = /(logo|image|imagen|foto|photo|picture|file|archivo)/i;
 
 const MIME_BY_EXT: Record<string, string> = {
   png: "image/png",
@@ -88,7 +85,7 @@ function rowIndex(ref: string): number {
   return parseInt(ref.replace(/[A-Z]/gi, ""), 10) - 1;
 }
 
-export async function parseXlsx(file: Blob): Promise<ImportResult> {
+export async function parseXlsx(file: Blob): Promise<SheetData> {
   const files = unzipSync(new Uint8Array(await file.arrayBuffer()));
   const text = (path: string) => (files[path] ? new TextDecoder().decode(files[path]) : null);
   const xml = (path: string) => {
@@ -108,7 +105,6 @@ export async function parseXlsx(file: Blob): Promise<ImportResult> {
     }
     return map;
   };
-  const warnings: string[] = [];
   const skippedFormats = new Set<string>();
   const mediaBlob = (path: string | undefined): Blob | null => {
     if (!path || !files[path]) return null;
@@ -164,7 +160,7 @@ export async function parseXlsx(file: Blob): Promise<ImportResult> {
   }
 
   // 4. Floating pictures anchored over cells.
-  const floatingByRow = new Map<number, Blob>();
+  const floating = new Map<string, Blob>(); // "row:col" -> picture
   const sheetRels = rels(sheetPath);
   for (const drawingEl of children(sheet, "drawing")) {
     const drawingId = relAttr(drawingEl, "id");
@@ -175,12 +171,13 @@ export async function parseXlsx(file: Blob): Promise<ImportResult> {
     for (const anchor of [...children(drawing, "twoCellAnchor"), ...children(drawing, "oneCellAnchor")]) {
       const from = directChildren(anchor, "from")[0];
       const rowEl = from ? directChildren(from, "row")[0] : null;
+      const colEl = from ? directChildren(from, "col")[0] : null;
       const blip = children(anchor, "blip")[0];
       const embed = blip ? relAttr(blip, "embed") : null;
       if (!rowEl || !embed) continue;
-      const r = parseInt(rowEl.textContent ?? "", 10);
+      const key = `${parseInt(rowEl.textContent ?? "", 10)}:${parseInt(colEl?.textContent ?? "0", 10)}`;
       const blob = mediaBlob(drawingRels.get(embed));
-      if (blob && !floatingByRow.has(r)) floatingByRow.set(r, blob);
+      if (blob && !floating.has(key)) floating.set(key, blob);
     }
   }
 
@@ -219,53 +216,36 @@ export async function parseXlsx(file: Blob): Promise<ImportResult> {
     };
   })();
 
-  // 6. Header row + columns.
-  const rowNumbers = Array.from(new Set([...grid.keys(), ...floatingByRow.keys(), ...cellPictureVm.keys()])).sort(
-    (a, b) => a - b
-  );
-  if (!rowNumbers.length) return { rows: [], warnings: ["The first sheet is empty."] };
-
-  const headerRow = rowNumbers.find((r) => grid.has(r));
-  const header = headerRow !== undefined ? grid.get(headerRow)! : new Map<number, string>();
-  let nameCol = -1;
-  let logoCol = -1;
-  for (const [col, value] of header) {
-    if (nameCol === -1 && NAME_HEADER.test(value)) nameCol = col;
-    else if (logoCol === -1 && LOGO_HEADER.test(value)) logoCol = col;
-  }
-  const hasHeader = nameCol !== -1 || logoCol !== -1;
-  if (nameCol === -1) {
-    // No recognizable header: the first column holding text is the name.
-    const textCols = new Set<number>();
-    for (const r of rowNumbers) for (const col of grid.get(r)?.keys() ?? []) if (col !== logoCol) textCols.add(col);
-    nameCol = textCols.size ? Math.min(...textCols) : 0;
-  }
-
-  // 7. Data rows.
-  const rows: ImportedRow[] = [];
-  for (const r of rowNumbers) {
-    if (hasHeader && headerRow !== undefined && r <= headerRow) continue;
-    const cells = grid.get(r);
-    const name = cells?.get(nameCol) ?? "";
-    const logoText = logoCol !== -1 ? cells?.get(logoCol) ?? null : null;
-
-    let image: Blob | null = null;
-    const vms = cellPictureVm.get(r);
-    if (vms) {
-      const vm = (logoCol !== -1 && vms.get(logoCol)) || vms.values().next().value;
-      if (vm) image = inCellImage(vm);
+  // 6. Assemble the grid.
+  const byRow = new Map<number, Map<number, SheetCell>>();
+  const cellAt = (r: number, c: number) => {
+    if (!byRow.has(r)) byRow.set(r, new Map());
+    const row = byRow.get(r)!;
+    if (!row.has(c)) row.set(c, { text: "", image: null });
+    return row.get(c)!;
+  };
+  for (const [r, cols] of grid) for (const [c, text] of cols) cellAt(r, c).text = text;
+  for (const [r, cols] of cellPictureVm) {
+    for (const [c, vm] of cols) {
+      const image = inCellImage(vm);
+      if (image) cellAt(r, c).image = image;
     }
-    image ??= floatingByRow.get(r) ?? null;
-
-    if (!name && !image && !logoText) continue;
-    rows.push({ name, logoRef: logoText, image });
+  }
+  for (const [key, image] of floating) {
+    const [r, c] = key.split(":").map(Number);
+    const cell = cellAt(r, c);
+    cell.image ??= image;
   }
 
+  const warnings: string[] = [];
   if (skippedFormats.size) {
     warnings.push(
       `Some pictures are in a format browsers can't read (${Array.from(skippedFormats).join(", ")}). Re-insert them as PNG or JPG.`
     );
   }
+  const rows = Array.from(byRow.keys())
+    .sort((x, y) => x - y)
+    .map((r) => byRow.get(r)!);
   return { rows, warnings };
 }
 
@@ -273,16 +253,26 @@ function escapeXml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/** A blank two-column (Name, Logo) workbook to fill in and import back. */
-export function buildTemplateXlsx(): Uint8Array {
+function colLetter(i: number): string {
+  let s = "";
+  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
+}
+
+/** A blank workbook with one bold header per column, to fill in and import back. */
+export function buildTemplateXlsx(headers: { label: string; width: number }[]): Uint8Array {
   const cell = (ref: string, value: string, style = 0) =>
     `<c r="${ref}" t="inlineStr"${style ? ` s="${style}"` : ""}><is><t>${escapeXml(value)}</t></is></c>`;
+  const cols = headers
+    .map((h, i) => `<col min="${i + 1}" max="${i + 1}" width="${h.width}" customWidth="1"/>`)
+    .join("");
+  const headerCells = headers.map((h, i) => cell(`${colLetter(i)}1`, h.label, 1)).join("");
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
 <sheetFormatPr defaultRowHeight="60" customHeight="1"/>
-<cols><col min="1" max="1" width="45" customWidth="1"/><col min="2" max="2" width="30" customWidth="1"/></cols>
-<sheetData><row r="1" ht="20" customHeight="1">${cell("A1", "Name", 1)}${cell("B1", "Logo", 1)}</row></sheetData>
+<cols>${cols}</cols>
+<sheetData><row r="1" ht="20" customHeight="1">${headerCells}</row></sheetData>
 </worksheet>`;
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">

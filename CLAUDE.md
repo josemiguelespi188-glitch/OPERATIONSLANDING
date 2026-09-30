@@ -242,3 +242,18 @@ client-side source, visible to anyone who loaded `/admin` without signing
 in, so it was removed). Since that password was exposed both in this
 source and in chat history, treat it as compromised and rotate it (and
 any other admin password shared the same way) in the Supabase dashboard.
+
+## PDF Generator (`/admin/pdf-generator`)
+
+Admin-only tool with nothing to do with the Operations Hub request flow;
+it lives here only to reuse the repo, the admin auth, and Supabase. Only
+the template is persisted (`pdf_templates` table + private
+`pdf-templates` bucket, `supabase/migrations/006_pdf_templates.sql`);
+generation is 100% client-side (`lib/pdfGenerator/generate.ts`, pdf-lib),
+so bulk batches never hit an API route or Vercel's body-size limit.
+Mapping boxes are stored in PDF user-space points (bottom-left origin);
+the editor converts with pdf.js `viewport.convertToViewportRectangle` /
+`convertToPdfPoint`, so don't hand-roll the y-flip. Names use the 14
+standard PDF fonts (WinAnsi only): characters outside that set are
+stripped of accents or replaced with `?` — embedding a custom font via
+`@pdf-lib/fontkit` would be the fix if that ever matters.

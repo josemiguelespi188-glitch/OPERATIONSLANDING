@@ -154,3 +154,23 @@ breakdown (Successful / Failed / Pending), and a list of recent requests —
 each showing its ClickUp Task ID, sync status, submission date, and a Retry
 action when sync isn't `synced`. No authentication yet — add it before this
 goes further than internal MVP use.
+
+## PDF Generator (admin tool)
+
+`/admin/pdf-generator` — unrelated to the request flow, it just reuses this
+app, its admin login, and its Supabase project.
+
+1. Upload a base PDF (stored in the private `pdf-templates` bucket; the
+   browser uploads it straight to Storage via a signed URL from
+   `POST /api/admin/pdf-templates`, so file size isn't capped by Vercel).
+2. **Mapping**: add "Name" and "Logo" boxes, drag/resize them on the page,
+   pick font/size/color/alignment for names. Saved as JSON in
+   `pdf_templates.mapping` (PDF points, bottom-left origin).
+3. **Generate**: bulk upload logos and paste/upload names (one per line,
+   optionally `name<TAB>logo file` or `name, logo.png`; names matching a
+   logo file name pair automatically). Downloads one PDF per row, zipped.
+
+Generation runs entirely in the browser (`pdf-lib` + `pdfjs-dist` for the
+editor preview, `fflate` for the ZIP): logos and generated PDFs are never
+uploaded or stored. Setup: run `supabase/migrations/006_pdf_templates.sql`
+once in the Supabase SQL editor (creates the table and the bucket).

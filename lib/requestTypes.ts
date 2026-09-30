@@ -7,13 +7,18 @@ export type RequestTypeSlug =
   | "investor-information-update"
   | "account-maintenance-request"
   | "document-request"
-  | "axiskey-report-request";
+  | "axiskey-report-request"
+  | "investor-update-request";
 
 export interface RequestTypeConfig {
   slug: RequestTypeSlug;
   name: string;
   description: string;
   buttonLabel: string;
+  /** Homepage card icon (defaults to the generic document icon when unset
+   *  — every type before investor-update-request relies on that default,
+   *  so leaving this out for them is what keeps their card unchanged). */
+  icon?: "megaphone";
 }
 
 /**
@@ -78,6 +83,21 @@ export const REQUEST_TYPES: RequestTypeConfig[] = [
     name: "Request an AxisKey Report",
     description: "Request a report on investors, orders, or account activity.",
     buttonLabel: "Open Request",
+  },
+  // Deliberately NOT backed by a request_types row (see supabase/seed.sql)
+  // — unlike every type above, this one doesn't submit into the shared
+  // `requests` table at all (POST /api/investor-update-requests writes to
+  // its own dedicated tables instead, see supabase/migrations/
+  // 005_investor_update_requests.sql), so there's no DB row for it to
+  // mirror. Still listed here since this array is also what drives the
+  // homepage card grid.
+  {
+    slug: "investor-update-request",
+    name: "Investor Update Request",
+    description:
+      "Request the creation of an investor update for your offering. Share recent developments, upload supporting materials, and our team will prepare a professional update for your investors.",
+    buttonLabel: "Open Request",
+    icon: "megaphone",
   },
 ];
 

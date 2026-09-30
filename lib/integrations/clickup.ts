@@ -570,3 +570,112 @@ async function attachTaskFile(
     return null;
   }
 }
+
+/**
+ * Syncs one Investor Update Request to ClickUp. Deliberately separate from
+ * syncRequestToClickUp above rather than folded into it — this request
+ * type doesn't use RequestPayload/the shared `requests` table (see
+ * lib/investorUpdateRequest.ts and supabase/migrations/
+ * 005_investor_update_requests.sql), so it needs its own task name/
+ * description shape per the form spec rather than the generic one.
+ *
+ * Reuses the same CLICKUP_LIST_ID_MAP env var as every other request type
+ * — add an "investor-update-request" entry once its ClickUp list exists.
+ * No CUSTOM_FIELD_MAP entry exists for it yet (no list/field IDs to wire
+ * up), so every field is only sent via the task description for now —
+ * same "no entry = description-only" degradation every other newly added
+ * list goes through until its fields are provisioned and confirmed.
+ */
+export async function syncInvestorUpdateToClickUp(input: {
+  requesterName: string;
+  requesterEmail: string;
+  offeringName: string;
+  mainUpdate: string;
+  industryResearchOption: "Yes" | "No";
+  additionalNotes?: string;
+  attachments: AttachmentInput[];
+  submittedAt: string;
+}): Promise<ClickUpSyncResult> {
+  const token = process.env.CLICKUP_API_TOKEN;
+  if (!token) {
+    return { synced: false, taskId: null, error: "CLICKUP_API_TOKEN is not configured." };
+  }
+
+  const listId = getListIdMap()["investor-update-request"];
+  if (!listId) {
+    return {
+      synced: false,
+      taskId: null,
+      error: 'No ClickUp List ID configured for "investor-update-request" in CLICKUP_LIST_ID_MAP.',
+    };
+  }
+
+  const taskName = `Investor Update Request | ${input.offeringName}`;
+  const descriptionLines = [
+    `**Requester Name:** ${input.requesterName}`,
+    `**Requester Email:** ${input.requesterEmail}`,
+    `**Offering Name:** ${input.offeringName}`,
+    "",
+    "**Main Update:**",
+    input.mainUpdate,
+    "",
+    `**Industry Research Requested:** ${input.industryResearchOption}`,
+    "",
+    "**Additional Notes:**",
+    input.additionalNotes || "N/A",
+    "",
+    `**Submission Date:** ${input.submittedAt}`,
+  ];
+
+  if (input.attachments.length > 0) {
+    descriptionLines.push("", "**Attached Files:**");
+    for (const attachment of input.attachments) {
+      descriptionLines.push(`- [${attachment.fileName}](${attachment.fileUrl})`);
+    }
+  }
+
+  const warnings: string[] = [];
+  let taskId: string;
+
+  try {
+    const response = await fetch(`${CLICKUP_API_BASE}/list/${listId}/task`, {
+      method: "POST",
+      headers: {
+        Authorization: token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: taskName, description: descriptionLines.join("\n") }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      return {
+        synced: false,
+        taskId: null,
+        error: `ClickUp API error ${response.status}: ${body.slice(0, 300)}`,
+      };
+    }
+
+    const data = (await response.json()) as { id: string };
+    taskId = data.id;
+  } catch (error) {
+    return {
+      synced: false,
+      taskId: null,
+      error: error instanceof Error ? error.message : "Unknown error creating the ClickUp task.",
+    };
+  }
+
+  // Best-effort, same as syncRequestToClickUp: the file URLs are already
+  // in the description above as a fallback either way.
+  await Promise.all(
+    input.attachments.map(async (attachment) => {
+      const attachmentId = await attachTaskFile(taskId, attachment, token);
+      if (!attachmentId) {
+        warnings.push(`Failed to upload "${attachment.fileName}" as a ClickUp attachment.`);
+      }
+    })
+  );
+
+  return { synced: true, taskId, warnings: warnings.length > 0 ? warnings : undefined };
+}

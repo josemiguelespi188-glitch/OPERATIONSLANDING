@@ -43,6 +43,7 @@ export type FieldConfig =
       label: string;
       required?: boolean;
       helper?: string;
+      accept?: string;
       fullWidth?: boolean;
     }
   | {
@@ -52,6 +53,18 @@ export type FieldConfig =
       required?: boolean;
       helper?: string;
       checkboxLabel?: string;
+      fullWidth?: boolean;
+    }
+  | {
+      /** Like "file", but accepts any number of files (e.g. "Upload
+       *  Supporting Files"). Each selected file is uploaded as its own
+       *  attachment, all sharing this field's name as their fieldKey. */
+      kind: "multifile";
+      name: string;
+      label: string;
+      required?: boolean;
+      helper?: string;
+      accept?: string;
       fullWidth?: boolean;
     };
 
@@ -87,6 +100,21 @@ export interface FormShellProps {
   /** Rendered between the intro text and the form fields (e.g. a template
    *  library) — hidden once the form has been submitted. */
   beforeForm?: React.ReactNode;
+  /** Overrides where the built submission is POSTed (default:
+   *  "/api/requests"). Existing hardcoded pages never pass this, so their
+   *  behavior is unchanged. */
+  submitEndpoint?: string;
+  /** Overrides how the outgoing JSON body is shaped from the raw field
+   *  values, bypassing the generic requestorName/investorName/dealName/
+   *  notes resolution built around the shared `requests` table — for a
+   *  request type with its own dedicated tables and payload shape.
+   *  Existing hardcoded pages never pass this, so their behavior (and the
+   *  shared /api/requests contract) is unchanged. */
+  buildSubmission?: (values: Record<string, string>) => object;
+  /** Overrides the submit button's idle-state label (default: "Submit").
+   *  Existing hardcoded pages never pass this, so their behavior is
+   *  unchanged. */
+  submitLabel?: string;
 }
 
 type SubmitState = "idle" | "uploading" | "submitting" | "success" | "error";
@@ -102,9 +130,13 @@ export function FormShell({
   submissionMapping,
   initialValues,
   beforeForm,
+  submitEndpoint,
+  buildSubmission,
+  submitLabel,
 }: FormShellProps) {
   const [values, setValues] = useState<Record<string, string>>(initialValues ?? {});
   const [files, setFiles] = useState<Record<string, File | null>>({});
+  const [multiFiles, setMultiFiles] = useState<Record<string, File[]>>({});
   const [state, setState] = useState<SubmitState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -125,15 +157,30 @@ export function FormShell({
     setFiles((prev) => ({ ...prev, [name]: file }));
   }
 
+  function addMultiFiles(name: string, incoming: File[]) {
+    if (incoming.length === 0) return;
+    setMultiFiles((prev) => ({ ...prev, [name]: [...(prev[name] ?? []), ...incoming] }));
+  }
+
+  function removeMultiFile(name: string, index: number) {
+    setMultiFiles((prev) => ({
+      ...prev,
+      [name]: (prev[name] ?? []).filter((_, i) => i !== index),
+    }));
+  }
+
   async function uploadFieldFiles(): Promise<AttachmentInput[]> {
-    const entries = Object.entries(files).filter(([, file]) => file);
+    const singleEntries = Object.entries(files).filter(([, file]) => file) as [string, File][];
+    const multiEntries = Object.entries(multiFiles).flatMap(([fieldName, fileList]) =>
+      fileList.map((file) => [fieldName, file] as [string, File])
+    );
+    const entries = [...singleEntries, ...multiEntries];
     if (entries.length === 0) return [];
 
     const supabase = getSupabaseBrowserClient();
     const uploaded: AttachmentInput[] = [];
 
     for (const [fieldName, file] of entries) {
-      if (!file) continue;
       const path = `${slug}/${Date.now()}-${sanitizeFileNameForStorageKey(file.name)}`;
       const { error } = await supabase.storage
         .from("attachments")
@@ -196,10 +243,10 @@ export function FormShell({
       setState("uploading");
       const attachments = await uploadFieldFiles();
 
-      const submission = resolveSubmission();
+      const submission = buildSubmission ? buildSubmission(values) : resolveSubmission();
 
       setState("submitting");
-      const response = await fetch("/api/requests", {
+      const response = await fetch(submitEndpoint ?? "/api/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -409,10 +456,59 @@ export function FormShell({
                         )}
                         <input
                           type="file"
+                          accept={field.accept}
                           className="hidden"
                           onChange={(e) => setFile(field.name, e.target.files?.[0] ?? null)}
                         />
                       </label>
+                    )}
+
+                    {field.kind === "multifile" && (
+                      <div>
+                        <label className="flex h-[110px] cursor-pointer flex-col items-center justify-center rounded-[6px] border border-dashed border-axis-base/60 px-4 text-center text-sm text-axis-core/40 transition-colors hover:border-axis-core/50">
+                          <span>
+                            Drop your files here to{" "}
+                            <span className="text-axis-core/60 underline">upload</span>
+                          </span>
+                          <input
+                            type="file"
+                            multiple
+                            accept={field.accept}
+                            className="hidden"
+                            onChange={(e) => {
+                              // Convert to a plain array synchronously, before
+                              // clearing the input's value below — e.target.files
+                              // is a *live* FileList tied to the input, so
+                              // resetting the value first (or deferring this into
+                              // the setMultiFiles updater) can empty it before
+                              // React ever reads it.
+                              const selected = Array.from(e.target.files ?? []);
+                              addMultiFiles(field.name, selected);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                        {(multiFiles[field.name]?.length ?? 0) > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {multiFiles[field.name].map((file, i) => (
+                              <li
+                                key={`${file.name}-${i}`}
+                                className="flex items-center justify-between gap-2 rounded-[6px] bg-axis-light px-3 py-1.5 text-xs text-axis-core/70"
+                              >
+                                <span className="min-w-0 truncate">{file.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeMultiFile(field.name, i)}
+                                  aria-label={`Remove ${file.name}`}
+                                  className="shrink-0 text-axis-core/40 hover:text-axis-core"
+                                >
+                                  ✕
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     )}
                     </div>
                   </div>
@@ -431,7 +527,7 @@ export function FormShell({
                   disabled={isSubmitting}
                   className="w-full rounded-[6px] bg-axis-signal py-3 text-center text-sm font-bold text-axis-core transition-colors hover:bg-axis-signal/85 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {state === "uploading" ? "Uploading..." : state === "submitting" ? "Submitting..." : "Submit"}
+                  {state === "uploading" ? "Uploading..." : state === "submitting" ? "Submitting..." : submitLabel ?? "Submit"}
                 </button>
               </div>
             </form>

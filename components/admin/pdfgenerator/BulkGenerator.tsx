@@ -10,23 +10,31 @@ import {
   zipFiles,
   type PreparedLogo,
 } from "@/lib/pdfGenerator/generate";
+import { buildTemplateXlsx, parseXlsx, type ImportedRow } from "@/lib/pdfGenerator/xlsx";
 
-interface LogoItem {
-  id: string;
-  file: File;
+interface RowLogo {
+  blob: Blob;
+  fileName: string;
   url: string;
 }
 
 interface Row {
   id: string;
   name: string;
-  logoId: string | null;
+  logo: RowLogo | null;
+  /** Logo file name from an imported sheet, waiting for a matching bulk-uploaded file. */
+  logoRef: string | null;
 }
 
 const IMAGE_EXT = /\.(png|jpe?g|svg|webp|gif)$/i;
+const EMPTY_ROWS = 3;
 
 function newId() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+function emptyRow(): Row {
+  return { id: newId(), name: "", logo: null, logoRef: null };
 }
 
 /** Case/accent/punctuation-insensitive key, so "Acme Corp" matches "acme_corp.png". */
@@ -43,32 +51,38 @@ function nameFromFile(fileName: string) {
   return fileName.replace(/\.[^.]+$/, "").replace(/_+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function isBlank(row: Row) {
+  return !row.name.trim() && !row.logo && !row.logoRef;
+}
+
+function makeLogo(blob: Blob, fileName: string): RowLogo {
+  return { blob, fileName, url: URL.createObjectURL(blob) };
+}
+
 /**
- * One entry per line. A line can be just a name, or "name<TAB>logo file"
- * (pasted from Excel/Sheets) or "name, logo.png" (CSV). A comma only
- * splits off a logo when the last part looks like an image file name, so
- * names like "Acme, Inc." stay intact.
+ * CSV / pasted text: one row per line, "name<TAB>logo file" (copied from
+ * Excel) or "name, logo.png". A comma only splits off a logo when the last
+ * part looks like an image file name, so names like "Acme, Inc." survive.
  */
-function parseLines(text: string): { name: string; logo: string | null }[] {
+function parseLines(text: string): ImportedRow[] {
   return text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
+      const unquote = (s: string) => s.trim().replace(/^"|"$/g, "");
       if (line.includes("\t")) {
-        const [name, logo] = line.split("\t").map((p) => p.trim().replace(/^"|"$/g, ""));
-        return { name, logo: logo || null };
+        const [name, logo] = line.split("\t").map(unquote);
+        return { name, logoRef: logo || null, image: null };
       }
       const lastComma = line.lastIndexOf(",");
       if (lastComma > 0) {
-        const tail = line.slice(lastComma + 1).trim().replace(/^"|"$/g, "");
-        if (IMAGE_EXT.test(tail)) {
-          return { name: line.slice(0, lastComma).trim().replace(/^"|"$/g, ""), logo: tail };
-        }
+        const tail = unquote(line.slice(lastComma + 1));
+        if (IMAGE_EXT.test(tail)) return { name: unquote(line.slice(0, lastComma)), logoRef: tail, image: null };
       }
-      return { name: line.replace(/^"|"$/g, ""), logo: null };
+      return { name: unquote(line), logoRef: null, image: null };
     })
-    .filter((r) => r.name);
+    .filter((r) => r.name && !/^(name|nombre)$/i.test(r.name));
 }
 
 export function BulkGenerator({
@@ -80,78 +94,146 @@ export function BulkGenerator({
   mapping: PdfPlacement[];
   unsaved: boolean;
 }) {
-  const [logos, setLogos] = useState<LogoItem[]>([]);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<Row[]>(() => Array.from({ length: EMPTY_ROWS }, emptyRow));
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const preparedCache = useRef(new Map<string, PreparedLogo>());
+  const [dragRowId, setDragRowId] = useState<string | null>(null);
+  const preparedCache = useRef(new WeakMap<Blob, PreparedLogo>());
 
-  const logosRef = useRef(logos);
-  logosRef.current = logos;
-  useEffect(() => () => logosRef.current.forEach((l) => URL.revokeObjectURL(l.url)), []);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  useEffect(() => () => rowsRef.current.forEach((r) => r.logo && URL.revokeObjectURL(r.logo.url)), []);
 
   const hasNameBox = mapping.some((m) => m.type === "text");
   const hasLogoBox = mapping.some((m) => m.type === "image");
 
-  function addLogos(files: FileList | null) {
-    if (!files?.length) return;
-    const added: LogoItem[] = Array.from(files)
-      .filter((f) => f.type.startsWith("image/") || IMAGE_EXT.test(f.name))
-      .map((file) => ({ id: newId(), file, url: URL.createObjectURL(file) }));
-    const allLogos = [...logos, ...added];
-    setLogos(allLogos);
+  function patchRow(id: string, patch: Partial<Row>) {
+    setRows((rs) =>
+      rs.map((r) => {
+        if (r.id !== id) return r;
+        if ("logo" in patch && r.logo && r.logo !== patch.logo) URL.revokeObjectURL(r.logo.url);
+        return { ...r, ...patch };
+      })
+    );
+  }
 
-    setRows((current) => {
-      const next = [...current];
-      for (const logo of added) {
-        const key = matchKey(logo.file.name);
-        // Attach to an existing row that's waiting for this logo, else start a new row.
-        const waiting = next.find((r) => !r.logoId && matchKey(r.name) === key);
-        if (waiting) waiting.logoId = logo.id;
-        else next.push({ id: newId(), name: nameFromFile(logo.file.name), logoId: logo.id });
-      }
-      return next;
+  function removeRow(id: string) {
+    setRows((rs) => {
+      const row = rs.find((r) => r.id === id);
+      if (row?.logo) URL.revokeObjectURL(row.logo.url);
+      const next = rs.filter((r) => r.id !== id);
+      return next.length ? next : [emptyRow()];
     });
   }
 
-  function addNames(text: string) {
-    const entries = parseLines(text);
-    if (!entries.length) return;
+  function setRowLogo(id: string, file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/") && !IMAGE_EXT.test(file.name)) {
+      setError(`${file.name} is not an image.`);
+      return;
+    }
+    setError("");
+    const row = rows.find((r) => r.id === id);
+    patchRow(id, {
+      logo: makeLogo(file, file.name),
+      logoRef: null,
+      ...(row && !row.name.trim() ? { name: nameFromFile(file.name) } : {}),
+    });
+  }
+
+  /** Adds imported rows, replacing the table if it only holds blank rows. */
+  function addImported(imported: ImportedRow[]) {
+    const incoming: Row[] = imported.map((r) => ({
+      id: newId(),
+      name: r.name,
+      logo: r.image ? makeLogo(r.image, r.logoRef || `${r.name || "logo"}.png`) : null,
+      logoRef: r.image ? null : r.logoRef,
+    }));
+    setRows((rs) => {
+      const kept = rs.filter((r) => !isBlank(r));
+      return [...kept, ...incoming];
+    });
+  }
+
+  async function importFile(file: File | undefined) {
+    if (!file) return;
+    setImporting(true);
+    setError("");
+    setNotice("");
+    try {
+      const isXlsx = /\.xlsx$/i.test(file.name);
+      if (/\.xls$/i.test(file.name)) {
+        throw new Error("Old .xls files aren't supported. In Excel, use File > Save As > Excel Workbook (.xlsx).");
+      }
+      const result = isXlsx ? await parseXlsx(file) : { rows: parseLines(await file.text()), warnings: [] };
+      if (!result.rows.length) throw new Error("No rows found in that file.");
+      addImported(result.rows);
+      const withImage = result.rows.filter((r) => r.image).length;
+      const waiting = result.rows.filter((r) => !r.image && r.logoRef).length;
+      setNotice(
+        [
+          `Imported ${result.rows.length} row${result.rows.length === 1 ? "" : "s"}` +
+            (withImage ? `, ${withImage} with a picture from the sheet` : "") +
+            ".",
+          waiting
+            ? `${waiting} row${waiting === 1 ? " names a logo file" : "s name logo files"}: use "Upload logos" to attach them all at once.`
+            : "",
+          ...result.warnings,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not read that file.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  /**
+   * Bulk logos: each file goes to the row that names it (logo file column
+   * or a matching name), else fills the next row without a logo, else
+   * becomes a new row named after the file.
+   */
+  function uploadLogos(fileList: FileList | null) {
+    const files = Array.from(fileList ?? []).filter((f) => f.type.startsWith("image/") || IMAGE_EXT.test(f.name));
+    if (!files.length) return;
     setRows((current) => {
       const next = current.map((r) => ({ ...r }));
-      for (const entry of entries) {
-        const logoKey = matchKey(entry.logo ?? entry.name);
-        const logo = logos.find((l) => matchKey(l.file.name) === logoKey);
-        // A logo upload already created a row for this logo: just give it the proper name.
-        const existing = logo ? next.find((r) => r.logoId === logo.id) : undefined;
-        if (existing) existing.name = entry.name;
-        else next.push({ id: newId(), name: entry.name, logoId: logo?.id ?? null });
+      for (const file of files) {
+        const key = matchKey(file.name);
+        const target =
+          next.find((r) => !r.logo && r.logoRef && matchKey(r.logoRef) === key) ??
+          next.find((r) => !r.logo && r.name.trim() && matchKey(r.name) === key) ??
+          next.find((r) => !r.logo && !r.logoRef && !r.name.trim());
+        const logo = makeLogo(file, file.name);
+        if (target) {
+          target.logo = logo;
+          target.logoRef = null;
+          if (!target.name.trim()) target.name = nameFromFile(file.name);
+        } else {
+          next.push({ id: newId(), name: nameFromFile(file.name), logo, logoRef: null });
+        }
       }
       return next;
     });
-    setPasteText("");
   }
 
-  async function readListFile(files: FileList | null) {
-    const file = files?.[0];
-    if (!file) return;
-    addNames(await file.text());
-  }
-
-  async function getPrepared(logoId: string | null): Promise<PreparedLogo | null> {
-    if (!logoId) return null;
-    const cached = preparedCache.current.get(logoId);
-    if (cached) return cached;
-    const logo = logos.find((l) => l.id === logoId);
+  async function getPrepared(logo: RowLogo | null): Promise<PreparedLogo | null> {
     if (!logo) return null;
-    const prepared = await prepareLogo(logo.file);
-    preparedCache.current.set(logoId, prepared);
+    const cached = preparedCache.current.get(logo.blob);
+    if (cached) return cached;
+    const prepared = await prepareLogo(logo.blob);
+    preparedCache.current.set(logo.blob, prepared);
     return prepared;
   }
 
   async function buildOne(row: Row) {
-    return generatePdf(templateBytes, mapping, { name: row.name, logo: await getPrepared(row.logoId) });
+    return generatePdf(templateBytes, mapping, { name: row.name, logo: await getPrepared(row.logo) });
   }
 
   async function downloadOne(row: Row) {
@@ -163,8 +245,9 @@ export function BulkGenerator({
     }
   }
 
+  const ready = rows.filter((r) => r.name.trim());
+
   async function generateAll() {
-    const ready = rows.filter((r) => r.name.trim());
     if (!ready.length) return;
     setError("");
     setProgress({ done: 0, total: ready.length });
@@ -194,11 +277,18 @@ export function BulkGenerator({
     setProgress(null);
   }
 
-  const missingLogo = hasLogoBox ? rows.filter((r) => !r.logoId).length : 0;
-  const unusedLogos = logos.filter((l) => !rows.some((r) => r.logoId === l.id));
+  function clearAll() {
+    rows.forEach((r) => r.logo && URL.revokeObjectURL(r.logo.url));
+    setRows(Array.from({ length: EMPTY_ROWS }, emptyRow));
+    setNotice("");
+    setError("");
+  }
+
+  const missingLogo = hasLogoBox ? ready.filter((r) => !r.logo).length : 0;
+  const busy = !!progress || importing;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {(unsaved || !hasNameBox || !hasLogoBox) && (
         <div className="space-y-2">
           {unsaved && (
@@ -215,112 +305,90 @@ export function BulkGenerator({
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <section className="rounded-card border border-axis-base/30 bg-white p-5">
-          <p className="text-sm font-semibold text-axis-core">Logos</p>
-          <p className="mt-1 text-xs text-axis-core/60">
-            Select many at once. Each logo becomes a row named after its file (acme_corp.png becomes
-            &quot;acme corp&quot;), which you can rename below. PNG, JPG, SVG, WebP.
-          </p>
-          <label
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              addLogos(e.dataTransfer.files);
-            }}
-            className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-[8px] border-2 border-dashed border-axis-base/60 px-4 py-6 text-center text-xs text-axis-core/60 hover:border-axis-core/50 hover:bg-axis-light/50"
-          >
-            <span className="font-semibold text-axis-core">Choose logo files</span>
-            <span className="mt-0.5">{logos.length ? `${logos.length} uploaded` : "or drop them here"}</span>
-            <input
-              type="file"
-              accept="image/*,.svg"
-              multiple
-              className="sr-only"
-              onChange={(e) => {
-                addLogos(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </label>
-        </section>
-
-        <section className="rounded-card border border-axis-base/30 bg-white p-5">
-          <p className="text-sm font-semibold text-axis-core">Names</p>
-          <p className="mt-1 text-xs text-axis-core/60">
-            One per line. To pair a name with a logo, add the logo file name after a tab or comma
-            (e.g. <code>Acme Corp, acme.png</code>), or just paste two columns from Excel. Names that
-            match a logo file name are paired automatically.
-          </p>
-          <textarea
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            rows={4}
-            placeholder={"Acme Corp\nGlobex, globex-logo.png"}
-            className="mt-3 w-full rounded-[8px] border border-axis-base/50 px-3 py-2 text-sm outline-none focus:border-axis-core"
-          />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <label className="cursor-pointer text-xs font-medium text-axis-core/70 hover:text-axis-core hover:underline">
-              Upload CSV / TXT
-              <input
-                type="file"
-                accept=".csv,.txt,.tsv,text/csv,text/plain"
-                className="sr-only"
-                onChange={(e) => {
-                  readListFile(e.target.files);
-                  e.target.value = "";
-                }}
-              />
-            </label>
+      <section className="rounded-card border border-axis-base/30 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-md">
+            <p className="text-sm font-semibold text-axis-core">Import from Excel</p>
+            <p className="mt-1 text-xs leading-relaxed text-axis-core/60">
+              One row per PDF: a <b>Name</b> column and a <b>Logo</b> column. Paste each logo right into its
+              cell in Excel (Insert &gt; Pictures, placed in or over the cell) and it comes in with the row.
+              The Logo column can also hold a file name (acme.png) to match with &quot;Upload logos&quot;.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => addNames(pasteText)}
-              disabled={!pasteText.trim()}
-              className="rounded-[8px] bg-axis-core px-3 py-1.5 text-xs font-semibold text-white hover:bg-axis-core/90 disabled:opacity-40"
+              onClick={() =>
+                downloadBytes(
+                  buildTemplateXlsx(),
+                  "pdf-generator-template.xlsx",
+                  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+              }
+              className="rounded-[8px] px-3 py-2 text-xs font-medium text-axis-core/70 hover:bg-axis-light hover:text-axis-core"
             >
-              Add names
+              Download Excel template
             </button>
+            <FileButton
+              accept=".xlsx,.xls,.csv,.tsv,.txt"
+              disabled={busy}
+              onFiles={(f) => importFile(f?.[0])}
+              className="rounded-[8px] bg-axis-core px-4 py-2 text-xs font-semibold text-white hover:bg-axis-core/90"
+            >
+              {importing ? "Reading..." : "Import Excel / CSV"}
+            </FileButton>
           </div>
-        </section>
-      </div>
+        </div>
+        {notice && <p className="mt-4 rounded-[8px] bg-axis-light px-3 py-2 text-xs text-axis-core/80">{notice}</p>}
+      </section>
 
       <section className="rounded-card border border-axis-base/30 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-axis-base/20 px-5 py-4">
           <div>
             <p className="text-sm font-semibold text-axis-core">
-              {rows.length} PDF{rows.length === 1 ? "" : "s"} to generate
+              {ready.length} PDF{ready.length === 1 ? "" : "s"} to generate
             </p>
             <p className="mt-0.5 text-xs text-axis-core/50">
-              {missingLogo > 0 && `${missingLogo} without a logo (the logo box stays empty). `}
-              {unusedLogos.length > 0 && `${unusedLogos.length} logo${unusedLogos.length === 1 ? "" : "s"} not used yet.`}
+              {missingLogo > 0
+                ? `${missingLogo} without a logo (the logo box stays empty).`
+                : "Each row with a name becomes one PDF."}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {rows.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setRows([]);
-                  logos.forEach((l) => URL.revokeObjectURL(l.url));
-                  setLogos([]);
-                  preparedCache.current.clear();
-                }}
-                disabled={!!progress}
-                className="rounded-[8px] px-3 py-2 text-xs font-medium text-axis-core/60 hover:bg-axis-light"
-              >
-                Clear all
-              </button>
-            )}
+          <div className="flex flex-wrap items-center gap-2">
+            <FileButton
+              accept="image/*,.svg"
+              multiple
+              disabled={busy}
+              onFiles={uploadLogos}
+              className="rounded-[8px] border border-axis-base/50 px-3 py-2 text-xs font-semibold text-axis-core hover:bg-axis-light"
+            >
+              Upload logos
+            </FileButton>
+            <button
+              type="button"
+              onClick={() => setPasteOpen((o) => !o)}
+              className="rounded-[8px] border border-axis-base/50 px-3 py-2 text-xs font-semibold text-axis-core hover:bg-axis-light"
+            >
+              Paste names
+            </button>
+            <button
+              type="button"
+              onClick={clearAll}
+              disabled={busy}
+              className="rounded-[8px] px-3 py-2 text-xs font-medium text-axis-core/60 hover:bg-axis-light disabled:opacity-40"
+            >
+              Clear
+            </button>
             <button
               type="button"
               onClick={generateAll}
-              disabled={!!progress || !rows.some((r) => r.name.trim()) || mapping.length === 0}
+              disabled={busy || !ready.length || mapping.length === 0}
               className="rounded-[8px] bg-axis-core px-4 py-2 text-sm font-semibold text-white hover:bg-axis-core/90 disabled:opacity-40"
             >
               {progress
                 ? `Generating ${progress.done} / ${progress.total}...`
-                : rows.length > 1
-                  ? `Generate ${rows.length} PDFs (ZIP)`
+                : ready.length > 1
+                  ? `Generate ${ready.length} PDFs (ZIP)`
                   : "Generate PDF"}
             </button>
           </div>
@@ -335,74 +403,199 @@ export function BulkGenerator({
           </div>
         )}
 
+        {pasteOpen && (
+          <div className="border-b border-axis-base/20 bg-axis-light/40 px-5 py-4">
+            <p className="text-xs text-axis-core/60">
+              One name per line. You can also copy two columns (Name, Logo file) straight from Excel.
+            </p>
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              rows={4}
+              placeholder={"Acme Corp\nGlobex\tglobex.png"}
+              className="mt-2 w-full rounded-[8px] border border-axis-base/50 bg-white px-3 py-2 text-sm outline-none focus:border-axis-core"
+            />
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPasteOpen(false)}
+                className="rounded-[8px] px-3 py-1.5 text-xs font-medium text-axis-core/60 hover:bg-axis-light"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!pasteText.trim()}
+                onClick={() => {
+                  addImported(parseLines(pasteText));
+                  setPasteText("");
+                  setPasteOpen(false);
+                }}
+                className="rounded-[8px] bg-axis-core px-3 py-1.5 text-xs font-semibold text-white hover:bg-axis-core/90 disabled:opacity-40"
+              >
+                Add to table
+              </button>
+            </div>
+          </div>
+        )}
+
         {error && <p className="mx-5 mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
-        {rows.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-axis-core/50">
-            Upload logos or add names to start.
-          </p>
-        ) : (
-          <ul>
-            {rows.map((row, i) => {
-              const logo = logos.find((l) => l.id === row.logoId);
-              return (
-                <li
-                  key={row.id}
-                  className={`flex items-center gap-3 px-5 py-2.5 ${i !== 0 ? "border-t border-axis-base/15" : ""}`}
-                >
-                  <span className="w-6 shrink-0 text-right text-xs text-axis-core/40">{i + 1}</span>
-                  <div className="flex h-10 w-16 shrink-0 items-center justify-center rounded-[6px] border border-axis-base/30 bg-axis-light/50">
-                    {logo ? (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-axis-core/50">
+              <th className="w-12 px-5 py-2.5 text-right font-semibold">#</th>
+              <th className="w-40 px-2 py-2.5 font-semibold">Logo</th>
+              <th className="px-2 py-2.5 font-semibold">Name</th>
+              <th className="w-28 px-5 py-2.5" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.id} className="border-t border-axis-base/15 align-middle">
+                <td className="px-5 py-2 text-right text-xs text-axis-core/40">{i + 1}</td>
+                <td className="px-2 py-2">
+                  <label
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragRowId(row.id);
+                    }}
+                    onDragLeave={() => setDragRowId((id) => (id === row.id ? null : id))}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragRowId(null);
+                      setRowLogo(row.id, e.dataTransfer.files[0]);
+                    }}
+                    title={row.logo ? `${row.logo.fileName} (click to replace)` : "Click or drop an image"}
+                    className={`group relative flex h-14 w-36 cursor-pointer items-center justify-center overflow-hidden rounded-[8px] border ${
+                      dragRowId === row.id
+                        ? "border-axis-core bg-axis-signal/20"
+                        : row.logo
+                          ? "border-axis-base/30 bg-white"
+                          : "border-dashed border-axis-base/60 bg-axis-light/40 hover:border-axis-core/40"
+                    }`}
+                  >
+                    {row.logo ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={logo.url} alt="" className="max-h-9 max-w-[60px] object-contain" />
+                      <img src={row.logo.url} alt="" className="max-h-12 max-w-[128px] object-contain" />
                     ) : (
-                      <span className="text-[10px] text-axis-core/40">No logo</span>
+                      <span className="px-2 text-center text-[11px] leading-tight text-axis-core/50">
+                        {row.logoRef ? (
+                          <>
+                            Waiting for
+                            <br />
+                            <span className="font-medium text-amber-700">{row.logoRef}</span>
+                          </>
+                        ) : (
+                          "+ Add logo"
+                        )}
+                      </span>
                     )}
-                  </div>
+                    <input
+                      type="file"
+                      accept="image/*,.svg"
+                      className="sr-only"
+                      onChange={(e) => {
+                        setRowLogo(row.id, e.target.files?.[0]);
+                        e.target.value = "";
+                      }}
+                    />
+                    {row.logo && (
+                      <button
+                        type="button"
+                        aria-label="Remove logo"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          patchRow(row.id, { logo: null });
+                        }}
+                        className="absolute right-1 top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-axis-core/80 text-xs leading-none text-white group-hover:flex"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </label>
+                </td>
+                <td className="px-2 py-2">
                   <input
                     value={row.name}
-                    onChange={(e) =>
-                      setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, name: e.target.value } : r)))
-                    }
+                    onChange={(e) => patchRow(row.id, { name: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && i === rows.length - 1) {
+                        e.preventDefault();
+                        setRows((rs) => [...rs, emptyRow()]);
+                      }
+                    }}
                     placeholder="Name"
-                    className="min-w-0 flex-1 rounded-[8px] border border-axis-base/40 px-3 py-1.5 text-sm outline-none focus:border-axis-core"
+                    className="w-full rounded-[8px] border border-axis-base/40 px-3 py-2 text-sm outline-none focus:border-axis-core"
                   />
-                  <select
-                    value={row.logoId ?? ""}
-                    onChange={(e) =>
-                      setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, logoId: e.target.value || null } : r)))
-                    }
-                    className="w-44 shrink-0 truncate rounded-[8px] border border-axis-base/40 bg-white px-2 py-1.5 text-xs outline-none focus:border-axis-core"
-                  >
-                    <option value="">No logo</option>
-                    {logos.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.file.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => downloadOne(row)}
-                    disabled={!row.name.trim() || !!progress}
-                    className="shrink-0 rounded-[8px] border border-axis-base/50 px-2.5 py-1.5 text-xs font-medium text-axis-core hover:bg-axis-light disabled:opacity-40"
-                  >
-                    PDF
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Remove row"
-                    onClick={() => setRows((rs) => rs.filter((r) => r.id !== row.id))}
-                    className="shrink-0 rounded-[6px] px-1.5 py-1 text-sm text-axis-core/40 hover:bg-red-50 hover:text-red-600"
-                  >
-                    ×
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                </td>
+                <td className="px-5 py-2">
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => downloadOne(row)}
+                      disabled={!row.name.trim() || busy}
+                      className="rounded-[8px] border border-axis-base/50 px-2.5 py-1.5 text-xs font-medium text-axis-core hover:bg-axis-light disabled:opacity-30"
+                    >
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Remove row"
+                      onClick={() => removeRow(row.id)}
+                      className="rounded-[6px] px-1.5 py-1 text-base leading-none text-axis-core/40 hover:bg-red-50 hover:text-red-600"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="border-t border-axis-base/15 px-5 py-3">
+          <button
+            type="button"
+            onClick={() => setRows((rs) => [...rs, emptyRow()])}
+            className="text-xs font-semibold text-axis-core/70 hover:text-axis-core"
+          >
+            + Add row
+          </button>
+        </div>
       </section>
     </div>
+  );
+}
+
+function FileButton({
+  children,
+  accept,
+  multiple,
+  disabled,
+  onFiles,
+  className,
+}: {
+  children: React.ReactNode;
+  accept: string;
+  multiple?: boolean;
+  disabled?: boolean;
+  onFiles: (files: FileList | null) => void;
+  className: string;
+}) {
+  return (
+    <label className={`${className} ${disabled ? "pointer-events-none opacity-40" : "cursor-pointer"}`}>
+      {children}
+      <input
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        disabled={disabled}
+        className="sr-only"
+        onChange={(e) => {
+          onFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </label>
   );
 }

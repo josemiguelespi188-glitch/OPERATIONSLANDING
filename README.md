@@ -166,9 +166,13 @@ app, its admin login, and its Supabase project.
 2. **Mapping**: add "Name" and "Logo" boxes, drag/resize them on the page,
    pick font/size/color/alignment for names. Saved as JSON in
    `pdf_templates.mapping` (PDF points, bottom-left origin).
-3. **Generate**: bulk upload logos and paste/upload names (one per line,
-   optionally `name<TAB>logo file` or `name, logo.png`; names matching a
-   logo file name pair automatically). Downloads one PDF per row, zipped.
+3. **Generate**: a table, one row per PDF (logo + name). Fill it by hand
+   (click/drop a logo per row), or import an Excel file with a Name and a
+   Logo column: pictures placed in or over the Logo cells come in with
+   their row (`lib/pdfGenerator/xlsx.ts` reads both floating drawings and
+   "Place in Cell" rich-value images). The Logo column can instead hold a
+   file name, matched by "Upload logos". CSV/pasted text also work.
+   Downloads one PDF per row, zipped.
 
 Generation runs entirely in the browser (`pdf-lib` + `pdfjs-dist` for the
 editor preview, `fflate` for the ZIP): logos and generated PDFs are never

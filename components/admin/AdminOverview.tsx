@@ -38,6 +38,19 @@ interface InvestorFeedbackStats {
   }>;
 }
 
+interface InvestorUpdateStats {
+  total: number;
+  byStatus: {
+    submitted: number;
+    in_progress: number;
+    draft_created: number;
+    pending_client_approval: number;
+    approved: number;
+    published: number;
+    completed: number;
+  };
+}
+
 const STATUS_LABEL: Record<RequestStatus, string> = {
   submitted: "Submitted",
   in_review: "In Review",
@@ -59,6 +72,9 @@ export function AdminOverview() {
 
   const [feedback, setFeedback] = useState<InvestorFeedbackStats | null>(null);
   const [feedbackError, setFeedbackError] = useState("");
+
+  const [investorUpdates, setInvestorUpdates] = useState<InvestorUpdateStats | null>(null);
+  const [investorUpdatesError, setInvestorUpdatesError] = useState("");
 
   const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
@@ -94,10 +110,30 @@ export function AdminOverview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.access_token]);
 
+  const fetchInvestorUpdates = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/investor-update-requests", { headers: authHeaders });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        console.error("Failed to load investor update requests:", res.status, body);
+        throw new Error(
+          `${body.error ?? "Failed to load investor update requests."} (status ${res.status})`
+        );
+      }
+      setInvestorUpdates(body);
+    } catch (err) {
+      setInvestorUpdatesError(
+        err instanceof Error ? err.message : "Failed to load investor update requests."
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.access_token]);
+
   useEffect(() => {
     fetchStats();
     fetchFeedback();
-  }, [fetchStats, fetchFeedback]);
+    fetchInvestorUpdates();
+  }, [fetchStats, fetchFeedback, fetchInvestorUpdates]);
 
   async function handleRetry(id: string) {
     setRetryingId(id);
@@ -147,7 +183,12 @@ export function AdminOverview() {
                 Requests by Type
               </h3>
               <div className="mt-3 space-y-2">
-                {REQUEST_TYPES.map((type) => {
+                {/* investor-update-request never lands in the generic
+                    `requests` table (its own dedicated tables — see the
+                    "Investor Update Requests" section below instead), so
+                    it's excluded here rather than showing a permanently
+                    empty 0% bar. */}
+                {REQUEST_TYPES.filter((type) => type.slug !== "investor-update-request").map((type) => {
                   const count = stats.byType[type.slug] ?? 0;
                   const pct = stats.total > 0 ? (count / stats.total) * 100 : 0;
                   return (
@@ -303,6 +344,30 @@ export function AdminOverview() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {investorUpdatesError && (
+          <p className="mt-8 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
+            {investorUpdatesError}
+          </p>
+        )}
+
+        {investorUpdates && (
+          <div className="mt-8">
+            <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
+              Investor Update Requests
+            </h3>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <KpiCard label="Investor Update Requests" value={investorUpdates.total} tone="tan" />
+              <KpiCard label="Pending Investor Updates" value={investorUpdates.byStatus.submitted} />
+              <KpiCard label="Updates In Progress" value={investorUpdates.byStatus.in_progress} />
+              <KpiCard
+                label="Updates Awaiting Approval"
+                value={investorUpdates.byStatus.pending_client_approval}
+              />
+              <KpiCard label="Completed Updates" value={investorUpdates.byStatus.completed} accent />
             </div>
           </div>
         )}

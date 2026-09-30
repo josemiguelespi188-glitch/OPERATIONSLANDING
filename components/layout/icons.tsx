@@ -69,3 +69,17 @@ export function LogoutIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function MegaphoneIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <path
+        d="M2.5 8.5v3a1 1 0 0 0 1 1h1.2l1 4.5h1.8l-1-4.5H8L14.5 16V4L8 7.5H3.5a1 1 0 0 0-1 1Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M14.5 7.5h1.2a1.5 1.5 0 0 1 0 3h-1.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}

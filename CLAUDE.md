@@ -179,6 +179,53 @@ as the rest of `/api/admin/*`) aggregates that table for the "Investor
 Experience Rating" card on `/admin` (average rating, 1-5 histogram,
 recent comments, an 8-week trend) — see `AdminOverview.tsx`.
 
+## Investor Update Request
+
+`app/forms/investor-update-request` looks and behaves like every other
+request form (same `FormShell`, same design system, homepage card), but
+is deliberately **not** wired into the shared `requests` table/
+`request_types` row/`FORM_SPECS` override machinery every other request
+type uses. Its future roadmap (AI-generated drafts, templates, an
+approval workflow, version history, direct publication to investor
+portals) needs a richer status model and structured per-field storage
+the generic schema isn't built for, so it got its own tables up front —
+see `supabase/migrations/005_investor_update_requests.sql`
+(`investor_update_requests`, `investor_update_files`,
+`investor_update_status_history`). Because of this:
+
+- It has no row in `request_types` (`supabase/seed.sql` doesn't touch
+  it) and isn't editable from the admin Form Builder — its field
+  structure lives only in `components/axiskey-forms/
+  InvestorUpdateRequestForm.tsx`.
+- It's excluded from the "Requests by Type" bar list in
+  `AdminOverview.tsx` (it would always show 0 there, since it never
+  lands in `requests`) — it gets its own "Investor Update Requests"
+  section instead, driven by `GET /api/admin/investor-update-requests`.
+- `POST /api/investor-update-requests` is its own endpoint, not
+  `POST /api/requests`. `FormShell` gained two opt-in props to support
+  this without touching any of the other 9 forms' behavior:
+  `submitEndpoint` (where to POST) and `buildSubmission` (how to shape
+  the outgoing JSON, bypassing the generic requestorName/investorName/
+  dealName/notes resolution). It also gained a `"multifile"` field kind
+  (any number of files per field, each uploaded as its own attachment
+  sharing that field's name as `fieldKey`) for the "Upload Supporting
+  Files" / "Upload Images or Charts" questions, and a `submitLabel` prop
+  for the "Request Investor Update" button text.
+- `status` supports the full future workflow (`submitted`, `in_progress`,
+  `draft_created`, `pending_client_approval`, `approved`, `published`,
+  `completed`) at the schema level, but only `submitted` is ever actually
+  set today — nothing in this codebase changes it yet. Same for
+  `investor_update_status_history`: a `submitted` row is written on
+  create, but nothing else writes to it yet.
+- ClickUp sync (`syncInvestorUpdateToClickUp` in
+  `lib/integrations/clickup.ts`, kept separate from `syncRequestToClickUp`
+  since the payload shape is different) reuses the same
+  `CLICKUP_LIST_ID_MAP` env var as every other type — add an
+  `"investor-update-request"` entry once its ClickUp list exists. No
+  `CUSTOM_FIELD_MAP` entry exists for it yet, so every field only reaches
+  ClickUp via the task description until a list/field IDs are
+  provisioned and confirmed, same as any other newly added list.
+
 ## Style
 
 No em dash (`—`) in any user-facing platform text — form labels,

@@ -53,6 +53,12 @@ const CONFIG_KIND_TO_DYNAMIC: Record<FieldConfig["kind"], DynamicFieldType> = {
   select: "dropdown",
   checkbox: "checkbox",
   file: "file_upload",
+  // No DynamicFieldType/admin-editable equivalent — multifile fields
+  // (investor-update-request) aren't part of the locked-forms/override
+  // system this bridge serves (see CLAUDE.md's "Investor Update Request"
+  // section), so this mapping only exists to satisfy the Record's type;
+  // it's never actually looked up for a multifile field in practice.
+  multifile: "file_upload",
 };
 
 /** DynamicFieldType options the "Add question" picker offers when editing
@@ -91,6 +97,9 @@ function applyOverride(base: FieldConfig, override: DynamicField): FieldConfig {
     return { ...base, label, required, fullWidth, helper: override.description || base.helper };
   }
   if (base.kind === "file") {
+    return { ...base, label, required, fullWidth, helper: override.description || base.helper };
+  }
+  if (base.kind === "multifile") {
     return { ...base, label, required, fullWidth, helper: override.description || base.helper };
   }
   return {

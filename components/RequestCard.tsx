@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { RequestTypeConfig, RequestTypeSlug } from "@/lib/requestTypes";
-import { FileIcon } from "@/components/layout/icons";
+import { FileIcon, MegaphoneIcon } from "@/components/layout/icons";
 
 interface RequestCardProps {
   type: RequestTypeConfig;
@@ -24,6 +24,7 @@ const DEDICATED_FORM_SLUGS = new Set<RequestTypeSlug>([
   "account-maintenance-request",
   "document-request",
   "axiskey-report-request",
+  "investor-update-request",
 ]);
 
 export function RequestCard({ type, onOpen }: RequestCardProps) {
@@ -32,7 +33,11 @@ export function RequestCard({ type, onOpen }: RequestCardProps) {
   return (
     <div className="flex flex-col rounded-card border border-axis-base/30 bg-white p-3.5 shadow-card transition-all duration-150 hover:-translate-y-0.5 hover:shadow-card-hover">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-axis-core">
-        <FileIcon className="h-[16px] w-[16px] text-axis-signal" />
+        {type.icon === "megaphone" ? (
+          <MegaphoneIcon className="h-[16px] w-[16px] text-axis-signal" />
+        ) : (
+          <FileIcon className="h-[16px] w-[16px] text-axis-signal" />
+        )}
       </div>
 
       <h3 className="mt-2.5 font-head text-sm font-semibold leading-tight tracking-tight text-axis-core">

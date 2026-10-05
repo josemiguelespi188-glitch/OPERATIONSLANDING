@@ -268,9 +268,7 @@ function buildNarrative(
         explanation: `${deal
           .charAt(0)
           .toUpperCase()}${deal.slice(1)} is on hold until your account documentation and compliance checks are complete.`,
-        nextStep: context.docsNeeded
-          ? context.docsNeeded
-          : "Please log in to your investor portal and upload the requested documents under the KYC section.",
+        nextStep: "Upload the requested documents to your investor portal (see requirements below).",
       };
     case "pending_payment":
       return {

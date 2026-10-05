@@ -4,19 +4,27 @@ import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
 import type { OrderTrackingView as OrderTrackingViewModel } from "@/lib/orderTracking";
 
-const IR_CONTACT_MAILTO =
-  "mailto:investorrelations@axiskey.com?subject=Question about my order";
+const PORTAL_URL = "https://app.axiskey.com/";
+const IR_CONTACT_EMAIL = "investorrelations@axiskey.com";
+const IR_CONTACT_MAILTO = `mailto:${IR_CONTACT_EMAIL}?subject=Question about my order`;
 
 type LoadState = "loading" | "ready" | "not_found" | "error";
 
 const STEP_DOT: Record<string, string> = {
   complete: "bg-axis-core text-white",
   current: "bg-axis-signal text-axis-core",
-  upcoming: "bg-axis-light text-axis-core/40",
+  upcoming: "bg-axis-light text-axis-core/40 border border-axis-base/40",
   canceled: "bg-axis-base/60 text-axis-core/50",
 };
 
-const SCENARIO_TONE: Record<string, string> = {
+const STEP_CAPTION: Record<string, string> = {
+  complete: "Complete",
+  current: "In progress",
+  upcoming: "Not started",
+  canceled: "Canceled",
+};
+
+const PANEL_TONE: Record<string, string> = {
   pending_documents: "bg-axis-core text-white",
   pending_payment: "bg-axis-core text-white",
   processing: "bg-axis-core text-white",
@@ -24,33 +32,36 @@ const SCENARIO_TONE: Record<string, string> = {
   canceled: "bg-axis-base/40 text-axis-core",
 };
 
-const SCENARIO_SUBTEXT: Record<string, string> = {
-  pending_documents: "text-white/75",
-  pending_payment: "text-white/75",
-  processing: "text-white/75",
-  completed: "text-white/75",
-  canceled: "text-axis-core/65",
+const PANEL_MUTED: Record<string, string> = {
+  pending_documents: "text-white/50",
+  pending_payment: "text-white/50",
+  processing: "text-white/50",
+  completed: "text-white/50",
+  canceled: "text-axis-core/50",
 };
 
-const SCENARIO_BODYTEXT: Record<string, string> = {
-  pending_documents: "text-white/90",
-  pending_payment: "text-white/90",
-  processing: "text-white/90",
-  completed: "text-white/90",
-  canceled: "text-axis-core/80",
+const PANEL_BORDER: Record<string, string> = {
+  pending_documents: "border-white/15",
+  pending_payment: "border-white/15",
+  processing: "border-white/15",
+  completed: "border-white/15",
+  canceled: "border-axis-core/15",
 };
 
-const SCENARIO_BUTTON: Record<string, string> = {
-  pending_documents: "bg-white/10 text-white hover:bg-white/20",
-  pending_payment: "bg-white/10 text-white hover:bg-white/20",
-  processing: "bg-white/10 text-white hover:bg-white/20",
-  completed: "bg-white/10 text-white hover:bg-white/20",
-  canceled: "bg-axis-core/10 text-axis-core hover:bg-axis-core/20",
+const PANEL_LINK: Record<string, string> = {
+  pending_documents: "text-white/70 hover:text-white",
+  pending_payment: "text-white/70 hover:text-white",
+  processing: "text-white/70 hover:text-white",
+  completed: "text-white/70 hover:text-white",
+  canceled: "text-axis-core/70 hover:text-axis-core",
 };
 
 export function OrderTrackingView({ token }: { token: string }) {
   const [state, setState] = useState<LoadState>("loading");
   const [view, setView] = useState<OrderTrackingViewModel | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +94,13 @@ export function OrderTrackingView({ token }: { token: string }) {
     };
   }, [token]);
 
+  function copyLink() {
+    navigator.clipboard?.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   if (state === "loading") {
     return (
       <Shell>
@@ -94,7 +112,7 @@ export function OrderTrackingView({ token }: { token: string }) {
   if (state === "not_found") {
     return (
       <Shell>
-        <h1 className="text-center font-head text-[22px] font-medium text-axis-core">
+        <h1 className="text-center font-head text-xl font-medium text-axis-core">
           We couldn&rsquo;t find this tracking link
         </h1>
         <p className="mt-2 text-center text-sm text-axis-core/55">
@@ -108,7 +126,7 @@ export function OrderTrackingView({ token }: { token: string }) {
   if (state === "error" || !view) {
     return (
       <Shell>
-        <h1 className="text-center font-head text-[22px] font-medium text-axis-core">
+        <h1 className="text-center font-head text-xl font-medium text-axis-core">
           Something went wrong
         </h1>
         <p className="mt-2 text-center text-sm text-axis-core/55">
@@ -118,93 +136,172 @@ export function OrderTrackingView({ token }: { token: string }) {
     );
   }
 
+  const tone = PANEL_TONE[view.scenario];
+  const muted = PANEL_MUTED[view.scenario];
+  const border = PANEL_BORDER[view.scenario];
+  const link = PANEL_LINK[view.scenario];
+
   return (
-    <Shell wide>
-      <header className="mb-8 text-center">
-        <h1 className="font-head text-[24px] font-medium leading-tight tracking-tight text-axis-core">
-          {view.investorName ? `Hello, ${view.investorName}.` : "Track your investment"}
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed text-axis-core/55">
-          Here is the latest status of your order.
-        </p>
+    <div className="flex min-h-screen flex-col bg-axis-cream">
+      <header className="flex shrink-0 items-center justify-between bg-axis-core px-6 py-3.5">
+        <Logo variant="light" />
+        <span className="hidden text-xs text-white/40 sm:inline">Order tracking</span>
       </header>
 
-      <div className="mb-8 flex flex-wrap items-center justify-center gap-2 text-xs">
-        {view.dealName && <Chip label="Offering" value={view.dealName} />}
-        {view.confirmedAmount !== null && (
-          <Chip label="Amount" value={`$${view.confirmedAmount.toLocaleString("en-US")}`} />
-        )}
-        {view.investorName && <Chip label="Investor" value={view.investorName} />}
-        {view.currentAccountName && <Chip label="Account" value={view.currentAccountName} />}
-      </div>
-
-      <Stepper steps={view.steps} />
-
-      {view.scenario !== "canceled" && (
-        <div className="mt-8 rounded-card border border-axis-base/40 bg-white p-5">
-          <h2 className="mb-4 text-sm font-bold text-axis-core">Pre-funding checklist</h2>
-          <ul className="grid gap-2.5 sm:grid-cols-2">
-            {view.checklist.map((item) => (
-              <li key={item.label} className="flex items-center gap-2.5 text-sm text-axis-core/80">
-                <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                    item.complete ? "bg-axis-signal text-axis-core" : "bg-axis-light text-axis-core/40"
-                  }`}
-                >
-                  {item.complete ? "✓" : ""}
-                </span>
-                {item.label}
-              </li>
-            ))}
-          </ul>
-          {(view.accountType || view.dealType) && (
-            <div className="mt-4 flex flex-wrap gap-2 border-t border-axis-base/30 pt-4 text-xs text-axis-core/55">
-              {view.accountType && <span>Account type: {view.accountType}</span>}
-              {view.dealType && <span>Deal type: {view.dealType}</span>}
+      <main className="flex flex-1 items-center justify-center px-4 py-5">
+        <div className="w-full max-w-5xl rounded-card bg-white p-6 shadow-card sm:p-7">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              {view.investorName && (
+                <p className="text-sm text-axis-core/55">Hello, {view.investorName}.</p>
+              )}
+              <h1 className="font-head text-2xl font-bold leading-tight text-axis-core sm:text-[28px]">
+                Track your <span className="bg-axis-signal px-1.5">investment</span>.
+              </h1>
             </div>
-          )}
-        </div>
-      )}
+            <div className="flex flex-wrap items-center gap-2">
+              {view.dealName && <Chip>{view.dealName}</Chip>}
+              {view.confirmedAmount !== null && (
+                <ChipHighlight>
+                  Confirmed amount: ${view.confirmedAmount.toLocaleString("en-US")}
+                </ChipHighlight>
+              )}
+              <button
+                type="button"
+                onClick={copyLink}
+                className="rounded-full border border-axis-base/60 px-3.5 py-1.5 text-xs font-bold text-axis-core transition-colors hover:bg-axis-light"
+              >
+                {copied ? "Copied!" : "Copy link"}
+              </button>
+            </div>
+          </div>
 
-      <div className={`mt-6 rounded-card px-6 py-6 ${SCENARIO_TONE[view.scenario]}`}>
-        <h2 className="font-head text-lg font-medium leading-tight">{view.headline}</h2>
-        <p className={`mt-2 text-sm leading-relaxed ${SCENARIO_SUBTEXT[view.scenario]}`}>{view.explanation}</p>
-        <p className={`mt-4 whitespace-pre-line text-sm leading-relaxed ${SCENARIO_BODYTEXT[view.scenario]}`}>
-          {view.nextStep}
-        </p>
-        <a
-          href={IR_CONTACT_MAILTO}
-          className={`mt-5 inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-bold transition-colors ${SCENARIO_BUTTON[view.scenario]}`}
-        >
-          Ask Investor Relations
-        </a>
-      </div>
+          <div className="mb-5 rounded-xl bg-axis-light/60 px-4 py-5 sm:px-8">
+            <Stepper steps={view.steps} />
+          </div>
 
-      {view.scenario === "completed" && (
-        <div className="mt-6 rounded-card border border-axis-base/40 bg-white p-5 text-center">
-          <h2 className="text-sm font-bold text-axis-core">How was your investing experience?</h2>
-          <p className="mt-1 text-sm text-axis-core/55">
-            Your order is complete. We would love to hear your feedback.
-          </p>
-          <a
-            href="/rate-your-experience"
-            className="mt-4 inline-flex items-center justify-center rounded-full bg-axis-signal px-5 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-signal/85"
-          >
-            Rate your experience
-          </a>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.3fr_1fr]">
+            <div className={`rounded-xl p-5 ${tone}`}>
+              <h2 className="font-head text-lg font-medium leading-tight">{view.headline}.</h2>
+
+              <div className="mt-4 flex flex-wrap gap-2.5">
+                {view.scenario !== "canceled" && (
+                  <a
+                    href={PORTAL_URL}
+                    className="inline-flex items-center justify-center rounded-full bg-axis-signal px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-signal/85"
+                  >
+                    Go to AxisKey portal
+                  </a>
+                )}
+                {view.scenario === "completed" && (
+                  <a
+                    href="/rate-your-experience"
+                    className="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2.5 text-sm font-bold transition-colors hover:bg-white/20"
+                  >
+                    Rate your experience
+                  </a>
+                )}
+                {view.scenario === "canceled" && (
+                  <a
+                    href={IR_CONTACT_MAILTO}
+                    className="inline-flex items-center justify-center rounded-full bg-axis-core/10 px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-core/20"
+                  >
+                    Ask Investor Relations
+                  </a>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDetailsOpen((open) => !open)}
+                className={`mt-3.5 flex items-center gap-1 text-xs font-semibold ${link}`}
+              >
+                More details
+                <svg
+                  className={`h-2.5 w-2.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`}
+                  viewBox="0 0 12 8"
+                  fill="none"
+                >
+                  <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {detailsOpen && (
+                <div className={`mt-3 grid grid-cols-1 gap-3 border-t pt-3.5 text-xs sm:grid-cols-2 ${border}`}>
+                  {view.currentAccountName && (
+                    <div>
+                      <p className={`mb-0.5 uppercase tracking-wide ${muted}`}>Current account</p>
+                      <p>{view.currentAccountName}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className={`mb-0.5 uppercase tracking-wide ${muted}`}>Next step</p>
+                    <p>{view.nextStep}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    Ask about this order:{" "}
+                    <a href={IR_CONTACT_MAILTO} className="underline">
+                      {IR_CONTACT_EMAIL}
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-axis-base/40 p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-bold text-axis-core">Pre-funding checks</h2>
+                {view.accountType && (
+                  <span className="rounded-full bg-axis-light px-2.5 py-1 text-[11px] font-semibold text-axis-core/70">
+                    {view.accountType}
+                  </span>
+                )}
+              </div>
+
+              {view.scenario === "canceled" ? (
+                <p className="text-sm text-axis-core/55">
+                  This order was canceled before compliance checks were finalized.
+                </p>
+              ) : (
+                <ul className="divide-y divide-axis-base/20 text-sm">
+                  {view.checklist.map((item) => (
+                    <li key={item.label} className="flex items-center justify-between py-2">
+                      <span className="text-axis-core/80">{item.label}</span>
+                      <StatusPill complete={item.complete} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {view.docsNeeded && (
+                <div className="mt-2 border-t border-axis-base/20 pt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setDocsOpen((open) => !open)}
+                    className="text-xs font-semibold text-axis-core/60 underline underline-offset-2 hover:text-axis-core"
+                  >
+                    View requirements for this account
+                  </button>
+                  {docsOpen && (
+                    <p className="mt-2 text-xs leading-relaxed text-axis-core/65">{view.docsNeeded}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      )}
-    </Shell>
+      </main>
+    </div>
   );
 }
 
-function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
+function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-axis-cream px-4 py-12">
-      <div className={`w-full overflow-hidden rounded-card bg-white shadow-card ${wide ? "max-w-[640px]" : "max-w-[460px]"}`}>
+      <div className="w-full max-w-[460px] overflow-hidden rounded-card bg-white shadow-card">
         <div className="h-[5px] bg-axis-signal" />
-        <div className="px-6 py-10 sm:px-10">
-          <div className="mb-7 flex justify-center">
+        <div className="px-8 py-10">
+          <div className="mb-6 flex justify-center">
             <Logo />
           </div>
           {children}
@@ -214,27 +311,51 @@ function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }
   );
 }
 
-function Chip({ label, value }: { label: string; value: string }) {
+function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full border border-axis-base/50 bg-axis-light px-3 py-1.5 text-axis-core/75">
-      <span className="font-bold text-axis-core">{label}:</span> {value}
+    <span className="rounded-full border border-axis-base/50 bg-axis-light px-3 py-1.5 text-xs font-semibold text-axis-core/75">
+      {children}
+    </span>
+  );
+}
+
+function ChipHighlight({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full bg-axis-signal px-3 py-1.5 text-xs font-bold text-axis-core">{children}</span>
+  );
+}
+
+function StatusPill({ complete }: { complete: boolean }) {
+  return (
+    <span
+      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+        complete ? "bg-axis-signal/30 text-axis-core" : "bg-axis-light text-axis-core/45"
+      }`}
+    >
+      {complete ? "Complete" : "Pending"}
     </span>
   );
 }
 
 function Stepper({ steps }: { steps: OrderTrackingViewModel["steps"] }) {
   return (
-    <ol className="grid grid-cols-4 gap-2">
-      {steps.map((step, index) => (
-        <li key={step.label} className="flex flex-col items-center text-center">
-          <span
-            className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${STEP_DOT[step.state]}`}
-          >
-            {step.state === "complete" ? "✓" : index + 1}
-          </span>
-          <span className="mt-2 text-[11px] leading-tight text-axis-core/60">{step.label}</span>
-        </li>
-      ))}
-    </ol>
+    <div className="relative">
+      <div className="absolute left-[12%] right-[12%] top-[15px] h-[2px] bg-axis-base/50" />
+      <ol className="relative flex justify-between">
+        {steps.map((step, index) => (
+          <li key={step.label} className="flex flex-col items-center gap-1.5 bg-axis-light/60 px-1.5 text-center">
+            <span
+              className={`flex h-[30px] w-[30px] items-center justify-center rounded-full text-xs font-bold ${STEP_DOT[step.state]}`}
+            >
+              {step.state === "complete" ? "✓" : index + 1}
+            </span>
+            <span className="max-w-[90px] text-[11px] font-semibold leading-tight text-axis-core sm:max-w-none sm:text-xs">
+              {step.label}
+            </span>
+            <span className="text-[10px] text-axis-core/45">{STEP_CAPTION[step.state]}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

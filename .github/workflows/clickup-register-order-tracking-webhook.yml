@@ -1,0 +1,58 @@
+name: ClickUp - Register Order Tracking Webhook
+
+# Manual, one-off (re-runnable) helper: registers the ClickUp webhook that
+# auto-provisions investor order tracking links (see CLAUDE.md's "Order
+# Tracking" section). GitHub Actions runners have normal internet access,
+# unlike the sandboxed Claude Code session this project is usually worked
+# on from -- api.clickup.com is blocked there. Trigger this from the
+# Actions tab ("Run workflow"), then open the finished run's Summary tab
+# and copy the "secret" field from the response into
+# CLICKUP_ORDER_TRACKING_WEBHOOK_SECRET on Vercel.
+#
+# Requires a repo secret named CLICKUP_API_TOKEN (Settings -> Secrets and
+# variables -> Actions -> New repository secret) with the same ClickUp
+# personal API token already configured on Vercel.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  register-webhook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Register webhook with ClickUp
+        env:
+          CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}
+        run: |
+          if [ -z "$CLICKUP_API_TOKEN" ]; then
+            echo "::error::Missing CLICKUP_API_TOKEN repo secret. Add it under Settings -> Secrets and variables -> Actions, then re-run this workflow."
+            exit 1
+          fi
+
+          http_status=$(curl -sS -o /tmp/response.json -w "%{http_code}" -X POST \
+            "https://api.clickup.com/api/v2/team/9011712515/webhook" \
+            -H "Authorization: $CLICKUP_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "endpoint": "https://operationslanding.vercel.app/api/webhooks/clickup-order-tracking",
+              "events": ["taskCreated", "taskUpdated"],
+              "list_id": "901113961474"
+            }')
+
+          {
+            echo "## ClickUp webhook registration result"
+            echo ""
+            echo "HTTP status: \`$http_status\`"
+            echo ""
+            echo '```json'
+            python3 -m json.tool /tmp/response.json 2>/dev/null || cat /tmp/response.json
+            echo '```'
+            echo ""
+            if [ "$http_status" = "200" ] || [ "$http_status" = "201" ]; then
+              echo "Copy the \`secret\` value above. It becomes CLICKUP_ORDER_TRACKING_WEBHOOK_SECRET on Vercel."
+              echo ""
+              echo "**This log contains a sensitive value -- do not share this run publicly, and avoid re-running this workflow unnecessarily.**"
+            else
+              echo "ClickUp returned a non-success status. Check CLICKUP_API_TOKEN is valid and try again."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

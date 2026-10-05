@@ -513,7 +513,7 @@ export async function syncRequestToClickUp(
  * a network-level failure, never on a non-2xx response, so callers that
  * don't check the result here would never learn a write was rejected).
  */
-async function setCustomField(
+export async function setCustomField(
   taskId: string,
   fieldId: string,
   value: unknown,
@@ -678,4 +678,40 @@ export async function syncInvestorUpdateToClickUp(input: {
   );
 
   return { synced: true, taskId, warnings: warnings.length > 0 ? warnings : undefined };
+}
+
+/**
+ * Fetches one ClickUp task with its custom field values, live. Used by the
+ * order tracking feature (GET /api/order-tracking/[token]) to compute an
+ * investor's order status at request time -- deliberately never cached
+ * beyond the token -> clickup_task_id mapping itself, so the investor
+ * always sees ClickUp's current state.
+ */
+export async function fetchClickUpTask(taskId: string): Promise<
+  { ok: true; task: Record<string, unknown> } | { ok: false; error: string; status?: number }
+> {
+  const token = process.env.CLICKUP_API_TOKEN;
+  if (!token) {
+    return { ok: false, error: "CLICKUP_API_TOKEN is not configured." };
+  }
+
+  try {
+    const response = await fetch(
+      `${CLICKUP_API_BASE}/task/${taskId}?custom_fields=true&include_subtasks=false`,
+      { headers: { Authorization: token } }
+    );
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      return { ok: false, error: `ClickUp API error ${response.status}: ${body.slice(0, 300)}`, status: response.status };
+    }
+
+    const task = (await response.json()) as Record<string, unknown>;
+    return { ok: true, task };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unknown error fetching the ClickUp task.",
+    };
+  }
 }

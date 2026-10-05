@@ -141,6 +141,76 @@ alone will NOT change what's live; edit the row in `seed.sql` (and
 re-run it in the Supabase SQL editor, or edit the row directly from
 `/admin/forms/<id>`) instead.
 
+## Order Tracking ("Track Your Investment")
+
+A standalone, investor-facing order status page linked from automatic
+investor emails. Built against the real **Payment Received Orders**
+ClickUp list (`901113961474`, Investor Relations space, a sibling of the
+Axis Operations Hub folder, not inside it) — distinct from the simpler
+**Pending Orders** list (`901113950429`), which this feature does not
+read from.
+
+- `GET /order-tracking/[token]` (`app/order-tracking/[token]/page.tsx` +
+  `components/orderTracking/OrderTrackingView.tsx`) is the public page.
+  Like `/rate-your-experience`, it has no `PageShell`/`Sidebar` and no
+  auth guard.
+- The `token` is an opaque, server-generated random value (32 bytes,
+  base64url) with no relation to the ClickUp task id. It's looked up via
+  `order_tracking_links` (`supabase/migrations/006_order_tracking_links.sql`),
+  a table with RLS enabled and **no policies at all** — stricter than
+  every other table in this app, since it must only ever be read through
+  the service-role client (`GET /api/order-tracking/[token]`).
+- Links are generated **fully automatically**, with no manual ops work:
+  `app/api/webhooks/clickup-order-tracking/route.ts` listens for
+  `taskCreated`/`taskUpdated` on that list, creates a token the first time
+  a task is seen (confirmed against the live task's `list.id`, regardless
+  of how the webhook itself ended up scoped in ClickUp), and never
+  regenerates it afterward.
+- `GET /api/order-tracking/[token]` fetches the ClickUp task **live** on
+  every request (`fetchClickUpTask` in `lib/integrations/clickup.ts`) and
+  computes a view model in `lib/orderTracking.ts` — never cached beyond
+  the token -> `clickup_task_id` mapping itself.
+- Field decoding in `lib/orderTracking.ts` (`ORDER_TRACKING_FIELD_IDS`)
+  was confirmed against live ClickUp data (`clickup_get_custom_fields` +
+  two real sample tasks), not guessed: every status checkbox on this list
+  means "checked = problem/pending" (e.g. `isKyccomplete` is really "KYC
+  INCOMPLETE?"); `accountTypeName`/`dealTypeId` are dropdowns whose stored
+  value is the option's numeric `orderindex`, not its UUID.
+- Per product decision, for a **terminal** order (ClickUp status
+  `completed orders`, `canceled orders`, or `close`) the native Status
+  column is authoritative over any individual checkbox — those can be
+  stale on older orders (confirmed via live data) and must never flip a
+  terminal order back to "pending" in the tracker.
+- Per product decision, the page shows both `investor (Investor Name)`
+  and `Current Account Name` (an admin asked to hide the latter was
+  overridden in favor of showing both).
+- The "Docs needed" ClickUp field's own text is surfaced directly to the
+  investor when documents are pending, instead of rebuilding a parallel
+  document-requirements knowledge base in code.
+- For a completed order, the page links into the **existing**
+  `/rate-your-experience` investor feedback flow instead of a separate
+  feedback form.
+- `NEXT_PUBLIC_SITE_URL` (optional, `.env.example`) builds the full
+  tracking link; no such env var existed anywhere else in this codebase
+  before this feature, so it defaults to the production domain already in
+  use elsewhere in this app if unset.
+
+**Two manual, one-time ClickUp-side setup steps are required** — this
+app has no way to create a ClickUp custom field or register a ClickUp
+webhook subscription itself:
+1. Create a new custom field on the "Payment Received Orders" list (e.g.
+   a URL or Text field named "Tracking Link"), and set its id as
+   `CLICKUP_ORDER_TRACKING_FIELD_ID` on Vercel. Without this, tracking
+   links still work end-to-end, they just aren't written back into
+   ClickUp for ops to see at a glance.
+2. Register a ClickUp webhook (ClickUp -> Settings -> Integrations ->
+   Webhooks, or `POST /team/{team_id}/webhook`) for the `taskCreated` and
+   `taskUpdated` events, pointed at
+   `https://<this app's domain>/api/webhooks/clickup-order-tracking`,
+   scoped to list `901113961474` if the UI allows it (the endpoint
+   double-checks the task's list itself either way). Set the `secret`
+   ClickUp returns as `CLICKUP_ORDER_TRACKING_WEBHOOK_SECRET` on Vercel.
+
 ## Public site layout
 
 The public site (home page + every request form) is deliberately a single

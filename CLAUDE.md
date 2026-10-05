@@ -203,13 +203,19 @@ webhook subscription itself:
    `CLICKUP_ORDER_TRACKING_FIELD_ID` on Vercel. Without this, tracking
    links still work end-to-end, they just aren't written back into
    ClickUp for ops to see at a glance.
-2. Register a ClickUp webhook (ClickUp -> Settings -> Integrations ->
-   Webhooks, or `POST /team/{team_id}/webhook`) for the `taskCreated` and
+2. Register a ClickUp webhook (ClickUp has no UI for this -- it's
+   API-only: `POST /team/{team_id}/webhook`) for the `taskCreated` and
    `taskUpdated` events, pointed at
    `https://<this app's domain>/api/webhooks/clickup-order-tracking`,
-   scoped to list `901113961474` if the UI allows it (the endpoint
+   scoped to list `901113961474` if the API allows it (the endpoint
    double-checks the task's list itself either way). Set the `secret`
    ClickUp returns as `CLICKUP_ORDER_TRACKING_WEBHOOK_SECRET` on Vercel.
+   `.github/workflows/clickup-register-order-tracking-webhook.yml` is a
+   manual (`workflow_dispatch`), re-runnable helper that makes this call
+   from a GitHub Actions runner (which has normal internet access, unlike
+   a sandboxed Claude Code session) -- needs a `CLICKUP_API_TOKEN` repo
+   secret, then trigger it from the Actions tab and read the `secret`
+   off the run's Summary page.
 
 ## Public site layout
 

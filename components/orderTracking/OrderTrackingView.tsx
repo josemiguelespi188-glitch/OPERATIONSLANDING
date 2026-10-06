@@ -5,15 +5,15 @@ import { Logo } from "@/components/Logo";
 import type { OrderTrackingView as OrderTrackingViewModel } from "@/lib/orderTracking";
 
 const PORTAL_URL = "https://app.axiskey.com/";
-const IR_CONTACT_EMAIL = "investorrelations@axiskey.com";
+const IR_CONTACT_EMAIL = "ir@axiskey.com";
 const IR_CONTACT_MAILTO = `mailto:${IR_CONTACT_EMAIL}?subject=Question about my order`;
 
 type LoadState = "loading" | "ready" | "not_found" | "error";
 
 const STEP_DOT: Record<string, string> = {
-  complete: "bg-axis-core text-white",
-  current: "bg-axis-signal text-axis-core",
-  upcoming: "bg-axis-light text-axis-core/40 border border-axis-base/40",
+  complete: "bg-axis-signal text-axis-core",
+  current: "bg-axis-base/30 text-axis-core/60 border border-axis-base/60",
+  upcoming: "bg-axis-base/30 text-axis-core/60 border border-axis-base/60",
   canceled: "bg-axis-base/60 text-axis-core/50",
 };
 
@@ -338,9 +338,20 @@ function StatusPill({ complete }: { complete: boolean }) {
 }
 
 function Stepper({ steps }: { steps: OrderTrackingViewModel["steps"] }) {
+  const isCanceled = steps.some((step) => step.state === "canceled");
+  const completedCount = steps.filter((step) => step.state === "complete").length;
+  const gaps = Math.max(steps.length - 1, 1);
+  const progressRatio = Math.min(completedCount / gaps, 1);
+
   return (
     <div className="relative">
-      <div className="absolute left-[12%] right-[12%] top-[15px] h-[2px] bg-axis-base/50" />
+      <div className="absolute left-[12%] right-[12%] top-[15px] h-[3px] rounded-full bg-axis-base/40" />
+      {!isCanceled && progressRatio > 0 && (
+        <div
+          className="absolute left-[12%] top-[15px] h-[3px] rounded-full bg-axis-signal"
+          style={{ width: `calc((100% - 24%) * ${progressRatio})` }}
+        />
+      )}
       <ol className="relative flex justify-between">
         {steps.map((step, index) => (
           <li key={step.label} className="flex flex-col items-center gap-1.5 bg-axis-light/60 px-1.5 text-center">

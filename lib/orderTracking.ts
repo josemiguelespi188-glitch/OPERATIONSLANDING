@@ -293,7 +293,11 @@ export function computeOrderTrackingView(
         ? "subscription_agreement"
         : kycIncomplete
           ? "kyc"
-          : accreditationPending && !isLargeOrder
+          : // Accreditation document upload only applies to 506C (Reg D
+            // 506(c)) deals -- 506-B and Reg A offerings rely on KYC
+            // self-certification alone, so an accreditation-pending flag
+            // on those deal types doesn't get its own button set here.
+            accreditationPending && !isLargeOrder && dealType === "506C"
             ? "accreditation"
             : accountNotConfirmed
               ? "account_confirmation"

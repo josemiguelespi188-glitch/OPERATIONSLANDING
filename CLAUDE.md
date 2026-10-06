@@ -438,25 +438,32 @@ above:
   now also returns `blockingRequirement` (`"subscription_agreement" |
   "kyc" | "accreditation" | "account_confirmation" | null`), the single
   item actually responsible for the scenario, checked in that priority
-  order; an accreditation item that's waived (see above) is skipped here
-  the same way the checklist UI treats it as satisfied. `OrderTrackingView.tsx`
-  switches its secondary buttons on this instead of hardcoding KYC.
-  Currently only `"kyc"` and `"accreditation"` show an extra button pair
-  ("How to upload accreditation documents" reuses the same generic
-  Scribe guide link as KYC's, just relabeled -- there's no
-  accreditation-specific upload guide yet); `"subscription_agreement"`
-  and `"account_confirmation"` show no extra button beyond "Go to
-  AxisKey portal", since there's no requirements content for those yet.
-  **Still needed**: a structured, per-deal-type (not just per-account-type)
-  requirements dataset and an accreditation-specific "View accepted
-  accreditation documents" modal, analogous to `ACCOUNT_REQUIREMENTS` in
-  `lib/orderTracking/accountRequirements.ts` -- the user pointed at a
-  live prototype (`axiskey-investment-journey.maria-velizf.chatgpt.site`)
-  for this content, but that domain is blocked by this sandbox's egress
-  proxy (same restriction as ClickUp/Vercel), so it was never actually
-  read. Get the prototype's real HTML (e.g. have the user push it to the
-  repo, the way the favicon PNG was shared) before inventing
-  deal-type/accreditation copy from scratch.
+  order. `OrderTrackingView.tsx` switches its secondary buttons on this
+  instead of hardcoding KYC; `"subscription_agreement"` and
+  `"account_confirmation"` show no extra button beyond "Go to AxisKey
+  portal" (no requirements content exists for those).
+- **Accreditation documents are 506C-only**: `blockingRequirement` only
+  ever resolves to `"accreditation"` when `dealType === "506C"` (Reg D
+  506(c)) -- 506-B and Reg A offerings rely on KYC self-certification
+  alone and never need a separate accreditation document upload, per the
+  user. An accreditation item that's waived (see above) is also skipped
+  here, same as the checklist UI already treats it. When it does apply,
+  the panel shows "How to upload accreditation documents" (links to its
+  own Scribe guide, `ACCREDITATION_UPLOAD_GUIDE_URL` in
+  `lib/orderTracking/accreditationRequirements.ts` -- NOT the KYC one)
+  and "View accepted accreditation documents", which opens
+  `AccreditationRequirementsModal` in `OrderTrackingView.tsx`. That
+  modal's content (three verification methods -- proof of income, proof
+  of net worth, professional accreditation letter with a Jotform
+  signable template link -- a shared "not accepted" list, the $200k
+  waiver note, and the income/net-worth qualifying thresholds) is the
+  same for every investor account type, confirmed directly from the user
+  against the live prototype screenshots (not guessed) -- unlike
+  `ACCOUNT_REQUIREMENTS`, this dataset isn't keyed by account type at
+  all. The prototype site itself
+  (`axiskey-investment-journey.maria-velizf.chatgpt.site`) remains
+  unreachable from this sandbox's egress proxy; this was built from the
+  user's screenshots and copy-pasted links, not a page read.
 - **Completed orders no longer show the stepper** — just a single "Order
   complete" line with a checkmark, replacing the 4-step tracker (which
   has nothing left to communicate once the order is done). "Rate your

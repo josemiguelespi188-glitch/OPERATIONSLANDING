@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
 import type { OrderTrackingView as OrderTrackingViewModel } from "@/lib/orderTracking";
 import { ACCOUNT_REQUIREMENTS, DOCUMENT_UPLOAD_GUIDE_URL } from "@/lib/orderTracking/accountRequirements";
+import {
+  ACCREDITATION_NOT_ACCEPTED,
+  ACCREDITATION_NOTICE,
+  ACCREDITATION_QUALIFYING_THRESHOLDS,
+  ACCREDITATION_UPLOAD_GUIDE_URL,
+  ACCREDITATION_VERIFICATION_METHODS,
+} from "@/lib/orderTracking/accreditationRequirements";
 
 const PORTAL_URL = "https://app.axiskey.com/";
 const IR_CONTACT_EMAIL = "ir@axiskey.com";
@@ -75,6 +82,7 @@ export function OrderTrackingView({ token }: { token: string }) {
   const [view, setView] = useState<OrderTrackingViewModel | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
+  const [accreditationRequirementsOpen, setAccreditationRequirementsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -244,14 +252,23 @@ export function OrderTrackingView({ token }: { token: string }) {
                   </>
                 )}
                 {view.blockingRequirement === "accreditation" && (
-                  <a
-                    href={DOCUMENT_UPLOAD_GUIDE_URL}
-                    target="_blank"
-                    rel="noopener"
-                    className={PANEL_SECONDARY_BUTTON}
-                  >
-                    How to upload accreditation documents
-                  </a>
+                  <>
+                    <a
+                      href={ACCREDITATION_UPLOAD_GUIDE_URL}
+                      target="_blank"
+                      rel="noopener"
+                      className={PANEL_SECONDARY_BUTTON}
+                    >
+                      How to upload accreditation documents
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setAccreditationRequirementsOpen(true)}
+                      className={PANEL_SECONDARY_BUTTON}
+                    >
+                      View accepted accreditation documents
+                    </button>
+                  </>
                 )}
                 {view.scenario === "completed" && (
                   <a
@@ -355,6 +372,10 @@ export function OrderTrackingView({ token }: { token: string }) {
           docsNeeded={view.docsNeeded}
           onClose={() => setRequirementsOpen(false)}
         />
+      )}
+
+      {accreditationRequirementsOpen && (
+        <AccreditationRequirementsModal onClose={() => setAccreditationRequirementsOpen(false)} />
       )}
     </div>
   );
@@ -562,6 +583,146 @@ function RequirementsModal({
             className="inline-flex items-center justify-center rounded-full border border-axis-base/60 px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-light"
           >
             How to upload KYC documents
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Accreditation requirements, opened from the "View accepted
+ * accreditation documents" button -- only shown when the order's deal
+ * type is 506C (see blockingRequirement in lib/orderTracking.ts). Same
+ * content for every investor account type, so unlike RequirementsModal
+ * this takes no props.
+ */
+function AccreditationRequirementsModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-axis-core/50 p-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-card bg-white p-6 shadow-modal">
+        <div className="mb-3 flex items-start justify-between gap-4">
+          <h2 className="font-head text-lg font-bold leading-tight text-axis-core">Accreditation requirements</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 text-axis-core/40 transition-colors hover:text-axis-core"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-axis-core/60">Only needed when the offering requires accreditation verification.</p>
+          <span className="shrink-0 rounded-full bg-axis-signal px-2.5 py-1 text-[11px] font-bold text-axis-core">
+            Reg D 506(c) offerings
+          </span>
+        </div>
+
+        <div className="mb-5 rounded-[6px] bg-axis-signal/40 px-3.5 py-3">
+          <p className="text-sm font-bold text-axis-core">When accreditation document upload is waived</p>
+          <p className="mt-1 text-xs leading-relaxed text-axis-core/70">
+            If your confirmed order is at least $200,000, or your verified AxisKey orders total at least $200,000,
+            AxisKey may waive a separate document upload.
+          </p>
+        </div>
+
+        <h3 className="mb-2.5 text-sm font-bold text-axis-core">Who qualifies</h3>
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {ACCREDITATION_QUALIFYING_THRESHOLDS.map((threshold) => (
+            <div key={threshold.label} className="rounded-[6px] border border-axis-base/40 px-3.5 py-3">
+              <p className="text-xs text-axis-core/55">{threshold.label}</p>
+              <p className="mt-1 text-base font-bold text-axis-core">{threshold.amount}</p>
+              <p className="text-[11px] text-axis-core/55">{threshold.caption}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="mb-2.5 text-sm font-semibold text-axis-core">
+          Choose one of these three accepted ways to verify your accreditation
+        </p>
+        <div className="flex flex-col gap-2.5">
+          {ACCREDITATION_VERIFICATION_METHODS.map((method, index) => (
+            <details key={method.title} open className="group rounded-[6px] border border-axis-base/40">
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-axis-light text-xs font-bold text-axis-core">
+                  {index + 1}
+                </span>
+                <span className="flex-1 text-sm font-semibold text-axis-core">{method.title}</span>
+                <span className="rounded-full bg-axis-signal/30 px-2 py-0.5 text-[10px] font-bold uppercase text-axis-core">
+                  Accepted
+                </span>
+                <svg
+                  className="h-2.5 w-2.5 shrink-0 text-axis-core/40 transition-transform group-open:rotate-180"
+                  viewBox="0 0 12 8"
+                  fill="none"
+                >
+                  <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="border-t border-axis-base/30 px-4 py-3 text-xs text-axis-core/70">
+                <p className="mb-2 leading-relaxed">{method.description}</p>
+                <ul className="space-y-1">
+                  {method.accepted.map((item) => (
+                    <li key={item} className="flex gap-1.5">
+                      <span className="text-axis-core">&#10003;</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                {method.templateUrl && (
+                  <a
+                    href={method.templateUrl}
+                    target="_blank"
+                    rel="noopener"
+                    className="mt-3 inline-flex items-center justify-center rounded-full border border-axis-base/60 px-3.5 py-2 text-xs font-bold text-axis-core transition-colors hover:bg-axis-light"
+                  >
+                    {method.templateLabel}
+                  </a>
+                )}
+              </div>
+            </details>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-[6px] bg-axis-light px-3.5 py-3">
+          <p className="mb-2 text-sm font-bold text-axis-core">Not accepted</p>
+          <ul className="space-y-1.5 text-xs text-red-700/75">
+            {ACCREDITATION_NOT_ACCEPTED.map((item) => (
+              <li key={item} className="flex gap-1.5">
+                <span>&times;</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-4 rounded-[6px] border border-axis-base/40 bg-axis-base/30 px-3.5 py-3 text-xs leading-relaxed text-axis-core/80">
+          {ACCREDITATION_NOTICE}
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2.5">
+          <a
+            href={PORTAL_URL}
+            className="inline-flex items-center justify-center rounded-full bg-axis-signal px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-signal/85"
+          >
+            Open AxisKey portal
+          </a>
+          <a
+            href={ACCREDITATION_UPLOAD_GUIDE_URL}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center justify-center rounded-full border border-axis-base/60 px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-light"
+          >
+            How to upload accreditation documents
           </a>
         </div>
       </div>

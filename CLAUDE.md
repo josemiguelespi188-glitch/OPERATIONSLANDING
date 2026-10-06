@@ -418,15 +418,17 @@ above:
   `date_updated` is used as a best-effort backfill instead of "now", so
   an order that's actually been settled for days doesn't show "Processing"
   on its very first view here.
-- **Waived pre-funding checks**: an order with `confirmedAmount >=
-  200,000` (`WAIVED_AMOUNT_THRESHOLD`) shows "Waived" on every
-  pre-funding checklist item, replacing "Complete" too, not just
-  "Pending" -- these checks simply don't apply at this order size,
-  regardless of whether they happen to already be done. Styled the same
-  as "Complete" (same green pill). First pass (wrongly) only waived
-  items that weren't already complete, leaving actually-complete items
-  saying "Complete" -- corrected after the user clarified every item
-  should read "Waived" at this threshold, complete or not.
+- **Waived accreditation check only**: an order with `confirmedAmount >=
+  200,000` (`WAIVED_AMOUNT_THRESHOLD`) shows "Waived" on the
+  "Accreditation confirmed" pre-funding checklist item only, regardless
+  of whether it's actually complete -- large, qualified investments
+  don't need individual accreditation verification. Styled the same as
+  "Complete" (same green pill). The other three checklist items
+  (subscription agreement, KYC, account confirmed) always show their
+  real complete/pending state regardless of order size -- two earlier
+  passes got this wrong, first waiving only incomplete items, then
+  (over-correcting) waiving all four items regardless of label; the
+  user clarified it's accreditation specifically, nothing else.
 - **Completed orders no longer show the stepper** — just a single "Order
   complete" line with a checkmark, replacing the 4-step tracker (which
   has nothing left to communicate once the order is done). "Rate your

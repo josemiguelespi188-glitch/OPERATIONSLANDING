@@ -278,19 +278,23 @@ export function computeOrderTrackingView(
     paymentProcessing: !isTerminalComplete && paymentProcessing,
     orderComplete: isTerminalComplete,
   });
-  // Orders at or above WAIVED_AMOUNT_THRESHOLD have every pre-funding
-  // check waived outright, regardless of whether it's actually complete
-  // -- these checks simply don't apply at this order size, so every item
-  // shows "Waived" rather than "Complete"/"Pending".
+  // Orders at or above WAIVED_AMOUNT_THRESHOLD have accreditation waived
+  // outright, regardless of whether it's actually complete -- large,
+  // qualified investments don't need individual accreditation
+  // verification. Only this one check is affected: subscription
+  // agreement, KYC, and account confirmation still show their real
+  // complete/pending state no matter the order size.
   const isLargeOrder = confirmedAmount !== null && confirmedAmount >= WAIVED_AMOUNT_THRESHOLD;
-  const checklist: OrderTrackingChecklistItem[] = (
-    [
-      { label: "Subscription agreement signed", complete: isTerminalComplete || !saNotSigned },
-      { label: "Identity verification (KYC)", complete: isTerminalComplete || !kycIncomplete },
-      { label: "Accreditation confirmed", complete: isTerminalComplete || !accreditationPending },
-      { label: "Account confirmed", complete: isTerminalComplete || !accountNotConfirmed },
-    ] as Array<{ label: string; complete: boolean }>
-  ).map((item) => ({ ...item, waived: isLargeOrder }));
+  const checklist: OrderTrackingChecklistItem[] = [
+    { label: "Subscription agreement signed", complete: isTerminalComplete || !saNotSigned, waived: false },
+    { label: "Identity verification (KYC)", complete: isTerminalComplete || !kycIncomplete, waived: false },
+    {
+      label: "Accreditation confirmed",
+      complete: isTerminalComplete || !accreditationPending,
+      waived: isLargeOrder,
+    },
+    { label: "Account confirmed", complete: isTerminalComplete || !accountNotConfirmed, waived: false },
+  ];
 
   const { headline, explanation, nextStep } = buildNarrative(scenario, {
     investorName,

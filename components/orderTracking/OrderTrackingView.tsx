@@ -343,18 +343,31 @@ function Stepper({ steps }: { steps: OrderTrackingViewModel["steps"] }) {
   const gaps = Math.max(steps.length - 1, 1);
   const progressRatio = Math.min(completedCount / gaps, 1);
 
+  // Each <li> below is an equal-width column (flex-1), so a dot's center
+  // sits at exact, predictable percentages regardless of label text
+  // length -- the first/last dot centers are at half a column's width in
+  // from each edge, not a guessed fixed percentage (that guess is what
+  // caused the line to visibly stop short of the first/last dot before).
+  const edgeOffsetPercent = 50 / steps.length;
+
   return (
     <div className="relative">
-      <div className="absolute left-[12%] right-[12%] top-[15px] h-[3px] rounded-full bg-axis-base/40" />
+      <div
+        className="absolute top-[15px] h-[3px] rounded-full bg-axis-base/40"
+        style={{ left: `${edgeOffsetPercent}%`, right: `${edgeOffsetPercent}%` }}
+      />
       {!isCanceled && progressRatio > 0 && (
         <div
-          className="absolute left-[12%] top-[15px] h-[3px] rounded-full bg-axis-signal"
-          style={{ width: `calc((100% - 24%) * ${progressRatio})` }}
+          className="absolute top-[15px] h-[3px] rounded-full bg-axis-signal"
+          style={{
+            left: `${edgeOffsetPercent}%`,
+            width: `calc((100% - ${edgeOffsetPercent * 2}%) * ${progressRatio})`,
+          }}
         />
       )}
-      <ol className="relative flex justify-between">
+      <ol className="relative flex">
         {steps.map((step, index) => (
-          <li key={step.label} className="flex flex-col items-center gap-1.5 px-1.5 text-center">
+          <li key={step.label} className="flex flex-1 flex-col items-center gap-1.5 px-1.5 text-center">
             <span
               className={`flex h-[30px] w-[30px] items-center justify-center rounded-full text-xs font-bold ${STEP_DOT[step.state]}`}
             >

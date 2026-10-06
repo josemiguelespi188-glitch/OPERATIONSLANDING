@@ -715,3 +715,42 @@ export async function fetchClickUpTask(taskId: string): Promise<
     };
   }
 }
+
+/**
+ * Scans a list's tasks page by page (ClickUp v2 has no "name equals X"
+ * filter) looking for one whose name matches exactly. Used as a
+ * self-healing fallback in GET /api/order-tracking/[token]: if an order's
+ * tracking link was never auto-provisioned (e.g. the clickup-order-
+ * tracking webhook didn't fire for it), this finds the task directly by
+ * its order number so the link still works instead of 404ing. Capped at
+ * 10 pages (up to ~1000 tasks) as a sanity bound; stops as soon as a
+ * match is found.
+ */
+export async function findTaskIdByName(
+  listId: string,
+  name: string
+): Promise<string | null> {
+  const token = process.env.CLICKUP_API_TOKEN;
+  if (!token) return null;
+
+  for (let page = 0; page < 10; page++) {
+    try {
+      const response = await fetch(
+        `${CLICKUP_API_BASE}/list/${listId}/task?page=${page}&include_closed=true`,
+        { headers: { Authorization: token } }
+      );
+      if (!response.ok) return null;
+
+      const data = (await response.json()) as {
+        tasks?: { id: string; name: string }[];
+        last_page?: boolean;
+      };
+      const match = data.tasks?.find((task) => task.name === name);
+      if (match) return match.id;
+      if (!data.tasks || data.tasks.length === 0 || data.last_page) return null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}

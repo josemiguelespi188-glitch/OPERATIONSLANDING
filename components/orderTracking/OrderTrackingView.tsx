@@ -163,8 +163,13 @@ export function OrderTrackingView({ token }: { token: string }) {
               )}
               <h1 className="font-head text-2xl font-bold leading-tight text-axis-core sm:text-[28px]">
                 Track your <span className="bg-axis-signal px-1.5">investment</span>
-                {view.dealName && <> on {view.dealName}</>}.
+                {!view.dealName && "."}
               </h1>
+              {view.dealName && (
+                <p className="mt-1 border-l-[3px] border-axis-signal pl-2.5 font-head text-xl font-bold leading-tight text-axis-core sm:text-2xl">
+                  on {view.dealName}.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Chip>Order ID: {view.orderName}</Chip>
@@ -215,7 +220,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                       href={DOCUMENT_UPLOAD_GUIDE_URL}
                       target="_blank"
                       rel="noopener"
-                      className="inline-flex items-center justify-center rounded-full border border-axis-core/30 px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-core/10"
+                      className="inline-flex items-center justify-center rounded-full border border-white/20 bg-axis-core px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-axis-core/85"
                     >
                       How to upload KYC documents
                     </a>
@@ -223,7 +228,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                       <button
                         type="button"
                         onClick={() => setRequirementsOpen(true)}
-                        className="inline-flex items-center justify-center rounded-full border border-axis-core/30 px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-core/10"
+                        className="inline-flex items-center justify-center rounded-full border border-white/20 bg-axis-core px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-axis-core/85"
                       >
                         View accepted KYC documents
                       </button>

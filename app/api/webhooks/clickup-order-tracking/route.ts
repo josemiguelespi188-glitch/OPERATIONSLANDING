@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { fetchClickUpTask, setCustomField } from "@/lib/integrations/clickup";
-import { ORDER_TRACKING_LIST_ID, getSiteBaseUrl } from "@/lib/orderTracking";
+import { fetchClickUpTask } from "@/lib/integrations/clickup";
+import { ORDER_TRACKING_LIST_ID } from "@/lib/orderTracking";
+import { provisionOrderTrackingLink } from "@/lib/services/orderTrackingProvision";
 
 export const dynamic = "force-dynamic";
 
@@ -107,32 +108,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ignored: true, error: "Task has no name to use as the order number." });
   }
 
-  const { error: insertError } = await supabase
-    .from("order_tracking_links")
-    .insert({ clickup_task_id: taskId, clickup_list_id: ORDER_TRACKING_LIST_ID, token: orderNumber });
-
-  let finalToken = orderNumber;
-  if (insertError) {
-    // Likely a race with a concurrent webhook delivery for the same task --
-    // re-select rather than failing, so we always write back a real link.
-    const { data: existingAfterRace } = await supabase
-      .from("order_tracking_links")
-      .select("token")
-      .eq("clickup_task_id", taskId)
-      .maybeSingle();
-    if (!existingAfterRace) {
-      return NextResponse.json({ ok: false, error: insertError.message }, { status: 500 });
-    }
-    finalToken = existingAfterRace.token;
-  }
-
-  const trackingUrl = `${getSiteBaseUrl()}/order-tracking/${finalToken}`;
-
-  const fieldId = process.env.CLICKUP_ORDER_TRACKING_FIELD_ID;
-  const clickUpToken = process.env.CLICKUP_API_TOKEN;
-  if (fieldId && clickUpToken) {
-    await setCustomField(taskId, fieldId, trackingUrl, clickUpToken);
-  }
-
-  return NextResponse.json({ ok: true, trackingUrl });
+  const finalToken = await provisionOrderTrackingLink(supabase, taskId, orderNumber);
+  return NextResponse.json({ ok: true, token: finalToken });
 }

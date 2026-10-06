@@ -177,7 +177,27 @@ read from.
   the first time a task is seen (confirmed against the live task's
   `list.id`, regardless of how the webhook itself ended up scoped in
   ClickUp), and never re-derives it afterward (so renaming a task later
-  does not change its tracking link).
+  does not change its tracking link). Provisioning itself (the
+  insert-or-reuse-the-row + best-effort write-back into ClickUp's
+  "Tracking Link" field) lives in `lib/services/orderTrackingProvision.ts`,
+  shared with the fallback below so both paths behave identically.
+- **Self-healing fallback, not just the webhook**: in practice ClickUp's
+  real webhook delivery to this endpoint has been unreliable (confirmed
+  Oct 2026 -- real orders created/updated well after the webhook was
+  registered and healthy never got a row), so `GET
+  /api/order-tracking/[token]` does not treat a missing row as fatal. If
+  no `order_tracking_links` row exists for the token, it calls
+  `findTaskIdByName` (`lib/integrations/clickup.ts`, paginates
+  `GET /list/{list_id}/task` since ClickUp v2 has no "name equals X"
+  filter, capped at 10 pages) to find the task directly by order number
+  and provisions it on the spot. This means **every** task on the list
+  resolves correctly the first time its link is opened, regardless of
+  whether the webhook ever fired for it -- the webhook is now purely an
+  optimization (pre-provisions the row, pre-fills the ClickUp field
+  before anyone clicks), not the thing the feature depends on for
+  correctness. Don't remove this fallback on the assumption the webhook
+  is "fixed" without first confirming real ClickUp-originated deliveries
+  (not a manually-simulated signed POST) are actually arriving.
 - `GET /api/order-tracking/[token]` fetches the ClickUp task **live** on
   every request (`fetchClickUpTask` in `lib/integrations/clickup.ts`) and
   computes a view model in `lib/orderTracking.ts` — never cached beyond

@@ -230,7 +230,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                     Go to AxisKey portal
                   </a>
                 )}
-                {view.blockingRequirement === "kyc" && (
+                {view.needsKycDocuments && (
                   <>
                     <a
                       href={DOCUMENT_UPLOAD_GUIDE_URL}
@@ -251,7 +251,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                     )}
                   </>
                 )}
-                {view.blockingRequirement === "accreditation" && (
+                {view.needsAccreditationDocuments && (
                   <>
                     <a
                       href={ACCREDITATION_UPLOAD_GUIDE_URL}
@@ -593,7 +593,7 @@ function RequirementsModal({
 /**
  * Accreditation requirements, opened from the "View accepted
  * accreditation documents" button -- only shown when the order's deal
- * type is 506C (see blockingRequirement in lib/orderTracking.ts). Same
+ * type is 506C (see needsAccreditationDocuments in lib/orderTracking.ts). Same
  * content for every investor account type, so unlike RequirementsModal
  * this takes no props.
  */

@@ -118,18 +118,6 @@ const WAIVED_AMOUNT_THRESHOLD = 200_000;
  *  "un-received". */
 const PAYMENT_BUFFER_MS = 4 * 60 * 60 * 1000;
 
-/**
- * Which single compliance item is actually the reason the order is
- * stuck in "pending_documents" -- the status panel's action buttons
- * (e.g. "How to upload KYC documents") need to match whichever one of
- * these is genuinely outstanding instead of always assuming it's KYC.
- * Checked in this priority order (first non-complete one wins) since
- * only one set of buttons can be shown at a time; an accreditation item
- * that's waived (see WAIVED_AMOUNT_THRESHOLD) is skipped here the same
- * way the checklist UI itself treats it as satisfied, not outstanding.
- */
-export type BlockingRequirement = "subscription_agreement" | "kyc" | "accreditation" | "account_confirmation";
-
 export interface OrderTrackingView {
   taskId: string;
   orderName: string;
@@ -143,7 +131,17 @@ export interface OrderTrackingView {
   scenario: OrderScenario;
   steps: OrderTrackingStep[];
   checklist: OrderTrackingChecklistItem[];
-  blockingRequirement: BlockingRequirement | null;
+  /**
+   * These two are independent, not mutually exclusive -- an order can
+   * have both KYC and accreditation documents outstanding at once (seen
+   * live), and the status panel needs to show both button groups in
+   * that case, not just whichever comes first in some priority order.
+   * needsAccreditationDocuments also requires dealType === "506C" and
+   * that it isn't waived (see WAIVED_AMOUNT_THRESHOLD) -- 506-B/Reg A
+   * never need this regardless of the raw accreditationPending flag.
+   */
+  needsKycDocuments: boolean;
+  needsAccreditationDocuments: boolean;
   docsNeeded: string | null;
   headline: string;
   explanation: string;
@@ -286,22 +284,17 @@ export function computeOrderTrackingView(
   // the page, stepper or checklist alike.
   const isTerminalComplete = scenario === "completed";
 
-  const blockingRequirement: BlockingRequirement | null =
-    scenario !== "pending_documents"
-      ? null
-      : saNotSigned
-        ? "subscription_agreement"
-        : kycIncomplete
-          ? "kyc"
-          : // Accreditation document upload only applies to 506C (Reg D
-            // 506(c)) deals -- 506-B and Reg A offerings rely on KYC
-            // self-certification alone, so an accreditation-pending flag
-            // on those deal types doesn't get its own button set here.
-            accreditationPending && !isLargeOrder && dealType === "506C"
-            ? "accreditation"
-            : accountNotConfirmed
-              ? "account_confirmation"
-              : null;
+  // Independent, not mutually exclusive -- a real order can have both
+  // KYC and accreditation documents outstanding at the same time, so
+  // both button groups need to be able to show together instead of only
+  // whichever one came first in some priority order.
+  const needsKycDocuments = scenario === "pending_documents" && kycIncomplete;
+  // Accreditation document upload only applies to 506C (Reg D 506(c))
+  // deals -- 506-B and Reg A offerings rely on KYC self-certification
+  // alone, so an accreditation-pending flag on those deal types never
+  // gets its own button set.
+  const needsAccreditationDocuments =
+    scenario === "pending_documents" && accreditationPending && !isLargeOrder && dealType === "506C";
 
   const steps: OrderTrackingStep[] = buildSteps({
     isCanceled: scenario === "canceled",
@@ -348,7 +341,8 @@ export function computeOrderTrackingView(
     scenario,
     steps,
     checklist,
-    blockingRequirement,
+    needsKycDocuments,
+    needsAccreditationDocuments,
     docsNeeded: scenario === "pending_documents" ? docsNeeded : null,
     headline,
     explanation,

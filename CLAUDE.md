@@ -429,25 +429,30 @@ above:
   passes got this wrong, first waiving only incomplete items, then
   (over-correcting) waiving all four items regardless of label; the
   user clarified it's accreditation specifically, nothing else.
-- **`blockingRequirement` drives the status panel's action buttons**: the
-  "pending_documents" scenario used to always show KYC-labeled buttons
-  ("How to upload KYC documents" / "View accepted KYC documents") no
-  matter which of the 4 checklist items was actually outstanding -- a
-  real order where only "Subscription agreement signed" was pending
-  still showed KYC buttons, which is misleading. `computeOrderTrackingView`
-  now also returns `blockingRequirement` (`"subscription_agreement" |
-  "kyc" | "accreditation" | "account_confirmation" | null`), the single
-  item actually responsible for the scenario, checked in that priority
-  order. `OrderTrackingView.tsx` switches its secondary buttons on this
-  instead of hardcoding KYC; `"subscription_agreement"` and
-  `"account_confirmation"` show no extra button beyond "Go to AxisKey
-  portal" (no requirements content exists for those).
-- **Accreditation documents are 506C-only**: `blockingRequirement` only
-  ever resolves to `"accreditation"` when `dealType === "506C"` (Reg D
-  506(c)) -- 506-B and Reg A offerings rely on KYC self-certification
-  alone and never need a separate accreditation document upload, per the
-  user. An accreditation item that's waived (see above) is also skipped
-  here, same as the checklist UI already treats it. When it does apply,
+- **`needsKycDocuments` / `needsAccreditationDocuments` drive the status
+  panel's action buttons, independently**: the "pending_documents"
+  scenario used to always show KYC-labeled buttons ("How to upload KYC
+  documents" / "View accepted KYC documents") no matter which of the 4
+  checklist items was actually outstanding. A first fix (wrong) modeled
+  this as a single `blockingRequirement`, checked in a fixed priority
+  order (subscription agreement, then KYC, then accreditation, then
+  account confirmation) and showing only the first one's buttons -- but
+  a real order can have, say, both the subscription agreement AND
+  accreditation pending at once, and that priority order silently
+  swallowed the accreditation buttons because subscription agreement
+  "won". Replaced with two independent booleans,
+  `needsKycDocuments`/`needsAccreditationDocuments`, each computed from
+  its own field and shown together whenever both are genuinely
+  outstanding -- no priority, no mutual exclusion. Subscription
+  agreement and account confirmation still have no dedicated button
+  beyond "Go to AxisKey portal" (no requirements content exists for
+  those), they just no longer suppress the other two when also pending.
+- **Accreditation documents are 506C-only**: `needsAccreditationDocuments`
+  is only ever true when `dealType === "506C"` (Reg D 506(c)) -- 506-B
+  and Reg A offerings rely on KYC self-certification alone and never
+  need a separate accreditation document upload, per the user. An
+  accreditation item that's waived (see above) is also skipped here,
+  same as the checklist UI already treats it. When it does apply,
   the panel shows "How to upload accreditation documents" (links to its
   own Scribe guide, `ACCREDITATION_UPLOAD_GUIDE_URL` in
   `lib/orderTracking/accreditationRequirements.ts` -- NOT the KYC one)

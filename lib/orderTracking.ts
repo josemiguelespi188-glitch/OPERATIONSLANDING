@@ -118,6 +118,18 @@ const WAIVED_AMOUNT_THRESHOLD = 200_000;
  *  "un-received". */
 const PAYMENT_BUFFER_MS = 4 * 60 * 60 * 1000;
 
+/**
+ * Which single compliance item is actually the reason the order is
+ * stuck in "pending_documents" -- the status panel's action buttons
+ * (e.g. "How to upload KYC documents") need to match whichever one of
+ * these is genuinely outstanding instead of always assuming it's KYC.
+ * Checked in this priority order (first non-complete one wins) since
+ * only one set of buttons can be shown at a time; an accreditation item
+ * that's waived (see WAIVED_AMOUNT_THRESHOLD) is skipped here the same
+ * way the checklist UI itself treats it as satisfied, not outstanding.
+ */
+export type BlockingRequirement = "subscription_agreement" | "kyc" | "accreditation" | "account_confirmation";
+
 export interface OrderTrackingView {
   taskId: string;
   orderName: string;
@@ -131,6 +143,7 @@ export interface OrderTrackingView {
   scenario: OrderScenario;
   steps: OrderTrackingStep[];
   checklist: OrderTrackingChecklistItem[];
+  blockingRequirement: BlockingRequirement | null;
   docsNeeded: string | null;
   headline: string;
   explanation: string;
@@ -208,6 +221,8 @@ export function computeOrderTrackingView(
   const dealTypeIndex = dropdownIndex(fieldValue(task, f.dealTypeId));
   const dealType = dealTypeIndex !== null ? DEAL_TYPE_BY_INDEX[dealTypeIndex] ?? null : null;
 
+  const isLargeOrder = confirmedAmount !== null && confirmedAmount >= WAIVED_AMOUNT_THRESHOLD;
+
   const nativeStatusText = task.status?.status?.toLowerCase() ?? null;
 
   const isNativelyCanceled = nativeStatusText === "canceled orders" || hasCancelTransaction;
@@ -271,6 +286,19 @@ export function computeOrderTrackingView(
   // the page, stepper or checklist alike.
   const isTerminalComplete = scenario === "completed";
 
+  const blockingRequirement: BlockingRequirement | null =
+    scenario !== "pending_documents"
+      ? null
+      : saNotSigned
+        ? "subscription_agreement"
+        : kycIncomplete
+          ? "kyc"
+          : accreditationPending && !isLargeOrder
+            ? "accreditation"
+            : accountNotConfirmed
+              ? "account_confirmation"
+              : null;
+
   const steps: OrderTrackingStep[] = buildSteps({
     isCanceled: scenario === "canceled",
     docsComplete: isTerminalComplete || complianceClear,
@@ -284,7 +312,6 @@ export function computeOrderTrackingView(
   // verification. Only this one check is affected: subscription
   // agreement, KYC, and account confirmation still show their real
   // complete/pending state no matter the order size.
-  const isLargeOrder = confirmedAmount !== null && confirmedAmount >= WAIVED_AMOUNT_THRESHOLD;
   const checklist: OrderTrackingChecklistItem[] = [
     { label: "Subscription agreement signed", complete: isTerminalComplete || !saNotSigned, waived: false },
     { label: "Identity verification (KYC)", complete: isTerminalComplete || !kycIncomplete, waived: false },
@@ -317,6 +344,7 @@ export function computeOrderTrackingView(
     scenario,
     steps,
     checklist,
+    blockingRequirement,
     docsNeeded: scenario === "pending_documents" ? docsNeeded : null,
     headline,
     explanation,

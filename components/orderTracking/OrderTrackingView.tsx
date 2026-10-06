@@ -222,7 +222,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                     Go to AxisKey portal
                   </a>
                 )}
-                {view.scenario === "pending_documents" && (
+                {view.blockingRequirement === "kyc" && (
                   <>
                     <a
                       href={DOCUMENT_UPLOAD_GUIDE_URL}
@@ -242,6 +242,16 @@ export function OrderTrackingView({ token }: { token: string }) {
                       </button>
                     )}
                   </>
+                )}
+                {view.blockingRequirement === "accreditation" && (
+                  <a
+                    href={DOCUMENT_UPLOAD_GUIDE_URL}
+                    target="_blank"
+                    rel="noopener"
+                    className={PANEL_SECONDARY_BUTTON}
+                  >
+                    How to upload accreditation documents
+                  </a>
                 )}
                 {view.scenario === "completed" && (
                   <a

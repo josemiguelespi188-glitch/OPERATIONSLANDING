@@ -12,9 +12,9 @@ type LoadState = "loading" | "ready" | "not_found" | "error";
 
 const STEP_DOT: Record<string, string> = {
   complete: "bg-axis-signal text-axis-core",
-  current: "bg-axis-base/30 text-axis-core/60 border border-axis-base/60",
-  upcoming: "bg-axis-base/30 text-axis-core/60 border border-axis-base/60",
-  canceled: "bg-axis-base/60 text-axis-core/50",
+  current: "bg-axis-light text-axis-core/60 border border-axis-base",
+  upcoming: "bg-axis-light text-axis-core/60 border border-axis-base",
+  canceled: "bg-axis-base text-axis-core/50",
 };
 
 const STEP_CAPTION: Record<string, string> = {
@@ -354,7 +354,7 @@ function Stepper({ steps }: { steps: OrderTrackingViewModel["steps"] }) {
       )}
       <ol className="relative flex justify-between">
         {steps.map((step, index) => (
-          <li key={step.label} className="flex flex-col items-center gap-1.5 bg-axis-light/60 px-1.5 text-center">
+          <li key={step.label} className="flex flex-col items-center gap-1.5 px-1.5 text-center">
             <span
               className={`flex h-[30px] w-[30px] items-center justify-center rounded-full text-xs font-bold ${STEP_DOT[step.state]}`}
             >

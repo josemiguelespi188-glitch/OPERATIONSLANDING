@@ -62,6 +62,14 @@ const PANEL_LINK: Record<string, string> = {
   canceled: "text-axis-core/70 hover:text-axis-core",
 };
 
+// Secondary action button on the (now tan) status panel -- a translucent
+// black rather than solid, just enough to read as distinct from the
+// panel behind it and from the primary axis-signal button. Shared across
+// every scenario that has a button like this (currently pending_documents'
+// two KYC buttons) so they stay visually consistent if more get added.
+const PANEL_SECONDARY_BUTTON =
+  "inline-flex items-center justify-center rounded-full border border-white/10 bg-axis-core/60 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-axis-core/70";
+
 export function OrderTrackingView({ token }: { token: string }) {
   const [state, setState] = useState<LoadState>("loading");
   const [view, setView] = useState<OrderTrackingViewModel | null>(null);
@@ -156,8 +164,8 @@ export function OrderTrackingView({ token }: { token: string }) {
 
       <main className="flex flex-1 items-center justify-center px-4 py-5">
         <div className="w-full max-w-5xl rounded-card bg-white p-6 shadow-card sm:p-7">
-          <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
-            <div>
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div className="min-w-0">
               {view.investorName && (
                 <p className="text-sm text-axis-core/55">Hello, {view.investorName}.</p>
               )}
@@ -171,7 +179,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                 </p>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               <Chip>Order ID: {view.orderName}</Chip>
               {view.confirmedAmount !== null && (
                 <ChipHighlight>
@@ -220,7 +228,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                       href={DOCUMENT_UPLOAD_GUIDE_URL}
                       target="_blank"
                       rel="noopener"
-                      className="inline-flex items-center justify-center rounded-full border border-white/20 bg-axis-core px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-axis-core/85"
+                      className={PANEL_SECONDARY_BUTTON}
                     >
                       How to upload KYC documents
                     </a>
@@ -228,7 +236,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                       <button
                         type="button"
                         onClick={() => setRequirementsOpen(true)}
-                        className="inline-flex items-center justify-center rounded-full border border-white/20 bg-axis-core px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-axis-core/85"
+                        className={PANEL_SECONDARY_BUTTON}
                       >
                         View accepted KYC documents
                       </button>

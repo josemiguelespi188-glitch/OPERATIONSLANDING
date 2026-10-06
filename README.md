@@ -182,5 +182,5 @@ app, its admin login, and its Supabase project.
 
 Generation runs entirely in the browser (`pdf-lib` + `pdfjs-dist` for the
 editor preview, `fflate` for the ZIP): images and generated PDFs are never
-uploaded or stored. Setup: run `supabase/migrations/006_pdf_templates.sql`
+uploaded or stored. Setup: run `supabase/migrations/007_pdf_templates.sql`
 once in the Supabase SQL editor (creates the table and the bucket).

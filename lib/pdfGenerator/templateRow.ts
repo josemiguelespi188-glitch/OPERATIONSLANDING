@@ -1,7 +1,7 @@
 import type { PdfTemplateSummary } from "./types";
 import { sanitizeConfig } from "./types";
 
-/** Private bucket created by supabase/migrations/006_pdf_templates.sql. */
+/** Private bucket created by supabase/migrations/007_pdf_templates.sql. */
 export const PDF_TEMPLATE_BUCKET = "pdf-templates";
 
 export interface PdfTemplateRow {

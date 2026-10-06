@@ -402,7 +402,7 @@ any other admin password shared the same way) in the Supabase dashboard.
 Admin-only tool with nothing to do with the Operations Hub request flow;
 it lives here only to reuse the repo, the admin auth, and Supabase. Only
 the template is persisted (`pdf_templates` table + private
-`pdf-templates` bucket, `supabase/migrations/006_pdf_templates.sql`);
+`pdf-templates` bucket, `supabase/migrations/007_pdf_templates.sql`);
 generation is 100% client-side (`lib/pdfGenerator/generate.ts`, pdf-lib),
 so bulk batches never hit an API route or Vercel's body-size limit.
 `pdf_templates.mapping` holds a `PdfTemplateConfig` (`{version: 2,

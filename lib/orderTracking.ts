@@ -326,6 +326,12 @@ export function computeOrderTrackingView(
     docsNeeded,
     paymentComplete,
     paymentProcessing: !isTerminalComplete && paymentProcessing,
+    // Signing the Subscription Agreement happens in the AxisKey portal,
+    // not as a document upload -- the narrative needs to say "sign",
+    // not "upload", and combine both if the investor genuinely has both
+    // a signature and documents outstanding at once (confirmed live).
+    needsSignature: saNotSigned,
+    needsDocuments: kycIncomplete || needsAccreditationDocuments || accountNotConfirmed,
   });
 
   return {
@@ -406,13 +412,47 @@ function buildNarrative(
     docsNeeded: string | null;
     paymentComplete: boolean;
     paymentProcessing: boolean;
+    needsSignature: boolean;
+    needsDocuments: boolean;
   }
 ): { headline: string; explanation: string; nextStep: string } {
   const deal = context.dealName ? `your ${context.dealName} order` : "your order";
+  const dealCapitalized = `${deal.charAt(0).toUpperCase()}${deal.slice(1)}`;
 
   switch (scenario) {
-    case "pending_documents":
-      if (context.paymentComplete) {
+    case "pending_documents": {
+      const { needsSignature, needsDocuments, paymentComplete } = context;
+
+      // Signing the Subscription Agreement happens inside the AxisKey
+      // portal, not as a document upload -- these three branches keep
+      // that distinct from the (still unchanged) "documents only" copy
+      // below, and combine both when an investor genuinely has both
+      // outstanding at once instead of only mentioning whichever one a
+      // fixed priority order happened to check first.
+      if (needsSignature && needsDocuments) {
+        return {
+          headline: paymentComplete
+            ? "Payment received, your agreement and a few documents are needed"
+            : "Your agreement and a few documents are needed",
+          explanation: paymentComplete
+            ? `We have received payment for ${deal}. It is on hold until you sign your Subscription Agreement and complete your account documentation.`
+            : `${dealCapitalized} is on hold until you sign your Subscription Agreement and complete your account documentation.`,
+          nextStep:
+            "Sign your Subscription Agreement inside AxisKey, and upload the requested documents to your investor portal (see requirements below).",
+        };
+      }
+
+      if (needsSignature) {
+        return {
+          headline: paymentComplete ? "Payment received, your agreement is ready to sign" : "Your agreement is ready to sign",
+          explanation: paymentComplete
+            ? `We have received payment for ${deal}. It is on hold until you sign your Subscription Agreement.`
+            : `${dealCapitalized} is on hold until you sign your Subscription Agreement.`,
+          nextStep: "Sign your Subscription Agreement inside AxisKey.",
+        };
+      }
+
+      if (paymentComplete) {
         return {
           headline: "Payment received, a few documents are still needed",
           explanation: `We have received payment for ${deal}. It is on hold until your account documentation and compliance checks are also complete.`,
@@ -421,11 +461,10 @@ function buildNarrative(
       }
       return {
         headline: "We need a few documents from you",
-        explanation: `${deal
-          .charAt(0)
-          .toUpperCase()}${deal.slice(1)} is on hold until your account documentation and compliance checks are complete.`,
+        explanation: `${dealCapitalized} is on hold until your account documentation and compliance checks are complete.`,
         nextStep: "Upload the requested documents to your investor portal (see requirements below).",
       };
+    }
     case "pending_payment":
       if (context.paymentProcessing) {
         return {

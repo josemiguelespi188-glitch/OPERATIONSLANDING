@@ -447,6 +447,20 @@ above:
   agreement and account confirmation still have no dedicated button
   beyond "Go to AxisKey portal" (no requirements content exists for
   those), they just no longer suppress the other two when also pending.
+- **The narrative (headline/explanation/next step) distinguishes signing
+  from uploading, and combines both when both are outstanding**:
+  signing the Subscription Agreement happens inside the AxisKey portal,
+  not as a document upload, so `buildNarrative`'s `"pending_documents"`
+  case now takes `needsSignature` (`saNotSigned`) and `needsDocuments`
+  (`kycIncomplete || needsAccreditationDocuments || accountNotConfirmed`)
+  separately instead of one generic "We need a few documents from you" /
+  "Upload the requested documents..." for every case. Signature-only:
+  "Your agreement is ready to sign" / "Sign your Subscription Agreement
+  inside AxisKey." Documents-only: unchanged original copy. Both at
+  once (confirmed live, e.g. subscription agreement AND accreditation
+  both pending): "Your agreement and a few documents are needed", next
+  step mentions signing and uploading together. Each has its own
+  payment-received variant too (prefixed "Payment received, ...").
 - **Accreditation documents are 506C-only**: `needsAccreditationDocuments`
   is only ever true when `dealType === "506C"` (Reg D 506(c)) -- 506-B
   and Reg A offerings rely on KYC self-certification alone and never

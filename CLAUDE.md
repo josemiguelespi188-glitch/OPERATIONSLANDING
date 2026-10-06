@@ -429,13 +429,15 @@ above:
   experience" is a solid white pill with a hover scale/shadow, matching
   "Go to AxisKey portal"'s prominence instead of the faint `bg-white/10`
   button it used to be.
-- **Panel/header color**: the dark header bar and status panel switched
-  from `bg-axis-core` (near-black) to `bg-axis-base` (`#CEC1A9`, already
-  an existing design-system token, not a new color) with dark text
-  instead of white — per an updated brand direction. `<Logo />` on the
-  header now renders in its default dark variant instead of
-  `variant="light"`, since axis-base is light enough for the unmodified
-  (near-black) logo asset to read fine against it.
+- **Panel color**: only the status panel (the "We need a few documents
+  from you" / "Payment received..." card) switched from `bg-axis-core`
+  (near-black) to `bg-axis-base` (`#CEC1A9`, already an existing
+  design-system token, not a new color) with dark text instead of white.
+  The page's dark header bar at the very top was changed the same way
+  in a first pass, then explicitly reverted back to `bg-axis-core` with
+  `<Logo variant="light" />` and `text-white/40` — the user asked for
+  that part specifically to stay as it was. Don't recolor the header
+  again without asking.
 - **Header copy**: the offering name moved out of a separate chip and
   into the title itself ("Track your investment on {offering name}.");
   the chip row now leads with an "Order ID" chip (`view.orderName`,

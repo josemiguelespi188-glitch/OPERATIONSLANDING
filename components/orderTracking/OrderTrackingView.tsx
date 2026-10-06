@@ -149,9 +149,9 @@ export function OrderTrackingView({ token }: { token: string }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-axis-cream">
-      <header className="flex shrink-0 items-center justify-between bg-axis-base px-6 py-3.5">
-        <Logo />
-        <span className="hidden text-xs text-axis-core/50 sm:inline">Order tracking</span>
+      <header className="flex shrink-0 items-center justify-between bg-axis-core px-6 py-3.5">
+        <Logo variant="light" />
+        <span className="hidden text-xs text-white/40 sm:inline">Order tracking</span>
       </header>
 
       <main className="flex flex-1 items-center justify-center px-4 py-5">

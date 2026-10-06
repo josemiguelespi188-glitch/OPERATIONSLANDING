@@ -36,7 +36,7 @@ const PHOTO_ID_ACCEPTED = [
 
 const PHOTO_ID_NOT_ACCEPTED = [
   "Expired documents of any kind",
-  "Foreign national ID alone (such as a cedula)",
+  "Foreign national ID card alone",
   "Student ID, employee badge or insurance card",
   "Screenshots of digital IDs or phone screens",
   "Blurry, cropped or partly hidden images",

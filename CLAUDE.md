@@ -216,9 +216,32 @@ read from.
 - Per product decision, the page shows both `investor (Investor Name)`
   and `Current Account Name` (an admin asked to hide the latter was
   overridden in favor of showing both).
-- The "Docs needed" ClickUp field's own text is surfaced directly to the
-  investor when documents are pending, instead of rebuilding a parallel
-  document-requirements knowledge base in code.
+- The "Docs needed" ClickUp field's own text is surfaced as a short
+  "Note from AxisKey" inside the requirements modal (see below) rather
+  than being the investor's only source of document guidance.
+- **"Requirements for &lt;account type&gt;" modal**
+  (`lib/orderTracking/accountRequirements.ts`,
+  `RequirementsModal` in `OrderTrackingView.tsx`): a structured, per
+  -account-type breakdown of exactly which documents are needed, each
+  with an Accepted/Not accepted (or "must show"/"one of these") list --
+  ported directly from the shared HTML design prototype's `ACCOUNT_TYPES`
+  data (all 9 account types), which already had this copy fully written.
+  This is a deliberate reversal of this file's earlier note that the
+  live "Docs needed" ClickUp text alone was enough and a parallel
+  knowledge base wasn't worth building: the user explicitly asked for
+  the prototype's full modal experience, so `accountRequirements.ts` is
+  now that parallel knowledge base, keyed by the exact account type
+  label strings `ACCOUNT_TYPE_BY_INDEX` in `lib/orderTracking.ts`
+  decodes. It's static data with no live ClickUp read, so if ClickUp's
+  real document requirements ever change, this file needs a manual
+  update -- it will not silently drift out of sync with a visible error,
+  same caveat as the rest of this codebase's ClickUp field mappings.
+  Opened from two places that both just call the same `onClick`: the
+  "View accepted KYC documents" button in the status panel (only shown
+  for the `pending_documents` scenario, alongside "Open AxisKey portal"
+  and a "How to upload KYC documents" Scribe guide link -- all three
+  mirror the prototype's scenario-B action row) and the "View
+  requirements for this account" link under the checklist panel.
 - For a completed order, the page links into the **existing**
   `/rate-your-experience` investor feedback flow instead of a separate
   feedback form.

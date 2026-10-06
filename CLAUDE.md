@@ -397,6 +397,51 @@ in, so it was removed). Since that password was exposed both in this
 source and in chat history, treat it as compromised and rotate it (and
 any other admin password shared the same way) in the Supabase dashboard.
 
+## Order Tracking redesign (Oct 2026)
+
+A few more product decisions on top of the ones already documented
+above:
+
+- **4-hour payment confirmation buffer**: when ClickUp first shows
+  payment as received, `/order-tracking/[token]` doesn't immediately
+  show "Payment received: Complete" — it shows "Processing" for 4 hours
+  (`PAYMENT_BUFFER_MS` in `lib/orderTracking.ts`), so ops has a window to
+  correct a mis-checked box without the investor ever seeing a payment
+  get silently "un-received". The start-of-buffer timestamp is stored in
+  `order_tracking_links.payment_first_seen_received_at`
+  (`supabase/migrations/008_order_tracking_payment_buffer.sql`),
+  written/cleared by `GET /api/order-tracking/[token]`, not by
+  `computeOrderTrackingView` itself (kept a pure function — it takes the
+  timestamp as an optional argument). For an order this system observes
+  for the first time already past that moment (e.g. an older order seen
+  for the first time after this buffer shipped), the task's own
+  `date_updated` is used as a best-effort backfill instead of "now", so
+  an order that's actually been settled for days doesn't show "Processing"
+  on its very first view here.
+- **Waived pre-funding checks**: an order with `confirmedAmount >=
+  200,000` (`WAIVED_AMOUNT_THRESHOLD`) shows "Waived" instead of
+  "Pending" on any checklist item that isn't actually complete, styled
+  identically to "Complete" (same green pill) rather than as an
+  outstanding action item.
+- **Completed orders no longer show the stepper** — just a single "Order
+  complete" line with a checkmark, replacing the 4-step tracker (which
+  has nothing left to communicate once the order is done). "Rate your
+  experience" is a solid white pill with a hover scale/shadow, matching
+  "Go to AxisKey portal"'s prominence instead of the faint `bg-white/10`
+  button it used to be.
+- **Panel/header color**: the dark header bar and status panel switched
+  from `bg-axis-core` (near-black) to `bg-axis-base` (`#CEC1A9`, already
+  an existing design-system token, not a new color) with dark text
+  instead of white — per an updated brand direction. `<Logo />` on the
+  header now renders in its default dark variant instead of
+  `variant="light"`, since axis-base is light enough for the unmodified
+  (near-black) logo asset to read fine against it.
+- **Header copy**: the offering name moved out of a separate chip and
+  into the title itself ("Track your investment on {offering name}.");
+  the chip row now leads with an "Order ID" chip (`view.orderName`,
+  which is the same ClickUp order number used as the page's token)
+  instead of the offering name.
+
 ## PDF Generator (`/admin/pdf-generator`)
 
 Admin-only tool with nothing to do with the Operations Hub request flow;

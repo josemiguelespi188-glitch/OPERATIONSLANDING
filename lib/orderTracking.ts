@@ -77,6 +77,11 @@ export interface ClickUpTaskRaw {
   status?: { status?: string; type?: string };
   custom_fields?: ClickUpCustomFieldRaw[];
   list?: { id?: string };
+  /** Epoch-ms string, as ClickUp's API returns it. Used only to backfill
+   *  a reasonable payment-buffer start time for an order this system is
+   *  seeing for the first time after payment was already received --
+   *  see PAYMENT_BUFFER_MS below. */
+  date_updated?: string;
 }
 
 export type OrderScenario =
@@ -88,13 +93,30 @@ export type OrderScenario =
 
 export interface OrderTrackingStep {
   label: string;
-  state: "complete" | "current" | "upcoming" | "canceled";
+  state: "complete" | "current" | "processing" | "upcoming" | "canceled";
 }
 
 export interface OrderTrackingChecklistItem {
   label: string;
   complete: boolean;
+  /** True when this item isn't actually complete but doesn't block the
+   *  order either, because the order is large enough that it's waived --
+   *  see WAIVED_AMOUNT_THRESHOLD below. Mutually exclusive with
+   *  `complete`. */
+  waived: boolean;
 }
+
+/** Orders at or above this confirmed amount have their outstanding
+ *  pre-funding checks waived rather than required -- shown as "Waived"
+ *  in the same style as "Complete" instead of "Pending". */
+const WAIVED_AMOUNT_THRESHOLD = 200_000;
+
+/** How long after ClickUp first shows payment as received before the
+ *  investor-facing page treats it as confirmed ("Payment received:
+ *  Complete") rather than "Processing". Gives ops a window to correct a
+ *  mis-checked box without the investor ever seeing a payment get
+ *  "un-received". */
+const PAYMENT_BUFFER_MS = 4 * 60 * 60 * 1000;
 
 export interface OrderTrackingView {
   taskId: string;
@@ -146,14 +168,33 @@ function dropdownIndex(value: unknown): number | null {
   return null;
 }
 
-export function computeOrderTrackingView(task: ClickUpTaskRaw): OrderTrackingView {
+/**
+ * Whether ClickUp currently shows this order's payment as received, with
+ * no buffer applied -- the raw fact, independent of how long ago it
+ * flipped. Exported so the API route can decide whether to start (or
+ * clear) the payment_first_seen_received_at timer without duplicating
+ * this field-decoding logic.
+ */
+export function isPaymentReceivedRaw(task: ClickUpTaskRaw): boolean {
+  const f = ORDER_TRACKING_FIELD_IDS;
+  const paymentNotReceived = isChecked(fieldValue(task, f.paymentNotReceived));
+  const nativeStatusText = task.status?.status?.toLowerCase() ?? null;
+  // The "not received" checkbox can be unset simply because ops hasn't
+  // touched a brand-new order yet, which would otherwise read as a false
+  // "payment received" -- the native-status fallback guards against that.
+  return !paymentNotReceived && nativeStatusText !== "new pending orders";
+}
+
+export function computeOrderTrackingView(
+  task: ClickUpTaskRaw,
+  options?: { paymentFirstSeenReceivedAt?: Date | null }
+): OrderTrackingView {
   const f = ORDER_TRACKING_FIELD_IDS;
 
   const saNotSigned = isChecked(fieldValue(task, f.saNotSigned));
   const kycIncomplete = isChecked(fieldValue(task, f.kycIncomplete));
   const accreditationPending = isChecked(fieldValue(task, f.accreditationPending));
   const accountNotConfirmed = isChecked(fieldValue(task, f.accountNotConfirmed));
-  const paymentNotReceived = isChecked(fieldValue(task, f.paymentNotReceived));
   const hasCancelTransaction = isChecked(fieldValue(task, f.hasCancelTransaction));
 
   const investorName = textValue(fieldValue(task, f.investorName));
@@ -182,10 +223,24 @@ export function computeOrderTrackingView(task: ClickUpTaskRaw): OrderTrackingVie
   // is computed from its own fields rather than derived from a single
   // linear "scenario" state machine.
   const complianceClear = !saNotSigned && !kycIncomplete && !accreditationPending && !accountNotConfirmed;
-  // The "not received" checkbox can be unset simply because ops hasn't
-  // touched a brand-new order yet, which would otherwise read as a false
-  // "payment received" -- the native-status fallback guards against that.
-  const paymentComplete = !paymentNotReceived && nativeStatusText !== "new pending orders";
+
+  const paymentReceivedRaw = isPaymentReceivedRaw(task);
+  // Backfill: the first time this system observes a payment as received
+  // for a given order, it may already have been received a while ago
+  // (e.g. an older order seen for the first time after this buffer
+  // shipped) -- task.date_updated is a far better start-of-buffer guess
+  // than "right now" in that case, since it reflects ClickUp's own last
+  // change timestamp rather than this request's timestamp.
+  const bufferStart =
+    options?.paymentFirstSeenReceivedAt ??
+    (task.date_updated ? new Date(Number(task.date_updated)) : null);
+  const paymentBufferElapsed =
+    !paymentReceivedRaw || !bufferStart || Date.now() - bufferStart.getTime() >= PAYMENT_BUFFER_MS;
+  // What the investor actually sees as "received" -- gated by the buffer
+  // so a payment ClickUp just flagged doesn't instantly read as
+  // confirmed. `paymentProcessing` is true only during that window.
+  const paymentComplete = paymentReceivedRaw && paymentBufferElapsed;
+  const paymentProcessing = paymentReceivedRaw && !paymentBufferElapsed;
 
   let scenario: OrderScenario;
   // Per product decision: for a terminal order, ClickUp's native Status
@@ -220,20 +275,29 @@ export function computeOrderTrackingView(task: ClickUpTaskRaw): OrderTrackingVie
     isCanceled: scenario === "canceled",
     docsComplete: isTerminalComplete || complianceClear,
     paymentComplete: isTerminalComplete || paymentComplete,
+    paymentProcessing: !isTerminalComplete && paymentProcessing,
     orderComplete: isTerminalComplete,
   });
-  const checklist: OrderTrackingChecklistItem[] = [
-    { label: "Subscription agreement signed", complete: isTerminalComplete || !saNotSigned },
-    { label: "Identity verification (KYC)", complete: isTerminalComplete || !kycIncomplete },
-    { label: "Accreditation confirmed", complete: isTerminalComplete || !accreditationPending },
-    { label: "Account confirmed", complete: isTerminalComplete || !accountNotConfirmed },
-  ];
+  // Orders at or above WAIVED_AMOUNT_THRESHOLD have any still-outstanding
+  // check waived rather than required -- a large, qualified investment
+  // doesn't need to show as "Pending" on something ops has decided not to
+  // chase for an order this size.
+  const isLargeOrder = confirmedAmount !== null && confirmedAmount >= WAIVED_AMOUNT_THRESHOLD;
+  const checklist: OrderTrackingChecklistItem[] = (
+    [
+      { label: "Subscription agreement signed", complete: isTerminalComplete || !saNotSigned },
+      { label: "Identity verification (KYC)", complete: isTerminalComplete || !kycIncomplete },
+      { label: "Accreditation confirmed", complete: isTerminalComplete || !accreditationPending },
+      { label: "Account confirmed", complete: isTerminalComplete || !accountNotConfirmed },
+    ] as Array<{ label: string; complete: boolean }>
+  ).map((item) => ({ ...item, waived: !item.complete && isLargeOrder }));
 
   const { headline, explanation, nextStep } = buildNarrative(scenario, {
     investorName,
     dealName,
     docsNeeded,
     paymentComplete,
+    paymentProcessing: !isTerminalComplete && paymentProcessing,
   });
 
   return {
@@ -269,6 +333,10 @@ function buildSteps(input: {
   isCanceled: boolean;
   docsComplete: boolean;
   paymentComplete: boolean;
+  /** Payment flagged received in ClickUp but still inside the 4-hour
+   *  confirmation buffer -- shows as "Processing" rather than "Complete"
+   *  or the bare "current" look. */
+  paymentProcessing: boolean;
   orderComplete: boolean;
 }): OrderTrackingStep[] {
   if (input.isCanceled) {
@@ -286,10 +354,16 @@ function buildSteps(input: {
       ? "current"
       : "upcoming";
 
+  const paymentState: OrderTrackingStep["state"] = input.paymentComplete
+    ? "complete"
+    : input.paymentProcessing
+      ? "processing"
+      : "current";
+
   return [
     { label: "Order submitted", state: "complete" },
     { label: "Documentation & compliance", state: input.docsComplete ? "complete" : "current" },
-    { label: "Payment received", state: input.paymentComplete ? "complete" : "current" },
+    { label: "Payment received", state: paymentState },
     { label: "Order complete", state: finalState },
   ];
 }
@@ -301,6 +375,7 @@ function buildNarrative(
     dealName: string | null;
     docsNeeded: string | null;
     paymentComplete: boolean;
+    paymentProcessing: boolean;
   }
 ): { headline: string; explanation: string; nextStep: string } {
   const deal = context.dealName ? `your ${context.dealName} order` : "your order";
@@ -322,6 +397,13 @@ function buildNarrative(
         nextStep: "Upload the requested documents to your investor portal (see requirements below).",
       };
     case "pending_payment":
+      if (context.paymentProcessing) {
+        return {
+          headline: "Your payment is being confirmed",
+          explanation: `We have received your payment for ${deal} and are confirming it. This usually takes a few hours.`,
+          nextStep: "No action is needed from you right now. We will notify you as soon as this is confirmed.",
+        };
+      }
       return {
         headline: "Your documents are confirmed, waiting on payment",
         explanation: `Your account and compliance checks for ${deal} are complete. We are now waiting to receive your payment.`,

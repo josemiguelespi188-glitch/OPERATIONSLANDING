@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchClickUpTask, findTaskIdByName } from "@/lib/integrations/clickup";
-import { computeOrderTrackingView, ORDER_TRACKING_LIST_ID, type ClickUpTaskRaw } from "@/lib/orderTracking";
+import {
+  computeOrderTrackingView,
+  isPaymentReceivedRaw,
+  ORDER_TRACKING_LIST_ID,
+  type ClickUpTaskRaw,
+} from "@/lib/orderTracking";
 import { provisionOrderTrackingLink } from "@/lib/services/orderTrackingProvision";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +41,7 @@ export async function GET(
 
   const { data: link } = await supabase
     .from("order_tracking_links")
-    .select("clickup_task_id")
+    .select("clickup_task_id, payment_first_seen_received_at")
     .eq("token", token)
     .maybeSingle();
 
@@ -56,11 +61,27 @@ export async function GET(
     return NextResponse.json({ error: "Could not load your order right now." }, { status: 502 });
   }
 
-  await supabase
-    .from("order_tracking_links")
-    .update({ last_viewed_at: new Date().toISOString() })
-    .eq("token", token);
+  const rawTask = taskResult.task as unknown as ClickUpTaskRaw;
 
-  const view = computeOrderTrackingView(taskResult.task as unknown as ClickUpTaskRaw);
+  // Payment buffer bookkeeping: record the first time this system sees
+  // payment as received (starts the 4-hour "Processing" window in
+  // lib/orderTracking.ts), and clear it if ops un-flags payment later so
+  // a subsequent real receipt starts its own fresh buffer instead of
+  // reusing a stale timestamp from before the correction.
+  let paymentFirstSeenReceivedAt = (link?.payment_first_seen_received_at as string | null) ?? null;
+  const paymentReceivedNow = isPaymentReceivedRaw(rawTask);
+  const updates: Record<string, string | null> = { last_viewed_at: new Date().toISOString() };
+  if (paymentReceivedNow && !paymentFirstSeenReceivedAt) {
+    paymentFirstSeenReceivedAt = new Date().toISOString();
+    updates.payment_first_seen_received_at = paymentFirstSeenReceivedAt;
+  } else if (!paymentReceivedNow && paymentFirstSeenReceivedAt) {
+    paymentFirstSeenReceivedAt = null;
+    updates.payment_first_seen_received_at = null;
+  }
+  await supabase.from("order_tracking_links").update(updates).eq("token", token);
+
+  const view = computeOrderTrackingView(rawTask, {
+    paymentFirstSeenReceivedAt: paymentFirstSeenReceivedAt ? new Date(paymentFirstSeenReceivedAt) : null,
+  });
   return NextResponse.json(view);
 }

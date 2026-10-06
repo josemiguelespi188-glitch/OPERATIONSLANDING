@@ -14,6 +14,7 @@ type LoadState = "loading" | "ready" | "not_found" | "error";
 const STEP_DOT: Record<string, string> = {
   complete: "bg-axis-signal text-axis-core",
   current: "bg-axis-light text-axis-core/60 border border-axis-base",
+  processing: "bg-axis-light text-axis-core/60 border border-axis-base",
   upcoming: "bg-axis-light text-axis-core/60 border border-axis-base",
   canceled: "bg-axis-base text-axis-core/50",
 };
@@ -21,39 +22,43 @@ const STEP_DOT: Record<string, string> = {
 const STEP_CAPTION: Record<string, string> = {
   complete: "Complete",
   current: "In progress",
+  processing: "Processing",
   upcoming: "Not started",
   canceled: "Canceled",
 };
 
+// Every non-canceled scenario shares one tan panel (bg-axis-base, per the
+// brand guide) with dark text -- previously bg-axis-core (near-black)
+// with white text.
 const PANEL_TONE: Record<string, string> = {
-  pending_documents: "bg-axis-core text-white",
-  pending_payment: "bg-axis-core text-white",
-  processing: "bg-axis-core text-white",
-  completed: "bg-axis-core text-white",
+  pending_documents: "bg-axis-base text-axis-core",
+  pending_payment: "bg-axis-base text-axis-core",
+  processing: "bg-axis-base text-axis-core",
+  completed: "bg-axis-base text-axis-core",
   canceled: "bg-axis-base/40 text-axis-core",
 };
 
 const PANEL_MUTED: Record<string, string> = {
-  pending_documents: "text-white/50",
-  pending_payment: "text-white/50",
-  processing: "text-white/50",
-  completed: "text-white/50",
+  pending_documents: "text-axis-core/50",
+  pending_payment: "text-axis-core/50",
+  processing: "text-axis-core/50",
+  completed: "text-axis-core/50",
   canceled: "text-axis-core/50",
 };
 
 const PANEL_BORDER: Record<string, string> = {
-  pending_documents: "border-white/15",
-  pending_payment: "border-white/15",
-  processing: "border-white/15",
-  completed: "border-white/15",
+  pending_documents: "border-axis-core/15",
+  pending_payment: "border-axis-core/15",
+  processing: "border-axis-core/15",
+  completed: "border-axis-core/15",
   canceled: "border-axis-core/15",
 };
 
 const PANEL_LINK: Record<string, string> = {
-  pending_documents: "text-white/70 hover:text-white",
-  pending_payment: "text-white/70 hover:text-white",
-  processing: "text-white/70 hover:text-white",
-  completed: "text-white/70 hover:text-white",
+  pending_documents: "text-axis-core/70 hover:text-axis-core",
+  pending_payment: "text-axis-core/70 hover:text-axis-core",
+  processing: "text-axis-core/70 hover:text-axis-core",
+  completed: "text-axis-core/70 hover:text-axis-core",
   canceled: "text-axis-core/70 hover:text-axis-core",
 };
 
@@ -144,9 +149,9 @@ export function OrderTrackingView({ token }: { token: string }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-axis-cream">
-      <header className="flex shrink-0 items-center justify-between bg-axis-core px-6 py-3.5">
-        <Logo variant="light" />
-        <span className="hidden text-xs text-white/40 sm:inline">Order tracking</span>
+      <header className="flex shrink-0 items-center justify-between bg-axis-base px-6 py-3.5">
+        <Logo />
+        <span className="hidden text-xs text-axis-core/50 sm:inline">Order tracking</span>
       </header>
 
       <main className="flex flex-1 items-center justify-center px-4 py-5">
@@ -157,11 +162,12 @@ export function OrderTrackingView({ token }: { token: string }) {
                 <p className="text-sm text-axis-core/55">Hello, {view.investorName}.</p>
               )}
               <h1 className="font-head text-2xl font-bold leading-tight text-axis-core sm:text-[28px]">
-                Track your <span className="bg-axis-signal px-1.5">investment</span>.
+                Track your <span className="bg-axis-signal px-1.5">investment</span>
+                {view.dealName && <> on {view.dealName}</>}.
               </h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {view.dealName && <Chip>{view.dealName}</Chip>}
+              <Chip>Order ID: {view.orderName}</Chip>
               {view.confirmedAmount !== null && (
                 <ChipHighlight>
                   Confirmed amount: ${view.confirmedAmount.toLocaleString("en-US")}
@@ -177,9 +183,18 @@ export function OrderTrackingView({ token }: { token: string }) {
             </div>
           </div>
 
-          <div className="mb-5 rounded-xl bg-axis-light/60 px-4 py-5 sm:px-8">
-            <Stepper steps={view.steps} />
-          </div>
+          {view.scenario === "completed" ? (
+            <div className="mb-5 flex items-center justify-center gap-2.5 rounded-xl bg-axis-light/60 px-4 py-5 sm:px-8">
+              <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-axis-signal text-xs font-bold text-axis-core">
+                ✓
+              </span>
+              <span className="font-head text-base font-bold text-axis-core">Order complete</span>
+            </div>
+          ) : (
+            <div className="mb-5 rounded-xl bg-axis-light/60 px-4 py-5 sm:px-8">
+              <Stepper steps={view.steps} />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.3fr_1fr]">
             <div className={`rounded-xl p-5 ${tone}`}>
@@ -200,7 +215,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                       href={DOCUMENT_UPLOAD_GUIDE_URL}
                       target="_blank"
                       rel="noopener"
-                      className="inline-flex items-center justify-center rounded-full border border-white/30 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-white/10"
+                      className="inline-flex items-center justify-center rounded-full border border-axis-core/30 px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-core/10"
                     >
                       How to upload KYC documents
                     </a>
@@ -208,7 +223,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                       <button
                         type="button"
                         onClick={() => setRequirementsOpen(true)}
-                        className="inline-flex items-center justify-center rounded-full border border-white/30 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-white/10"
+                        className="inline-flex items-center justify-center rounded-full border border-axis-core/30 px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-core/10"
                       >
                         View accepted KYC documents
                       </button>
@@ -218,7 +233,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                 {view.scenario === "completed" && (
                   <a
                     href="/rate-your-experience"
-                    className="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2.5 text-sm font-bold transition-colors hover:bg-white/20"
+                    className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-bold text-axis-core shadow-sm transition-all duration-150 hover:scale-105 hover:shadow-md"
                   >
                     Rate your experience
                   </a>
@@ -289,7 +304,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                   {view.checklist.map((item) => (
                     <li key={item.label} className="flex items-center justify-between py-2">
                       <span className="text-axis-core/80">{item.label}</span>
-                      <StatusPill complete={item.complete} />
+                      <StatusPill complete={item.complete} waived={item.waived} />
                     </li>
                   ))}
                 </ul>
@@ -352,14 +367,14 @@ function ChipHighlight({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StatusPill({ complete }: { complete: boolean }) {
+function StatusPill({ complete, waived }: { complete: boolean; waived: boolean }) {
   return (
     <span
       className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-        complete ? "bg-axis-signal/30 text-axis-core" : "bg-axis-light text-axis-core/45"
+        complete || waived ? "bg-axis-signal/30 text-axis-core" : "bg-axis-light text-axis-core/45"
       }`}
     >
-      {complete ? "Complete" : "Pending"}
+      {complete ? "Complete" : waived ? "Waived" : "Pending"}
     </span>
   );
 }

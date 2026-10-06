@@ -154,18 +154,30 @@ read from.
   `components/orderTracking/OrderTrackingView.tsx`) is the public page.
   Like `/rate-your-experience`, it has no `PageShell`/`Sidebar` and no
   auth guard.
-- The `token` is an opaque, server-generated random value (32 bytes,
-  base64url) with no relation to the ClickUp task id. It's looked up via
-  `order_tracking_links` (`supabase/migrations/006_order_tracking_links.sql`),
-  a table with RLS enabled and **no policies at all** — stricter than
-  every other table in this app, since it must only ever be read through
-  the service-role client (`GET /api/order-tracking/[token]`).
+- The `token` in the URL is the ClickUp task's own **order number**
+  (its `name` field, e.g. `6205330647`) — **not** a random value. This
+  was a deliberate security trade-off: the original design (Oct 2026)
+  used a cryptographically random 32-byte token specifically so the link
+  couldn't be guessed or enumerated; the user explicitly asked to switch
+  to the order number for a more readable URL, was shown this removes
+  that protection (order numbers are not secret or high-entropy, so
+  anyone who guesses or enumerates one can view that investor's order
+  status with no further proof of identity), offered a hybrid
+  (order-number + random suffix) that would have kept both, and
+  explicitly chose the insecure option anyway. Don't revert this without
+  asking first. It's still looked up via `order_tracking_links`
+  (`supabase/migrations/006_order_tracking_links.sql`), a table with RLS
+  enabled and **no policies at all** — stricter than every other table in
+  this app, since it must only ever be read through the service-role
+  client (`GET /api/order-tracking/[token]`); that part of the design is
+  unchanged, only what gets stored in its `token` column changed.
 - Links are generated **fully automatically**, with no manual ops work:
   `app/api/webhooks/clickup-order-tracking/route.ts` listens for
-  `taskCreated`/`taskUpdated` on that list, creates a token the first time
-  a task is seen (confirmed against the live task's `list.id`, regardless
-  of how the webhook itself ended up scoped in ClickUp), and never
-  regenerates it afterward.
+  `taskCreated`/`taskUpdated` on that list, reads the task's order number
+  the first time a task is seen (confirmed against the live task's
+  `list.id`, regardless of how the webhook itself ended up scoped in
+  ClickUp), and never re-derives it afterward (so renaming a task later
+  does not change its tracking link).
 - `GET /api/order-tracking/[token]` fetches the ClickUp task **live** on
   every request (`fetchClickUpTask` in `lib/integrations/clickup.ts`) and
   computes a view model in `lib/orderTracking.ts` — never cached beyond

@@ -60,7 +60,7 @@ const PANEL_LINK: Record<string, string> = {
 export function OrderTrackingView({ token }: { token: string }) {
   const [state, setState] = useState<LoadState>("loading");
   const [view, setView] = useState<OrderTrackingViewModel | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(true);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 

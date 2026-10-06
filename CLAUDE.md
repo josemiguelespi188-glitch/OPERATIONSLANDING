@@ -419,10 +419,14 @@ above:
   an order that's actually been settled for days doesn't show "Processing"
   on its very first view here.
 - **Waived pre-funding checks**: an order with `confirmedAmount >=
-  200,000` (`WAIVED_AMOUNT_THRESHOLD`) shows "Waived" instead of
-  "Pending" on any checklist item that isn't actually complete, styled
-  identically to "Complete" (same green pill) rather than as an
-  outstanding action item.
+  200,000` (`WAIVED_AMOUNT_THRESHOLD`) shows "Waived" on every
+  pre-funding checklist item, replacing "Complete" too, not just
+  "Pending" -- these checks simply don't apply at this order size,
+  regardless of whether they happen to already be done. Styled the same
+  as "Complete" (same green pill). First pass (wrongly) only waived
+  items that weren't already complete, leaving actually-complete items
+  saying "Complete" -- corrected after the user clarified every item
+  should read "Waived" at this threshold, complete or not.
 - **Completed orders no longer show the stepper** — just a single "Order
   complete" line with a checkmark, replacing the 4-step tracker (which
   has nothing left to communicate once the order is done). "Rate your

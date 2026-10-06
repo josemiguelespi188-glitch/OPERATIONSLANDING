@@ -387,7 +387,7 @@ function StatusPill({ complete, waived }: { complete: boolean; waived: boolean }
         complete || waived ? "bg-axis-signal/30 text-axis-core" : "bg-axis-light text-axis-core/45"
       }`}
     >
-      {complete ? "Complete" : waived ? "Waived" : "Pending"}
+      {waived ? "Waived" : complete ? "Complete" : "Pending"}
     </span>
   );
 }

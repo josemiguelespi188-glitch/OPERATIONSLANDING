@@ -278,10 +278,10 @@ export function computeOrderTrackingView(
     paymentProcessing: !isTerminalComplete && paymentProcessing,
     orderComplete: isTerminalComplete,
   });
-  // Orders at or above WAIVED_AMOUNT_THRESHOLD have any still-outstanding
-  // check waived rather than required -- a large, qualified investment
-  // doesn't need to show as "Pending" on something ops has decided not to
-  // chase for an order this size.
+  // Orders at or above WAIVED_AMOUNT_THRESHOLD have every pre-funding
+  // check waived outright, regardless of whether it's actually complete
+  // -- these checks simply don't apply at this order size, so every item
+  // shows "Waived" rather than "Complete"/"Pending".
   const isLargeOrder = confirmedAmount !== null && confirmedAmount >= WAIVED_AMOUNT_THRESHOLD;
   const checklist: OrderTrackingChecklistItem[] = (
     [
@@ -290,7 +290,7 @@ export function computeOrderTrackingView(
       { label: "Accreditation confirmed", complete: isTerminalComplete || !accreditationPending },
       { label: "Account confirmed", complete: isTerminalComplete || !accountNotConfirmed },
     ] as Array<{ label: string; complete: boolean }>
-  ).map((item) => ({ ...item, waived: !item.complete && isLargeOrder }));
+  ).map((item) => ({ ...item, waived: isLargeOrder }));
 
   const { headline, explanation, nextStep } = buildNarrative(scenario, {
     investorName,

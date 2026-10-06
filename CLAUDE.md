@@ -210,9 +210,32 @@ read from.
   value is the option's numeric `orderindex`, not its UUID.
 - Per product decision, for a **terminal** order (ClickUp status
   `completed orders`, `canceled orders`, or `close`) the native Status
-  column is authoritative over any individual checkbox — those can be
+  column is authoritative over every individual checkbox — those can be
   stale on older orders (confirmed via live data) and must never flip a
-  terminal order back to "pending" in the tracker.
+  terminal order back to "pending" anywhere on the page (stepper,
+  checklist, and narrative text all force to fully complete/canceled when
+  `scenario` is terminal, not just the headline).
+  **Bug fixed Oct 2026**: `isNativelyCompleted` used to also fall back to
+  `task.status.type === "done"` — but ClickUp marks both `completed
+  orders` AND `canceled orders` with type `"done"` on this list (confirmed
+  live), so every canceled order was silently misclassified as
+  `"completed"` and shown "Your order is complete" instead of "This order
+  was canceled". Fixed by matching on the status **text** only
+  (`"completed orders"` or `"close"`); don't reintroduce a `type`-based
+  fallback without confirming ClickUp's type values are actually distinct
+  for every status on this list, which they are not.
+- The three progress dimensions (documentation/compliance, payment,
+  order complete) are **independent**, not a fixed linear sequence —
+  real ClickUp data has shown payment arrive before KYC/compliance is
+  finished, not just the reverse. `computeOrderTrackingView` computes
+  `docsComplete` and `paymentComplete` separately from their own fields
+  and marks each stepper step from its own state; "Order complete" is
+  the only step genuinely gated on both. The stepper's connecting line
+  (`Stepper` in `OrderTrackingView.tsx`) is colored per segment (lit
+  right after any completed step) rather than one single left-to-right
+  fill percentage, since a single fill would misrepresent an
+  out-of-order completion (e.g. payment done, documents still pending)
+  as if progress stopped earlier than it actually has.
 - Per product decision, the page shows both `investor (Investor Name)`
   and `Current Account Name` (an admin asked to hide the latter was
   overridden in favor of showing both).

@@ -533,16 +533,23 @@ function RequirementsModal({
 
 function Stepper({ steps }: { steps: OrderTrackingViewModel["steps"] }) {
   const isCanceled = steps.some((step) => step.state === "canceled");
-  const completedCount = steps.filter((step) => step.state === "complete").length;
-  const gaps = Math.max(steps.length - 1, 1);
-  const progressRatio = Math.min(completedCount / gaps, 1);
 
   // Each <li> below is an equal-width column (flex-1), so a dot's center
   // sits at exact, predictable percentages regardless of label text
   // length -- the first/last dot centers are at half a column's width in
   // from each edge, not a guessed fixed percentage (that guess is what
   // caused the line to visibly stop short of the first/last dot before).
-  const edgeOffsetPercent = 50 / steps.length;
+  const colWidth = 100 / steps.length;
+  const edgeOffsetPercent = colWidth / 2;
+
+  // The steps aren't guaranteed to complete in left-to-right order (e.g.
+  // payment can land before documentation does), so the connecting line
+  // is colored per segment -- the segment right after a completed step
+  // lights up, instead of one single left-to-right "progress so far" fill
+  // that would misrepresent an out-of-order completion.
+  const litSegments = isCanceled
+    ? []
+    : steps.slice(0, -1).map((step) => step.state === "complete");
 
   return (
     <div className="relative">
@@ -550,14 +557,15 @@ function Stepper({ steps }: { steps: OrderTrackingViewModel["steps"] }) {
         className="absolute top-[15px] h-[3px] rounded-full bg-axis-base/40"
         style={{ left: `${edgeOffsetPercent}%`, right: `${edgeOffsetPercent}%` }}
       />
-      {!isCanceled && progressRatio > 0 && (
-        <div
-          className="absolute top-[15px] h-[3px] rounded-full bg-axis-signal"
-          style={{
-            left: `${edgeOffsetPercent}%`,
-            width: `calc((100% - ${edgeOffsetPercent * 2}%) * ${progressRatio})`,
-          }}
-        />
+      {litSegments.map(
+        (lit, index) =>
+          lit && (
+            <div
+              key={index}
+              className="absolute top-[15px] h-[3px] rounded-full bg-axis-signal"
+              style={{ left: `${edgeOffsetPercent + index * colWidth}%`, width: `${colWidth}%` }}
+            />
+          )
       )}
       <ol className="relative flex">
         {steps.map((step, index) => (

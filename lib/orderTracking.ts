@@ -168,13 +168,24 @@ export function computeOrderTrackingView(task: ClickUpTaskRaw): OrderTrackingVie
   const dealType = dealTypeIndex !== null ? DEAL_TYPE_BY_INDEX[dealTypeIndex] ?? null : null;
 
   const nativeStatusText = task.status?.status?.toLowerCase() ?? null;
-  const nativeStatusType = task.status?.type ?? null;
 
   const isNativelyCanceled = nativeStatusText === "canceled orders" || hasCancelTransaction;
-  const isNativelyCompleted =
-    nativeStatusText === "completed orders" || nativeStatusText === "close" || nativeStatusType === "done";
+  // Deliberately NOT falling back to `nativeStatusType === "done"` here --
+  // confirmed live that ClickUp marks both "completed orders" AND
+  // "canceled orders" with type "done" on this list, so that fallback
+  // would misclassify every canceled order as completed. Text match only.
+  const isNativelyCompleted = nativeStatusText === "completed orders" || nativeStatusText === "close";
 
+  // Independent, per-dimension completion -- ClickUp's real data is not
+  // guaranteed to resolve these in a fixed order (e.g. payment can land
+  // before KYC/documents are finished, or vice versa), so each dimension
+  // is computed from its own fields rather than derived from a single
+  // linear "scenario" state machine.
   const complianceClear = !saNotSigned && !kycIncomplete && !accreditationPending && !accountNotConfirmed;
+  // The "not received" checkbox can be unset simply because ops hasn't
+  // touched a brand-new order yet, which would otherwise read as a false
+  // "payment received" -- the native-status fallback guards against that.
+  const paymentComplete = !paymentNotReceived && nativeStatusText !== "new pending orders";
 
   let scenario: OrderScenario;
   // Per product decision: for a terminal order, ClickUp's native Status
@@ -186,25 +197,43 @@ export function computeOrderTrackingView(task: ClickUpTaskRaw): OrderTrackingVie
   } else if (isNativelyCompleted) {
     scenario = "completed";
   } else if (!complianceClear) {
+    // Documents are still outstanding regardless of payment status --
+    // this is the umbrella UI scenario (dark panel + KYC buttons +
+    // requirements modal) whether or not payment has also come in; the
+    // narrative text below distinguishes the two cases.
     scenario = "pending_documents";
-  } else if (paymentNotReceived || nativeStatusText === "new pending orders") {
+  } else if (!paymentComplete) {
     scenario = "pending_payment";
   } else {
     scenario = "processing";
   }
 
-  const steps: OrderTrackingStep[] = buildSteps(scenario, complianceClear);
+  // For a terminal "completed" order, native Status is authoritative over
+  // every individual checkbox (same principle as the canceled/completed
+  // scenario decision above) -- an older order can have a stale checkbox
+  // that was simply never flipped after the fact, which must not make a
+  // genuinely finished order display as still "in progress" anywhere on
+  // the page, stepper or checklist alike.
+  const isTerminalComplete = scenario === "completed";
+
+  const steps: OrderTrackingStep[] = buildSteps({
+    isCanceled: scenario === "canceled",
+    docsComplete: isTerminalComplete || complianceClear,
+    paymentComplete: isTerminalComplete || paymentComplete,
+    orderComplete: isTerminalComplete,
+  });
   const checklist: OrderTrackingChecklistItem[] = [
-    { label: "Subscription agreement signed", complete: !saNotSigned },
-    { label: "Identity verification (KYC)", complete: !kycIncomplete },
-    { label: "Accreditation confirmed", complete: !accreditationPending },
-    { label: "Account confirmed", complete: !accountNotConfirmed },
+    { label: "Subscription agreement signed", complete: isTerminalComplete || !saNotSigned },
+    { label: "Identity verification (KYC)", complete: isTerminalComplete || !kycIncomplete },
+    { label: "Accreditation confirmed", complete: isTerminalComplete || !accreditationPending },
+    { label: "Account confirmed", complete: isTerminalComplete || !accountNotConfirmed },
   ];
 
   const { headline, explanation, nextStep } = buildNarrative(scenario, {
     investorName,
     dealName,
     docsNeeded,
+    paymentComplete,
   });
 
   return {
@@ -227,8 +256,22 @@ export function computeOrderTrackingView(task: ClickUpTaskRaw): OrderTrackingVie
   };
 }
 
-function buildSteps(scenario: OrderScenario, complianceClear: boolean): OrderTrackingStep[] {
-  if (scenario === "canceled") {
+/**
+ * Each of the first three dimensions is independent -- ClickUp data has
+ * shown real orders where payment is received before documentation is
+ * complete, not just the reverse, so "Documentation & compliance" and
+ * "Payment received" are each marked from their own fields rather than
+ * one gating the other. Only "Order complete" is genuinely downstream of
+ * both (it reflects ClickUp's own terminal status, not something this
+ * investor can affect directly).
+ */
+function buildSteps(input: {
+  isCanceled: boolean;
+  docsComplete: boolean;
+  paymentComplete: boolean;
+  orderComplete: boolean;
+}): OrderTrackingStep[] {
+  if (input.isCanceled) {
     return [
       { label: "Order submitted", state: "complete" },
       { label: "Documentation & compliance", state: "canceled" },
@@ -237,32 +280,40 @@ function buildSteps(scenario: OrderScenario, complianceClear: boolean): OrderTra
     ];
   }
 
-  const docsState: OrderTrackingStep["state"] =
-    scenario === "pending_documents" ? "current" : "complete";
-  const paymentState: OrderTrackingStep["state"] =
-    scenario === "pending_documents"
-      ? "upcoming"
-      : scenario === "pending_payment"
-        ? "current"
-        : "complete";
-  const completeState: OrderTrackingStep["state"] = scenario === "completed" ? "complete" : "upcoming";
+  const finalState: OrderTrackingStep["state"] = input.orderComplete
+    ? "complete"
+    : input.docsComplete && input.paymentComplete
+      ? "current"
+      : "upcoming";
 
   return [
     { label: "Order submitted", state: "complete" },
-    { label: "Documentation & compliance", state: complianceClear ? "complete" : docsState },
-    { label: "Payment received", state: paymentState },
-    { label: "Order complete", state: completeState },
+    { label: "Documentation & compliance", state: input.docsComplete ? "complete" : "current" },
+    { label: "Payment received", state: input.paymentComplete ? "complete" : "current" },
+    { label: "Order complete", state: finalState },
   ];
 }
 
 function buildNarrative(
   scenario: OrderScenario,
-  context: { investorName: string | null; dealName: string | null; docsNeeded: string | null }
+  context: {
+    investorName: string | null;
+    dealName: string | null;
+    docsNeeded: string | null;
+    paymentComplete: boolean;
+  }
 ): { headline: string; explanation: string; nextStep: string } {
   const deal = context.dealName ? `your ${context.dealName} order` : "your order";
 
   switch (scenario) {
     case "pending_documents":
+      if (context.paymentComplete) {
+        return {
+          headline: "Payment received, a few documents are still needed",
+          explanation: `We have received payment for ${deal}. It is on hold until your account documentation and compliance checks are also complete.`,
+          nextStep: "Upload the requested documents to your investor portal (see requirements below).",
+        };
+      }
       return {
         headline: "We need a few documents from you",
         explanation: `${deal

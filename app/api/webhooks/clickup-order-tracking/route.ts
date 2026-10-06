@@ -19,23 +19,29 @@ function verifySignature(rawBody: string, signature: string, secret: string): bo
   return crypto.timingSafeEqual(expectedBuf, signatureBuf);
 }
 
-function generateToken(): string {
-  return crypto.randomBytes(32).toString("base64url");
-}
-
 /**
  * Mirrors the shape of app/api/webhooks/clickup/route.ts, but reacts to
  * taskCreated/taskUpdated (not taskStatusUpdated) on the "Payment Received
  * Orders" list and provisions an investor-facing tracking link instead of
  * mirroring a status back onto a `requests` row.
  *
- * Fully idempotent and automatic, per product decision: the first time a
- * task on ORDER_TRACKING_LIST_ID is seen, a random token is generated once
- * and never regenerated; every later taskUpdated event for the same task
- * is a no-op here (the link doesn't change). Needs two one-time, manual
- * ClickUp-side setup steps from the user (a new custom field to hold the
- * generated link, and this webhook's own subscription + secret) -- see
- * CLAUDE.md's "Order Tracking" section for the exact steps.
+ * The URL segment is the task's own `name` (the order number, e.g.
+ * "6205330647"), NOT a random token, per an explicit product decision
+ * (Oct 2026) made after being warned this removes the link's security:
+ * order numbers are not secret or high-entropy, so anyone who guesses or
+ * enumerates one can view that investor's order status (amount, name,
+ * account) with no further proof of identity. The safer alternative (a
+ * random token, or an order-number + random-suffix hybrid) was offered
+ * and explicitly declined. See CLAUDE.md's "Order Tracking" section.
+ *
+ * Fully idempotent and automatic: the first time a task on
+ * ORDER_TRACKING_LIST_ID is seen, its order number is read once and never
+ * re-derived; every later taskUpdated event for the same task is a no-op
+ * here (the link doesn't change even if the task is later renamed). Needs
+ * two one-time, manual ClickUp-side setup steps from the user (a new
+ * custom field to hold the generated link, and this webhook's own
+ * subscription + secret) -- see CLAUDE.md's "Order Tracking" section for
+ * the exact steps.
  */
 export async function POST(request: Request) {
   const secret = process.env.CLICKUP_ORDER_TRACKING_WEBHOOK_SECRET;
@@ -96,12 +102,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ignored: true });
   }
 
-  const token = generateToken();
+  const orderNumber = typeof taskResult.task.name === "string" ? taskResult.task.name.trim() : "";
+  if (!orderNumber) {
+    return NextResponse.json({ ok: true, ignored: true, error: "Task has no name to use as the order number." });
+  }
+
   const { error: insertError } = await supabase
     .from("order_tracking_links")
-    .insert({ clickup_task_id: taskId, clickup_list_id: ORDER_TRACKING_LIST_ID, token });
+    .insert({ clickup_task_id: taskId, clickup_list_id: ORDER_TRACKING_LIST_ID, token: orderNumber });
 
-  let finalToken = token;
+  let finalToken = orderNumber;
   if (insertError) {
     // Likely a race with a concurrent webhook delivery for the same task --
     // re-select rather than failing, so we always write back a real link.

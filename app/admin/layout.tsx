@@ -66,7 +66,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <AdminLoginForm />;
   }
 
-  const active = pathname?.startsWith("/admin/forms") ? "forms" : "overview";
+  const active = pathname?.startsWith("/admin/forms")
+    ? "forms"
+    : pathname?.startsWith("/admin/pdf-generator")
+      ? "pdf-generator"
+      : "overview";
   const initial = session.user.email?.[0]?.toUpperCase() ?? "A";
 
   return (

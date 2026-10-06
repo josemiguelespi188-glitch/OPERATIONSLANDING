@@ -154,3 +154,33 @@ breakdown (Successful / Failed / Pending), and a list of recent requests —
 each showing its ClickUp Task ID, sync status, submission date, and a Retry
 action when sync isn't `synced`. No authentication yet — add it before this
 goes further than internal MVP use.
+
+## PDF Generator (admin tool)
+
+`/admin/pdf-generator` — unrelated to the request flow, it just reuses this
+app, its admin login, and its Supabase project.
+
+1. Upload a base PDF (stored in the private `pdf-templates` bucket; the
+   browser uploads it straight to Storage via a signed URL from
+   `POST /api/admin/pdf-templates`, so file size isn't capped by Vercel).
+2. **Mapping**: define fields (Text or Image, any name: "Company name",
+   "Logo", "Amount"...), then draw one or more boxes per field on the
+   pages. Text boxes: font family, bold/italic, size, color, horizontal/
+   vertical alignment, shrink-to-fit, line wrapping, uppercase, a default
+   value. Image boxes: keep proportions or stretch, alignment, opacity.
+   Also a document-name pattern (`{Company name} - Wire`). Saved as JSON
+   in `pdf_templates.mapping` (see `lib/pdfGenerator/types.ts`; the older
+   bare-array format is still read and converted).
+3. **Generate**: a table with one row per PDF and one column per field,
+   plus Document name. Fill it by hand, paste a block copied from Excel
+   into any cell, or import an .xlsx / CSV whose header row names the
+   fields (download the matching template from the page). Pictures placed
+   in or over an image column's cells come in with their row
+   (`lib/pdfGenerator/xlsx.ts` reads floating drawings and "Place in Cell"
+   rich-value images); an image cell can instead hold a file name, matched
+   by that column's "Upload many". Downloads one PDF per row, zipped.
+
+Generation runs entirely in the browser (`pdf-lib` + `pdfjs-dist` for the
+editor preview, `fflate` for the ZIP): images and generated PDFs are never
+uploaded or stored. Setup: run `supabase/migrations/006_pdf_templates.sql`
+once in the Supabase SQL editor (creates the table and the bucket).

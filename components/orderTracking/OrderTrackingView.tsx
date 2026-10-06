@@ -182,7 +182,7 @@ export function OrderTrackingView({ token }: { token: string }) {
                 {!view.dealName && "."}
               </h1>
               {view.dealName && (
-                <p className="mt-1 border-l-[3px] border-axis-signal pl-2.5 font-head text-xl font-bold leading-tight text-axis-core sm:text-2xl">
+                <p className="mt-1 border-l-[3px] border-axis-signal pl-2.5 font-head text-lg font-bold leading-tight text-axis-core sm:text-xl">
                   on {view.dealName}.
                 </p>
               )}

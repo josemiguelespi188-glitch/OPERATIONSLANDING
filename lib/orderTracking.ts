@@ -193,7 +193,7 @@ export function computeOrderTrackingView(task: ClickUpTaskRaw): OrderTrackingVie
     scenario = "processing";
   }
 
-  const steps: OrderTrackingStep[] = buildSteps(scenario, complianceClear);
+  const steps: OrderTrackingStep[] = buildSteps(scenario, complianceClear, !paymentNotReceived);
   const checklist: OrderTrackingChecklistItem[] = [
     { label: "Subscription agreement signed", complete: !saNotSigned },
     { label: "Identity verification (KYC)", complete: !kycIncomplete },
@@ -227,7 +227,11 @@ export function computeOrderTrackingView(task: ClickUpTaskRaw): OrderTrackingVie
   };
 }
 
-function buildSteps(scenario: OrderScenario, complianceClear: boolean): OrderTrackingStep[] {
+function buildSteps(
+  scenario: OrderScenario,
+  complianceClear: boolean,
+  paymentReceived: boolean
+): OrderTrackingStep[] {
   if (scenario === "canceled") {
     return [
       { label: "Order submitted", state: "complete" },
@@ -237,21 +241,28 @@ function buildSteps(scenario: OrderScenario, complianceClear: boolean): OrderTra
     ];
   }
 
-  const docsState: OrderTrackingStep["state"] =
-    scenario === "pending_documents" ? "current" : "complete";
-  const paymentState: OrderTrackingStep["state"] =
-    scenario === "pending_documents"
-      ? "upcoming"
-      : scenario === "pending_payment"
-        ? "current"
-        : "complete";
-  const completeState: OrderTrackingStep["state"] = scenario === "completed" ? "complete" : "upcoming";
+  const docsStep: OrderTrackingStep = {
+    label: "Documentation & compliance",
+    state: complianceClear ? "complete" : "current",
+  };
+  const paymentStep: OrderTrackingStep = {
+    label: "Payment received",
+    state: paymentReceived ? "complete" : complianceClear ? "current" : "upcoming",
+  };
+
+  // Which of these two finishes first isn't fixed in practice -- ops
+  // sometimes receives payment before paperwork is finalized. Whichever
+  // one is actually done shows first; if payment is the one that's done
+  // while documentation is still outstanding, swap their positions so the
+  // stepper reads as what actually happened instead of always implying
+  // documentation comes first.
+  const middleSteps: OrderTrackingStep[] =
+    paymentReceived && !complianceClear ? [paymentStep, docsStep] : [docsStep, paymentStep];
 
   return [
     { label: "Order submitted", state: "complete" },
-    { label: "Documentation & compliance", state: complianceClear ? "complete" : docsState },
-    { label: "Payment received", state: paymentState },
-    { label: "Order complete", state: completeState },
+    ...middleSteps,
+    { label: "Order complete", state: scenario === "completed" ? "complete" : "upcoming" },
   ];
 }
 

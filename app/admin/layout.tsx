@@ -72,7 +72,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ? "pdf-generator"
       : pathname?.startsWith("/admin/sa-review")
         ? "sa-review"
-        : "overview";
+        : pathname?.startsWith("/admin/communications")
+          ? "communications"
+          : "overview";
   const initial = session.user.email?.[0]?.toUpperCase() ?? "A";
 
   return (

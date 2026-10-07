@@ -695,6 +695,102 @@ above:
   case -- KYC-only and accreditation-only orders still show their own
   separate dedicated button pair and modal exactly as before.
 
+## Communications Calendar (`/admin/communications`)
+
+An admin-only tool for planning, designing, and approving investor
+communications (the recurring "Section 1 / Section 2 / FAQ of the
+month" update emails, plus one-off comms) before they go out. Built
+from a real planning session (the "Communications Calendar - Prompt de
+Desarrollo" doc drafted earlier the same session has the full original
+spec) — but **deliberately not synced to ClickUp or any external email
+tool**, after the user corrected course mid-build: "no need to use
+clickup for this, is just a calendar on the operation hub." The
+original spec proposed a ClickUp Folder/List + a ClickUp automation ->
+N8N webhook -> 3-button approval email; none of that was built. This
+is a fully native feature instead:
+
+- **Storage**: one new table, `communications`
+  (`supabase/migrations/010_communications_calendar.sql`), holding
+  every field from the spec (title, section type, send date, segment,
+  channel, a link or uploaded file for the HTML design, status,
+  compliance report, FAQ notes, responsible, approvers, approved
+  at/by). A second table, `communications_status_history`, is an audit
+  trail of every status change (mirrors `investor_update_status_history`
+  from migration 005) -- who sent something for approval, who approved
+  or requested changes and when, and the comment left on a "changes
+  requested" (that comment has no separate column; the detail page just
+  reads the latest history row for it). Both tables are RLS-enabled
+  with **no policies at all** (service-role only, same as
+  `pdf_templates`) -- this is an internal tool with no public insert
+  path, so there's no "anyone can insert" policy the way `requests` or
+  `investor_feedback` have.
+- **The HTML design is never authored in this app**, per the original
+  spec ("el mail en si no se escribe dentro de ClickUp/el Hub") -- a
+  communication just carries a pointer to it: either a pasted link
+  (`html_url`) or an uploaded `.html` file in the private
+  `communications-html` storage bucket (same signed-upload-URL pattern
+  as the `pdf-templates` bucket: `POST
+  /api/admin/communications/[id]/html-upload` issues a short-lived
+  signed URL, the browser uploads straight to Storage with it, nothing
+  passes through the API route itself). Both are optional and either
+  satisfies the "ready for approval" gate below.
+- **Approval flow is in-app, not an emailed 3-button flow.** The
+  original spec's "Send for approval" sends an email to Diego and Lana
+  with Ver email/Aprobar/Solicitar cambios buttons via ClickUp
+  automation -> N8N. This codebase has **no email-sending integration
+  at all** (confirmed by grepping for Resend/SendGrid/Postmark/
+  nodemailer/SMTP before building -- nothing exists), so building that
+  literally would have meant inventing new email infrastructure nobody
+  asked for. Instead, `/admin/communications/[id]`
+  (`components/admin/communications/CommunicationDetail.tsx`) shows
+  contextual status actions directly in the UI: once in
+  `sent_for_approval`, Diego or Lana (logged into `/admin` like anyone
+  else, gated by the existing `requireAdmin`/`admin_users` check) see
+  Approve (picks which of the two approved, sets `approved_at`/
+  `approved_by`) and Request changes (requires a comment, written to
+  `communications_status_history.notes`) buttons right on the page. If
+  real outbound email to Diego/Lana is wanted later, that's additive on
+  top of this -- the status/history model doesn't need to change, only
+  a notification step added.
+- **Status model**: `idea -> in_design -> sent_for_approval ->
+  (approved | changes_requested) -> scheduled -> sent`.
+  `changes_requested` loops back to `in_design` (an explicit button,
+  "Back to In design (edit and resend)"), matching the original spec's
+  approval-flow diagram. Moving `in_design -> sent_for_approval` is
+  blocked in the UI (`canSendForApproval` in
+  `CommunicationDetail.tsx`) until both an HTML design (link or file)
+  and a compliance report are filled in, matching the spec's
+  compliance gate -- there's no compliance bot integration yet (Diego
+  was still going to share one), so `compliance_report` is just a
+  free-text field for now (pasted result or a link to one run
+  manually).
+- **List view** (`/admin/communications`,
+  `components/admin/communications/CommunicationsCalendarList.tsx`): a
+  card grid grouped by the month of `send_date` ("No date set" group
+  for anything unscheduled), status-filterable, with a banner
+  highlighting how many communications are waiting in
+  `sent_for_approval`. Loosely modeled on a reference screenshot of a
+  third-party content planner (Magnettu) the user shared as "solo una
+  guia" (just a style guide, not a literal spec) -- card-based, status
+  pill top-left, grouped by period -- not copied feature-for-feature
+  (no week-by-week grid, no AI drafting/image generation, none of
+  that tool's other panels).
+- **Seeded starting content**: `supabase/seed.sql` carries over the 8
+  investor-education topics that were already planned in the real
+  "Axis IR Support" ClickUp list (shared as a screenshot: Topic 1-8,
+  "Getting to Know AxisKey" through "Platform Updates") as the
+  calendar's starting rows, all `status = 'idea'`, section type mapped
+  to `full_communication` except Topic 4 ("Tax season Prep (Nov 2026)")
+  which is `section_2` (a deadline/reminder). No send dates were set on
+  the ClickUp side (beyond "Nov 2026" in Topic 4's own title), so every
+  seeded row leaves `send_date` null for someone to schedule. Matched
+  by title to stay idempotent on re-run (`communications` has no other
+  natural unique key) -- same "re-run safely in the Supabase SQL
+  editor" caveat as the rest of `seed.sql`.
+- Nav: "Communications" added to `getAdminNavItems`
+  (`components/layout/nav.tsx`), reusing the existing `MegaphoneIcon`
+  rather than adding a new one.
+
 ## PDF Generator (`/admin/pdf-generator`)
 
 Admin-only tool with nothing to do with the Operations Hub request flow;

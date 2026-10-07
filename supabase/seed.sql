@@ -48,3 +48,29 @@ where email in ('ir@axiskey.com', 'ir.admin@axiskey.com')
 on conflict (id) do update set
   email = excluded.email,
   is_active = true;
+
+-- ---------------------------------------------------------------------
+-- Communications Calendar — the 8 investor-education topics already
+-- planned in the "Axis IR Support" ClickUp list (To Do / On Hold) before
+-- this feature existed, carried over as the calendar's starting content
+-- so Mike/Annelise aren't starting from an empty list. No send dates were
+-- set on the ClickUp side (beyond Topic 4's "Nov 2026" in its own title),
+-- so every row here leaves send_date null for someone to schedule.
+--
+-- communications has no natural unique key, so this matches by title to
+-- stay idempotent (safe to re-run) without a schema change just for a
+-- one-time seed.
+-- ---------------------------------------------------------------------
+insert into communications (title, section_type, status)
+select v.title, v.section_type, 'idea'
+from (values
+  ('Topic 1 - Getting to Know AxisKey: Your Third-Party Administrator', 'full_communication'),
+  ('Topic 2 - You invested, now what? What''s happens next?', 'full_communication'),
+  ('Topic 3 - Private Investment 101: Concepts and Keywords', 'full_communication'),
+  ('Topic 4 - Tax season Prep (Nov 2026)', 'section_2'),
+  ('Topic 5 - Understanding Cap Table: Why it matters to you as an investor', 'full_communication'),
+  ('Topic 6 - Did You Know? Key facts about AxisKey and our platform', 'full_communication'),
+  ('Topic 7 - Understanding Distributions: A Full Scope', 'full_communication'),
+  ('Topic 8 - Platform Updates: Features and Resources within AxisKey', 'full_communication')
+) as v(title, section_type)
+where not exists (select 1 from communications c where c.title = v.title);

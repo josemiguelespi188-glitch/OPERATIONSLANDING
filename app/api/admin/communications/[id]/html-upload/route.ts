@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: Params) {
     .createSignedUploadUrl(filePath, { upsert: true });
   if (uploadError || !upload) {
     return NextResponse.json(
-      { error: `Could not prepare the upload: ${uploadError?.message ?? "unknown error"}. Has migration 009 been run?` },
+      { error: `Could not prepare the upload: ${uploadError?.message ?? "unknown error"}. Has migration 010 been run?` },
       { status: 500 }
     );
   }

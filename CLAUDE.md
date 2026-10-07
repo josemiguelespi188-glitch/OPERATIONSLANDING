@@ -548,7 +548,10 @@ N8N webhook -> 3-button approval email; none of that was built. This
 is a fully native feature instead:
 
 - **Storage**: one new table, `communications`
-  (`supabase/migrations/009_communications_calendar.sql`), holding
+  (`supabase/migrations/010_communications_calendar.sql` — numbered 010,
+  not 009, to avoid colliding with `009_sa_review_templates_knowledge.sql`
+  from an unrelated SA Review feature another session merged directly
+  into `claude/accesskey-request-platform-dbzoni`), holding
   every field from the spec (title, section type, send date, segment,
   channel, a link or uploaded file for the HTML design, status,
   compliance report, FAQ notes, responsible, approvers, approved

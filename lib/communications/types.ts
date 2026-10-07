@@ -1,4 +1,4 @@
-/** Private bucket created by supabase/migrations/009_communications_calendar.sql. */
+/** Private bucket created by supabase/migrations/010_communications_calendar.sql. */
 export const COMMUNICATIONS_HTML_BUCKET = "communications-html";
 
 export type CommunicationSectionType =

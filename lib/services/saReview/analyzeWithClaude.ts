@@ -41,7 +41,7 @@ Categories to score, in order:
 6. Pre-populated investor commitments -- from possiblyPrefilledFields evidence (Shares Subscribed, Total Purchase Price, Price Per Share, Security Class already showing a value instead of blank).
 7. Operating Agreement and entity countersignature compatibility -- from any Operating Agreement / countersignature / entity signature mentions in the text; flag if the structure looks like it needs more signers/fields than the available Entity Countersign Fields (Day, Month Name, Date, Name, Title, Initial, Signature) can support.
 
-Respond by calling the submit_review tool exactly once.
+Respond by calling the submit_review tool exactly once, with "categories" containing exactly 7 entries, one per category above (category values 1 through 7, each appearing exactly once).
 `.trim();
 
 function buildUserMessage(evidence: DocxEvidence): string {
@@ -90,8 +90,9 @@ const SUBMIT_REVIEW_TOOL: Anthropic.Tool = {
           required: ["category", "status", "detail", "recommendedAction"],
           additionalProperties: false,
         },
-        minItems: 7,
-        maxItems: 7,
+        // Strict mode only allows minItems/maxItems of 0 or 1 (a 400
+        // otherwise) -- "exactly 7, one per category" is enforced by the
+        // system prompt instead and double-checked at runtime below.
       },
       mechanicalFixes: {
         type: "array",
@@ -154,6 +155,14 @@ export async function analyzeWithClaude(evidence: DocxEvidence): Promise<{
     categories: { category: number; status: SaReviewFinding["status"]; detail: string; recommendedAction: string | null }[];
     mechanicalFixes: (Omit<MechanicalFix, "note"> & { note: string | null })[];
   };
+
+  const seenCategories = new Set(input.categories.map((c) => c.category));
+  const missing = SA_REVIEW_CATEGORIES.map((c) => c.id).filter((id) => !seenCategories.has(id));
+  if (missing.length > 0) {
+    throw new Error(
+      `Claude's review was missing ${missing.length} of the 7 categories (${missing.join(", ")}). Try again.`
+    );
+  }
 
   const findings: SaReviewFinding[] = input.categories.map((c) => {
     const definition = SA_REVIEW_CATEGORIES.find((cat) => cat.id === c.category);

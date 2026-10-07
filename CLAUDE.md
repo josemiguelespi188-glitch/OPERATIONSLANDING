@@ -489,6 +489,16 @@ above:
   experience" is a solid white pill with a hover scale/shadow, matching
   "Go to AxisKey portal"'s prominence instead of the faint `bg-white/10`
   button it used to be.
+- **Canceled orders don't show the stepper either** — same reasoning as
+  completed: a 4-step tracker with every step marked "Canceled" has
+  nothing useful left to communicate. Shows a single muted "Canceled
+  order" line (axis-core/50, X icon in a light circle) in place of
+  `<Stepper />`, mirroring the completed banner's layout but styled
+  down instead of celebratory. `Stepper`'s own internal
+  `isCanceled`/`litSegments` handling (dims the connector line, no lit
+  segments) is now unreachable in practice since nothing calls it with
+  canceled steps anymore -- left in place rather than stripped, since
+  it's harmless and the component may get a future non-terminal caller.
 - **Panel color**: only the status panel (the "We need a few documents
   from you" / "Payment received..." card) switched from `bg-axis-core`
   (near-black) to `bg-axis-base` (`#CEC1A9`, already an existing

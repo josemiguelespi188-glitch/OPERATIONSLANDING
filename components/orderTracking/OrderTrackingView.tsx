@@ -213,6 +213,13 @@ export function OrderTrackingView({ token }: { token: string }) {
               </span>
               <span className="font-head text-base font-bold text-axis-core">Order complete</span>
             </div>
+          ) : view.scenario === "canceled" ? (
+            <div className="mb-5 flex items-center justify-center gap-2.5 rounded-xl bg-axis-light/60 px-4 py-5 sm:px-8">
+              <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-axis-core/15 text-xs font-bold text-axis-core/50">
+                ✕
+              </span>
+              <span className="font-head text-base font-bold text-axis-core/50">Canceled order</span>
+            </div>
           ) : (
             <div className="mb-5 rounded-xl bg-axis-light/60 px-4 py-5 sm:px-8">
               <Stepper steps={view.steps} />

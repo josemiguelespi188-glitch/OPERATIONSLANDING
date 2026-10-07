@@ -79,7 +79,9 @@ const SUBMIT_REVIEW_TOOL: Anthropic.Tool = {
         items: {
           type: "object",
           properties: {
-            category: { type: "integer", minimum: 1, maximum: 7 },
+            // Strict mode also rejects minimum/maximum on integers (400) --
+            // enum is the supported way to constrain a number's range here.
+            category: { type: "integer", enum: [1, 2, 3, 4, 5, 6, 7] },
             status: { type: "string", enum: ["ok", "auto_fix", "flag"] },
             detail: { type: "string" },
             recommendedAction: {

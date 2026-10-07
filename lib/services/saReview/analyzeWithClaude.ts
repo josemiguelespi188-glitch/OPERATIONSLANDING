@@ -64,6 +64,13 @@ function buildUserMessage(evidence: DocxEvidence): string {
 const SUBMIT_REVIEW_TOOL: Anthropic.Tool = {
   name: "submit_review",
   description: "Submit the completed mapping-readiness review.",
+  // Claude Sonnet 5.5 (and other current models) reject a forced
+  // tool_choice ({type: "tool"} / {type: "any"}) with a 400 -- the call
+  // below uses tool_choice: "auto" plus an explicit system-prompt
+  // instruction instead, and strict:true (requires additionalProperties:
+  // false + required on every object level) keeps the output schema-valid
+  // without the old forced-choice guarantee.
+  strict: true,
   input_schema: {
     type: "object",
     properties: {
@@ -75,9 +82,13 @@ const SUBMIT_REVIEW_TOOL: Anthropic.Tool = {
             category: { type: "integer", minimum: 1, maximum: 7 },
             status: { type: "string", enum: ["ok", "auto_fix", "flag"] },
             detail: { type: "string" },
-            recommendedAction: { type: "string" },
+            recommendedAction: {
+              type: ["string", "null"],
+              description: "Required whenever status is \"flag\" or \"auto_fix\"; null when status is \"ok\".",
+            },
           },
-          required: ["category", "status", "detail"],
+          required: ["category", "status", "detail", "recommendedAction"],
+          additionalProperties: false,
         },
         minItems: 7,
         maxItems: 7,
@@ -90,13 +101,15 @@ const SUBMIT_REVIEW_TOOL: Anthropic.Tool = {
             category: { type: "integer", enum: [1, 2] },
             targetText: { type: "string", description: "Exact substring copied verbatim from a blanks[].context or tableCells[].context value." },
             action: { type: "string", enum: ["widen_blank", "left_align"] },
-            note: { type: "string" },
+            note: { type: ["string", "null"] },
           },
-          required: ["category", "targetText", "action"],
+          required: ["category", "targetText", "action", "note"],
+          additionalProperties: false,
         },
       },
     },
-    required: ["categories"],
+    required: ["categories", "mechanicalFixes"],
+    additionalProperties: false,
   },
 };
 
@@ -124,7 +137,11 @@ export async function analyzeWithClaude(evidence: DocxEvidence): Promise<{
     max_tokens: 4096,
     system: SYSTEM_PROMPT,
     tools: [SUBMIT_REVIEW_TOOL],
-    tool_choice: { type: "tool", name: "submit_review" },
+    // Claude Sonnet 5.5 rejects a forced tool_choice (400) -- "auto" plus
+    // the system prompt's explicit "call submit_review exactly once"
+    // instruction is the supported replacement; strict:true on the tool
+    // keeps the shape schema-valid once it is called.
+    tool_choice: { type: "auto" },
     messages: [{ role: "user", content: buildUserMessage(evidence) }],
   });
 
@@ -134,8 +151,8 @@ export async function analyzeWithClaude(evidence: DocxEvidence): Promise<{
   }
 
   const input = toolUse.input as {
-    categories: { category: number; status: SaReviewFinding["status"]; detail: string; recommendedAction?: string }[];
-    mechanicalFixes?: MechanicalFix[];
+    categories: { category: number; status: SaReviewFinding["status"]; detail: string; recommendedAction: string | null }[];
+    mechanicalFixes: (Omit<MechanicalFix, "note"> & { note: string | null })[];
   };
 
   const findings: SaReviewFinding[] = input.categories.map((c) => {
@@ -145,11 +162,18 @@ export async function analyzeWithClaude(evidence: DocxEvidence): Promise<{
       label: definition?.label ?? `Category ${c.category}`,
       status: c.status,
       detail: c.detail,
-      recommendedAction: c.recommendedAction,
+      recommendedAction: c.recommendedAction ?? undefined,
     };
   });
 
   const mappingReady = findings.every((f) => f.status === "ok" || f.status === "auto_fix");
 
-  return { mappingReady, findings, mechanicalFixes: input.mechanicalFixes ?? [] };
+  const mechanicalFixes: MechanicalFix[] = input.mechanicalFixes.map((f) => ({
+    category: f.category,
+    targetText: f.targetText,
+    action: f.action,
+    note: f.note ?? undefined,
+  }));
+
+  return { mappingReady, findings, mechanicalFixes };
 }

@@ -53,24 +53,47 @@ on conflict (id) do update set
 -- Communications Calendar — the 8 investor-education topics already
 -- planned in the "Axis IR Support" ClickUp list (To Do / On Hold) before
 -- this feature existed, carried over as the calendar's starting content
--- so Mike/Annelise aren't starting from an empty list. No send dates were
--- set on the ClickUp side (beyond Topic 4's "Nov 2026" in its own title),
--- so every row here leaves send_date null for someone to schedule.
+-- so Mike/Annelise aren't starting from an empty list. Every
+-- communication always has a send date now (per explicit instruction,
+-- there's no "unscheduled" state), so each one here gets a coherent,
+-- staggered weekly date instead of null -- Topic 1-3 start the week of
+-- the original "30 oct 2026" example from the planning doc, Topic 4
+-- keeps the "Nov 2026" window its own title already names, and the
+-- rest continue weekly into December.
 --
 -- communications has no natural unique key, so this matches by title to
 -- stay idempotent (safe to re-run) without a schema change just for a
--- one-time seed.
+-- one-time seed. The update block below backfills send_date/status on
+-- any of these 8 rows that were already inserted by an earlier run of
+-- this file (before send dates and the building/pending_approval/
+-- changes_requested/ready_for_launch/deployed status set existed) --
+-- harmless no-op if they already have both.
 -- ---------------------------------------------------------------------
-insert into communications (title, section_type, status)
-select v.title, v.section_type, 'idea'
+insert into communications (title, section_type, status, send_date)
+select v.title, v.section_type, 'building', v.send_date
 from (values
-  ('Topic 1 - Getting to Know AxisKey: Your Third-Party Administrator', 'full_communication'),
-  ('Topic 2 - You invested, now what? What''s happens next?', 'full_communication'),
-  ('Topic 3 - Private Investment 101: Concepts and Keywords', 'full_communication'),
-  ('Topic 4 - Tax season Prep (Nov 2026)', 'section_2'),
-  ('Topic 5 - Understanding Cap Table: Why it matters to you as an investor', 'full_communication'),
-  ('Topic 6 - Did You Know? Key facts about AxisKey and our platform', 'full_communication'),
-  ('Topic 7 - Understanding Distributions: A Full Scope', 'full_communication'),
-  ('Topic 8 - Platform Updates: Features and Resources within AxisKey', 'full_communication')
-) as v(title, section_type)
+  ('Topic 1 - Getting to Know AxisKey: Your Third-Party Administrator', 'full_communication', date '2026-10-30'),
+  ('Topic 2 - You invested, now what? What''s happens next?', 'full_communication', date '2026-11-06'),
+  ('Topic 3 - Private Investment 101: Concepts and Keywords', 'full_communication', date '2026-11-13'),
+  ('Topic 4 - Tax season Prep (Nov 2026)', 'section_2', date '2026-11-20'),
+  ('Topic 5 - Understanding Cap Table: Why it matters to you as an investor', 'full_communication', date '2026-11-27'),
+  ('Topic 6 - Did You Know? Key facts about AxisKey and our platform', 'full_communication', date '2026-12-04'),
+  ('Topic 7 - Understanding Distributions: A Full Scope', 'full_communication', date '2026-12-11'),
+  ('Topic 8 - Platform Updates: Features and Resources within AxisKey', 'full_communication', date '2026-12-18')
+) as v(title, section_type, send_date)
 where not exists (select 1 from communications c where c.title = v.title);
+
+update communications c
+set send_date = v.send_date,
+    status = case when c.status = 'idea' then 'building' else c.status end
+from (values
+  ('Topic 1 - Getting to Know AxisKey: Your Third-Party Administrator', date '2026-10-30'),
+  ('Topic 2 - You invested, now what? What''s happens next?', date '2026-11-06'),
+  ('Topic 3 - Private Investment 101: Concepts and Keywords', date '2026-11-13'),
+  ('Topic 4 - Tax season Prep (Nov 2026)', date '2026-11-20'),
+  ('Topic 5 - Understanding Cap Table: Why it matters to you as an investor', date '2026-11-27'),
+  ('Topic 6 - Did You Know? Key facts about AxisKey and our platform', date '2026-12-04'),
+  ('Topic 7 - Understanding Distributions: A Full Scope', date '2026-12-11'),
+  ('Topic 8 - Platform Updates: Features and Resources within AxisKey', date '2026-12-18')
+) as v(title, send_date)
+where c.title = v.title and c.send_date is null;

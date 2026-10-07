@@ -14,13 +14,11 @@ import {
 } from "@/lib/communications/types";
 
 const STATUS_BADGE: Record<CommunicationStatus, string> = {
-  idea: "bg-axis-light text-axis-core/60",
-  in_design: "bg-axis-base/30 text-axis-core",
-  sent_for_approval: "bg-axis-signal/40 text-axis-core",
+  building: "bg-axis-light text-axis-core/60",
+  pending_approval: "bg-axis-signal/40 text-axis-core",
   changes_requested: "bg-red-100 text-red-700",
-  approved: "bg-green-100 text-green-700",
-  scheduled: "bg-axis-core text-white",
-  sent: "bg-axis-core/70 text-white",
+  ready_for_launch: "bg-green-100 text-green-700",
+  deployed: "bg-axis-core text-white",
 };
 
 function monthLabel(dateStr: string | null): string {
@@ -74,7 +72,7 @@ export function CommunicationsCalendarList() {
     setShowQuickCreate(true);
   }
 
-  const pendingApprovalCount = items?.filter((i) => i.status === "sent_for_approval").length ?? 0;
+  const pendingApprovalCount = items?.filter((i) => i.status === "pending_approval").length ?? 0;
 
   const grouped = useMemo(() => {
     const filtered = (items ?? []).filter((i) => statusFilter === "all" || i.status === statusFilter);
@@ -127,7 +125,7 @@ export function CommunicationsCalendarList() {
           type="button"
           onClick={() => {
             setView("list");
-            setStatusFilter("sent_for_approval");
+            setStatusFilter("pending_approval");
           }}
           className="mt-5 flex w-full items-center justify-between gap-3 rounded-card border border-axis-signal/60 bg-axis-signal/15 px-5 py-3.5 text-left transition-colors hover:bg-axis-signal/25"
         >
@@ -153,28 +151,6 @@ export function CommunicationsCalendarList() {
             onDayClick={(dateKey) => openQuickCreate(dateKey)}
             onItemClick={(id) => router.push(`/admin/communications/${id}`)}
           />
-
-          {items.some((i) => !i.sendDate) && (
-            <div className="mt-5">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-axis-core/50">Unscheduled</p>
-              <div className="overflow-hidden rounded-card border border-axis-base/30 bg-white">
-                {items
-                  .filter((i) => !i.sendDate)
-                  .map((item, i) => (
-                    <Link
-                      key={item.id}
-                      href={`/admin/communications/${item.id}`}
-                      className={`flex items-center justify-between gap-4 px-5 py-3 transition-colors hover:bg-axis-light/60 ${i !== 0 ? "border-t border-axis-base/20" : ""}`}
-                    >
-                      <p className="truncate text-sm font-semibold text-axis-core">{item.title}</p>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_BADGE[item.status]}`}>
-                        {STATUS_LABELS[item.status]}
-                      </span>
-                    </Link>
-                  ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 

@@ -3,13 +3,11 @@
 import type { CommunicationStatus, CommunicationSummary } from "@/lib/communications/types";
 
 const STATUS_DOT: Record<CommunicationStatus, string> = {
-  idea: "bg-axis-core/30",
-  in_design: "bg-axis-base",
-  sent_for_approval: "bg-axis-signal",
+  building: "bg-axis-core/30",
+  pending_approval: "bg-axis-signal",
   changes_requested: "bg-red-500",
-  approved: "bg-green-500",
-  scheduled: "bg-axis-core",
-  sent: "bg-axis-core/70",
+  ready_for_launch: "bg-green-500",
+  deployed: "bg-axis-core",
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

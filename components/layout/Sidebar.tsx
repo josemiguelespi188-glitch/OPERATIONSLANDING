@@ -23,14 +23,14 @@ export function Sidebar({
   footer?: React.ReactNode;
 }) {
   return (
-    <aside className="flex w-60 shrink-0 flex-col bg-axis-core">
-      <div className="px-6 py-7">
+    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col bg-axis-core">
+      <div className="shrink-0 px-6 py-7">
         <Link href="/">
           <Logo variant="light" />
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3">
         {navItems.map((item) => (
           <Link
             key={item.href}
@@ -47,7 +47,7 @@ export function Sidebar({
         ))}
       </nav>
 
-      {footer && <div className="border-t border-white/10 px-4 py-4">{footer}</div>}
+      {footer && <div className="shrink-0 border-t border-white/10 px-4 py-4">{footer}</div>}
     </aside>
   );
 }

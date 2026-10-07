@@ -309,6 +309,18 @@ below) is the one deliberate exception, and it doesn't use `PageShell`
 either — it has no chrome at all, not even the plain header the request
 forms use.
 
+**The admin `Sidebar` (`components/layout/Sidebar.tsx`) is `sticky
+top-0 h-screen`, not a plain flex child** (bug fixed Oct 2026): it used
+to just be `flex` inside `PageShell`'s row, which let it scroll away
+with the main content on any admin page tall enough to scroll — in
+particular the footer block (the signed-in admin's email + sign-out
+button) could end up below the fold, needing a scroll to reach. Now
+the `<aside>` pins to the viewport (`nav` scrolls internally via
+`overflow-y-auto` if its item list ever gets long enough to need it,
+`shrink-0` on the logo block and the footer so they never get
+squeezed), so the nav and the account footer stay visible on every
+`/admin/*` screen regardless of how long that page's content is.
+
 ## SA Review (Subscription Agreement mapping-readiness tool)
 
 `/admin/sa-review` lets an admin upload a Subscription Agreement (.docx)
@@ -702,9 +714,9 @@ communications (the recurring "Section 1 / Section 2 / FAQ of the
 month" update emails, plus one-off comms) before they go out. Built
 from a real planning session (the "Communications Calendar - Prompt de
 Desarrollo" doc drafted earlier the same session has the full original
-spec), then **simplified twice** on direct product feedback after the
-first version shipped — **deliberately not synced to ClickUp or any
-external email tool** ("no need to use clickup for this, is just a
+spec), then **reworked three times** on direct product feedback after
+the first version shipped — **deliberately not synced to ClickUp or
+any external email tool** ("no need to use clickup for this, is just a
 calendar on the operation hub"), and now deliberately narrower in
 scope than the original spec too (see below). This is a fully native
 feature:
@@ -743,16 +755,24 @@ feature:
   `html_code` text column edited directly on the detail page. That
   route and the upload UI were deleted outright, not just unused.
 - **The detail page (`/admin/communications/[id]`,
-  `CommunicationDetail.tsx`) leads with the HTML**, per explicit
-  instruction ("lo primero que salga sea el HTML"): right under the
-  title/status header, before the status actions and before any other
-  field, is the HTML editor -- a code/visual tab toggle (`htmlTab`
-  state). The HTML tab is a plain monospace `<textarea>` bound to
-  `html_code`; the Visual tab renders it live via `<iframe
-  srcDoc={htmlCode} sandbox="">` -- an empty `sandbox` attribute
-  (blocks scripts, forms, same-origin access, everything) since this
-  renders arbitrary pasted HTML/email markup in an authenticated admin
-  tool and there's no reason it should ever need script execution.
+  `CommunicationDetail.tsx`) is a two-column "mail client" layout**,
+  per explicit instruction ("a la izquierda el mail y a la derecha las
+  funciones"): the left column is the email itself (a Visual/HTML tab
+  toggle, `htmlTab` state, **defaulting to Visual** -- "siempre que
+  entras debería verse visual" -- an `<iframe srcDoc={htmlCode}
+  sandbox="">` preview, with HTML as a plain monospace `<textarea>` on
+  the other tab); the right column stacks Status actions, then Details
+  (section type, send date, FAQ notes), with **one single Save button**
+  at the bottom of the right column that persists everything together
+  (title, section type, send date, FAQ notes, and the HTML) -- there
+  used to be two separate Save buttons (one under the HTML box, one
+  under Details), now there's just the one. The title itself is an
+  inline-editable `<input>` in the page header (styled like a heading,
+  bordered only on hover/focus), not a read-only `<h1>` -- editing it
+  is part of the same single Save. `sandbox=""` (no value) blocks
+  scripts, forms, same-origin access, everything, since this renders
+  arbitrary pasted HTML/email markup in an authenticated admin tool and
+  there's no reason it should ever need script execution.
 - **Approval flow is in-app, not an emailed 3-button flow.** The
   original spec's "Send for approval" sends an email to Diego and Lana
   with Ver email/Aprobar/Solicitar cambios buttons via ClickUp
@@ -760,59 +780,79 @@ feature:
   at all** (confirmed by grepping for Resend/SendGrid/Postmark/
   nodemailer/SMTP before building -- nothing exists), so building that
   literally would have meant inventing new email infrastructure nobody
-  asked for. Instead, the detail page shows contextual status actions
-  directly in the UI: once in `sent_for_approval`, Diego or Lana
+  asked for. Instead, the Status card on the detail page's right column
+  shows contextual actions: once in `pending_approval`, Diego or Lana
   (logged into `/admin` like anyone else, gated by the existing
   `requireAdmin`/`admin_users` check) see Approve (picks which of the
   two approved, sets `approved_at`/`approved_by`) and Request changes
   (requires a comment, written to `communications_status_history.notes`)
-  buttons right on the page. If real outbound email to Diego/Lana is
-  wanted later, that's additive on top of this -- the status/history
-  model doesn't need to change, only a notification step added.
-- **Status model**: `idea -> in_design -> sent_for_approval ->
-  (approved | changes_requested) -> scheduled -> sent`.
-  `changes_requested` loops back to `in_design` (an explicit button,
-  "Back to In design (edit and resend)"), matching the original spec's
-  approval-flow diagram. Moving `in_design -> sent_for_approval` is
-  blocked (both client-side in `CommunicationDetail.tsx`'s
-  `canSendForApproval`, and server-side in `PATCH
-  /api/admin/communications/[id]`) until `html_code` is non-empty --
-  the compliance-report gate from v1 is gone along with the field
-  itself.
+  buttons right there. If real outbound email to Diego/Lana is wanted
+  later, that's additive on top of this -- the status/history model
+  doesn't need to change, only a notification step added.
+- **Status model (renamed Oct 2026, migration
+  `012_communications_status_rename.sql`)**: `building ->
+  pending_approval -> (ready_for_launch | changes_requested) ->
+  deployed`. The original 7-value model (`idea`, `in_design`,
+  `sent_for_approval`, `approved`, `scheduled`, `sent`, plus
+  `changes_requested`) was collapsed to the 5 SLA stages actually
+  wanted -- `idea`+`in_design` merged into one `building` stage ("en
+  creación... processing o building"), `approved`+`scheduled` merged
+  into one `ready_for_launch` stage -- migration 012 both renames the
+  check constraint and **migrates existing row data** (not just new
+  rows) with `update` statements per old-status group, so nothing left
+  over in a dropped status value. `changes_requested` still loops back
+  to `building` ("Back to Building (edit and resend)"). Moving
+  `building -> pending_approval` is blocked (both client-side in
+  `CommunicationDetail.tsx`'s `canSendForApproval`, and server-side in
+  `PATCH /api/admin/communications/[id]`) until `html_code` is
+  non-empty.
 - **Two views on `/admin/communications`
   (`CommunicationsCalendarList.tsx`)**, a toggle between them, Calendar
   as the default: **Calendar** (`CalendarMonthView.tsx`) is a real
   month grid (prev/next/today nav, a dot-colored chip per communication
   on its `send_date`, up to 3 shown then "+N more"), replacing v1's
   "card grid grouped by month" which the user didn't consider an
-  actual calendar; unscheduled communications (`send_date is null`)
-  show in a compact list below the grid since they have no day to sit
-  on. **List** is v1's status-filterable card grid, kept as a secondary
-  view. The v1 header's description paragraph ("Plan, design, and
-  approve investor communications before they go out...") was removed
-  entirely, per instruction.
+  actual calendar. **List** is v1's status-filterable card grid, kept
+  as a secondary view. The v1 header's description paragraph ("Plan,
+  design, and approve investor communications before they go out...")
+  was removed entirely, per instruction.
+- **Every communication always has a send date -- there is no
+  "unscheduled" state**, per explicit instruction ("no debería existir
+  los unscheduled... todos deberían tener una fecha"): `sendDate` is
+  now required (not optional) in both `QuickCreateModal.tsx` and the
+  `POST /api/admin/communications` validation, defaulting to today's
+  date when the "+" button opens with no day pre-filled. The calendar
+  view's old "Unscheduled" fallback list (for communications with a
+  null `send_date`) was removed from the UI -- the `send_date` column
+  itself is still nullable at the DB level (no migration added a `not
+  null` constraint, since nothing asked for one), this is purely an
+  application-level guarantee going forward.
 - **Creating one is a "+" button, not an inline form.** V1 had a
   title/section-type/date form embedded in the page; replaced with a
   round "+" icon button (top right) opening `QuickCreateModal.tsx` --
-  just a title and an optional send date. **Clicking an empty day cell
-  in the calendar opens the same modal with that day pre-filled** as
-  the send date. Either path creates the row then routes straight to
-  its detail page, where the HTML, section type, and everything else
-  gets filled in.
+  just a title and a send date. **Clicking an empty day cell in the
+  calendar opens the same modal with that day pre-filled** as the send
+  date. Either path creates the row then routes straight to its detail
+  page, where the HTML, section type, and everything else gets filled
+  in.
 - **Seeded starting content**: `supabase/seed.sql` carries over the 8
   investor-education topics that were already planned in the real
   "Axis IR Support" ClickUp list (shared as a screenshot: Topic 1-8,
   "Getting to Know AxisKey" through "Platform Updates") as the
-  calendar's starting rows, all `status = 'idea'`, section type mapped
+  calendar's starting rows, `status = 'building'`, section type mapped
   to `full_communication` except Topic 4 ("Tax season Prep (Nov 2026)")
-  which is `section_2` (a deadline/reminder). No send dates were set on
-  the ClickUp side (beyond "Nov 2026" in Topic 4's own title), so every
-  seeded row leaves `send_date` null for someone to schedule -- these
-  show in the calendar view's "Unscheduled" list until given a date.
-  Matched by title to stay idempotent on re-run (`communications` has
-  no other natural unique key) -- same "re-run safely in the Supabase
-  SQL editor" caveat as the rest of `seed.sql`. Unaffected by the v2
-  column drops since the seed only ever set title/section_type/status.
+  which is `section_2` (a deadline/reminder). Each row gets a coherent,
+  staggered weekly `send_date` (Topic 1 = 2026-10-30, one more topic
+  each following week through Topic 8 = 2026-12-18) -- the ClickUp side
+  never set real dates (beyond "Nov 2026" in Topic 4's own title), so
+  these were chosen to be coherent, not pulled from a source of truth.
+  The insert is matched by title to stay idempotent on re-run
+  (`communications` has no other natural unique key); an `update` block
+  right after it also backfills `send_date`/`status` on any of these 8
+  rows that were already inserted by an earlier run of this file
+  (before dates and the new status set existed), matched by title,
+  only touching rows where `send_date is null` -- harmless no-op once
+  they're already backfilled.
 - Nav: "Communications" added to `getAdminNavItems`
   (`components/layout/nav.tsx`), reusing the existing `MegaphoneIcon`
   rather than adding a new one.

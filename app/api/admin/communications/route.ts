@@ -65,6 +65,9 @@ export async function POST(request: Request) {
   const title = typeof body.title === "string" ? body.title.trim().slice(0, 300) : "";
   if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });
 
+  const sendDate = typeof body.sendDate === "string" ? body.sendDate.trim() : "";
+  if (!sendDate) return NextResponse.json({ error: "Send date is required." }, { status: 400 });
+
   const sectionType: CommunicationSectionType = SECTION_TYPES.includes(body.sectionType)
     ? body.sectionType
     : "section_1";
@@ -74,7 +77,7 @@ export async function POST(request: Request) {
     .insert({
       title,
       section_type: sectionType,
-      send_date: typeof body.sendDate === "string" && body.sendDate ? body.sendDate : null,
+      send_date: sendDate,
       created_by: admin.id,
     })
     .select("*")

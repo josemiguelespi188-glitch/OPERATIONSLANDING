@@ -3,12 +3,18 @@
 import { useState } from "react";
 
 /**
- * The "+" quick-create flow: just a title and an optional send date
- * (pre-filled when opened from a calendar day click). Everything else
- * -- the HTML itself, section type, FAQ notes -- is filled in on the
- * detail page right after creating, so this stays a one-field modal
- * instead of a full form.
+ * The "+" quick-create flow: just a title and a send date (pre-filled
+ * to the clicked day from the calendar, or today otherwise -- every
+ * communication has a date, there's no "unscheduled" state). Everything
+ * else -- the HTML itself, section type, FAQ notes -- is filled in on
+ * the detail page right after creating, so this stays a two-field
+ * modal instead of a full form.
  */
+function todayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function QuickCreateModal({
   initialDate,
   onClose,
@@ -19,13 +25,13 @@ export function QuickCreateModal({
   onCreate: (title: string, sendDate: string) => Promise<void>;
 }) {
   const [title, setTitle] = useState("");
-  const [sendDate, setSendDate] = useState(initialDate ?? "");
+  const [sendDate, setSendDate] = useState(initialDate ?? todayKey());
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !sendDate) return;
     setCreating(true);
     setError("");
     try {
@@ -58,11 +64,12 @@ export function QuickCreateModal({
           />
         </label>
         <label className="mt-3 block">
-          <span className="text-xs font-medium text-axis-core/70">Send date (optional)</span>
+          <span className="text-xs font-medium text-axis-core/70">Send date</span>
           <input
             type="date"
             value={sendDate}
             onChange={(e) => setSendDate(e.target.value)}
+            required
             className="mt-1 w-full rounded-[8px] border border-axis-base/50 px-3 py-2 text-sm outline-none focus:border-axis-core"
           />
         </label>
@@ -79,7 +86,7 @@ export function QuickCreateModal({
           </button>
           <button
             type="submit"
-            disabled={!title.trim() || creating}
+            disabled={!title.trim() || !sendDate || creating}
             className="rounded-[8px] bg-axis-core px-4 py-2 text-sm font-semibold text-white hover:bg-axis-core/90 disabled:opacity-40"
           >
             {creating ? "Creating..." : "Create"}

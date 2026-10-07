@@ -20,13 +20,11 @@ const SECTION_TYPES: CommunicationSectionType[] = [
   "full_communication",
 ];
 const STATUSES: CommunicationStatus[] = [
-  "idea",
-  "in_design",
-  "sent_for_approval",
+  "building",
+  "pending_approval",
   "changes_requested",
-  "approved",
-  "scheduled",
-  "sent",
+  "ready_for_launch",
+  "deployed",
 ];
 
 export async function GET(request: Request, { params }: Params) {
@@ -60,11 +58,11 @@ export async function GET(request: Request, { params }: Params) {
 /**
  * Updates a communication's fields and/or advances its status. A status
  * change always writes a communications_status_history row. Moving INTO
- * "approved" requires approvedBy (who, of the approvers, clicked
+ * "ready_for_launch" requires approvedBy (who, of the approvers, clicked
  * approve); moving INTO "changes_requested" requires a comment (stored
  * as that history row's notes — there's no separate "last comment"
  * column, the detail page just reads the latest history entry). Moving
- * INTO "sent_for_approval" requires the HTML itself to actually be
+ * INTO "pending_approval" requires the HTML itself to actually be
  * there — the UI already disables that button until html_code is
  * non-empty, this is the server-side backstop.
  */
@@ -101,14 +99,14 @@ export async function PATCH(request: Request, { params }: Params) {
   if (typeof body.status === "string" && STATUSES.includes(body.status) && body.status !== existing.status) {
     const toStatus = body.status as CommunicationStatus;
 
-    if (toStatus === "sent_for_approval") {
+    if (toStatus === "pending_approval") {
       const html = typeof update.html_code === "string" ? update.html_code : existing.html_code;
       if (!html || !html.trim()) {
         return NextResponse.json({ error: "Add the HTML for this communication before sending for approval." }, { status: 400 });
       }
     }
 
-    if (toStatus === "approved") {
+    if (toStatus === "ready_for_launch") {
       const approvedBy = typeof body.approvedBy === "string" ? body.approvedBy.trim() : "";
       if (!approvedBy) {
         return NextResponse.json({ error: "Select who approved this communication." }, { status: 400 });

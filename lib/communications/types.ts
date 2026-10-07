@@ -5,13 +5,11 @@ export type CommunicationSectionType =
   | "full_communication";
 
 export type CommunicationStatus =
-  | "idea"
-  | "in_design"
-  | "sent_for_approval"
+  | "building"
+  | "pending_approval"
   | "changes_requested"
-  | "approved"
-  | "scheduled"
-  | "sent";
+  | "ready_for_launch"
+  | "deployed";
 
 export const SECTION_TYPE_LABELS: Record<CommunicationSectionType, string> = {
   section_1: "Section 1 (Who we are)",
@@ -21,23 +19,19 @@ export const SECTION_TYPE_LABELS: Record<CommunicationSectionType, string> = {
 };
 
 export const STATUS_LABELS: Record<CommunicationStatus, string> = {
-  idea: "Idea",
-  in_design: "In design",
-  sent_for_approval: "Sent for approval",
+  building: "Building",
+  pending_approval: "Pending for Approval",
   changes_requested: "Changes requested",
-  approved: "Approved",
-  scheduled: "Scheduled",
-  sent: "Sent",
+  ready_for_launch: "Ready for Launch",
+  deployed: "Deployed",
 };
 
-/** Status order the UI's "advance" action steps through. */
+/** Status order the UI's "advance" action steps through (changes_requested is a detour, not a step). */
 export const STATUS_ORDER: CommunicationStatus[] = [
-  "idea",
-  "in_design",
-  "sent_for_approval",
-  "approved",
-  "scheduled",
-  "sent",
+  "building",
+  "pending_approval",
+  "ready_for_launch",
+  "deployed",
 ];
 
 export interface CommunicationRow {

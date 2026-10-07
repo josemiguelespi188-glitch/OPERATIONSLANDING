@@ -309,6 +309,99 @@ below) is the one deliberate exception, and it doesn't use `PageShell`
 either — it has no chrome at all, not even the plain header the request
 forms use.
 
+## SA Review (Subscription Agreement mapping-readiness tool)
+
+`/admin/sa-review` lets an admin upload a Subscription Agreement (.docx)
+and runs it through the same 7-category mapping-readiness checklist the
+`anthropic-skills:sa-mapping-review` Claude Code skill uses (see that
+skill's `SKILL.md` and the team's own
+`Subscription_Agreement_Review_Guide_AxisKey_Branded.docx`) -- not PPMs,
+despite how the feature was first described; PPM and SA are different
+legal documents and this tool is specifically about SAs.
+
+**This is a from-scratch Vercel-only reimplementation of the skill's
+logic, not a web wrapper around the skill itself.** The real skill's
+process (unzip -> render to PDF/images via LibreOffice -> read the
+render with Claude vision -> apply XML fixes -> rezip) needs a shell and
+LibreOffice, neither of which exists in a Vercel serverless function. The
+two categories the skill detects visually (insufficient blank space,
+inconsistent alignment) are approximated here from docx XML geometry
+(cell widths in `w:tcW`, underscore-run lengths) instead of an actual
+render -- this is a known, deliberate accuracy tradeoff for the other 5
+categories (TBDs/highlights, dates, multiple classes, pre-filled
+commitments, countersignature compatibility), which stay text/XML-based
+evidence checks like the skill itself already uses.
+
+- `lib/services/saReview/extractDocx.ts` pulls deterministic evidence
+  out of the docx XML (blanks, table cell widths, highlighted/shaded
+  runs, TBD/placeholder matches, literal dates, class mentions,
+  possibly-prefilled fields) -- pure code, no Claude call.
+- `lib/services/saReview/analyzeWithClaude.ts` sends that evidence to
+  the Claude Messages API (`ANTHROPIC_API_KEY`, required -- see
+  `.env.example`) with a forced `submit_review` tool call so the 7
+  categories always come back as structured JSON, never free text to
+  parse. Model is pinned in `MODEL` in that file.
+- **Only categories 1 (space) and 2 (alignment) can ever be
+  `"auto_fix"`.** This is a hard product constraint, not just a
+  default: dates, TBDs, multiple classes, pre-filled commitments, and
+  countersignature issues are legal-content judgment calls and must
+  always come back as `"flag"` for a human to resolve, matching the
+  skill's own "never guess legal content" philosophy. The system
+  prompt in `analyzeWithClaude.ts` enforces this; don't loosen it
+  without an explicit product decision to do so.
+- `lib/services/saReview/applyMechanicalFixes.ts` re-locates each
+  category 1/2 fix's verbatim `targetText` (which Claude copies
+  directly from the evidence it was given, specifically so it can be
+  found again) in the original docx XML and widens the blank / cell or
+  left-aligns the paragraph. A fix it can't re-locate is left unapplied
+  and reported back rather than guessed at.
+- `supabase/migrations/007_sa_reviews.sql` adds the `sa_reviews` table
+  (RLS enabled, no policies -- service-role only, same strictness as
+  `order_tracking_links`) and a private `sa-reviews` storage bucket.
+  **This migration has not been confirmed run against the live
+  Supabase project** -- run it in the SQL editor before using the
+  feature.
+- Uploads/downloads go through `requireAdmin`-gated API routes
+  (`app/api/admin/sa-review/**`), not direct browser-to-Storage
+  upload like the public `attachments` bucket uses, since this bucket
+  may hold investor PII and must stay admin-only. The upload endpoint
+  takes base64 JSON (`{fileName, fileBase64}`), not multipart
+  `FormData`, because `useAdminFetch()`'s `adminFetch()` always sets
+  `Content-Type: application/json` whenever a body is present, which
+  would otherwise corrupt a multipart upload. Downloads
+  (`GET .../download`) stream the file through the same gate rather
+  than a signed URL or `<a href>`, since plain browser navigation
+  doesn't carry the Authorization bearer header `adminFetch()` attaches
+  -- the admin UI fetches these as a blob and triggers a synthetic
+  download (`lib/utils/downloadBlob.ts`).
+- **The branded PDF report
+  (`GET /api/admin/sa-review/[id]/report`) deliberately lives in
+  `pages/api/admin/sa-review/[id]/report.ts` (Pages Router), not
+  alongside the other sa-review routes in `app/api/admin/sa-review/`
+  (App Router).** `@react-pdf/renderer`'s own React copy doesn't
+  recognize elements created inside the `app/` directory's module
+  graph -- Next bundles that graph against a "react-server" conditioned
+  React build for RSC, and `@react-pdf/renderer` throws a minified
+  invariant #31 ("Objects are not valid as a React child") even though
+  the markup is correct. Confirmed by reproducing the identical render
+  standalone in plain Node (works) vs. through an App Router route
+  handler (fails) with the same code, in both `next dev` and a real
+  production build (`next build && next start`) -- not a dev-only
+  quirk. Pages API routes aren't part of that module graph, which is
+  why this one endpoint is the sole thing under `pages/` in an
+  otherwise fully App Router codebase. `lib/services/saReview/reportPdf.ts`
+  itself is also deliberately plain `React.createElement` calls in a
+  `.ts` file, not JSX in a `.tsx` file, since `next.config.mjs`'s
+  `serverExternalPackages: ["@react-pdf/renderer"]` keeps the package
+  itself out of webpack's bundle either way. Don't move this route
+  back into `app/api` or reintroduce JSX there without re-confirming
+  the underlying Next/React-PDF incompatibility is actually fixed
+  upstream first.
+- The admin UI (`components/admin/saReview/`) follows the same
+  `useAdminFetch()` + `requireAdmin` pattern as every other admin
+  page. Nav entry: `components/layout/nav.tsx`'s `getAdminNavItems`
+  now takes `"overview" | "forms" | "sa-review"`.
+
 ## Investor feedback ("Rate Your Experience")
 
 `app/rate-your-experience` is a standalone public page linked from

@@ -3,7 +3,6 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/supabase/adminAuth";
 import {
   toCommunicationSummary,
-  type CommunicationChannel,
   type CommunicationSectionType,
   type CommunicationRow,
 } from "@/lib/communications/types";
@@ -24,7 +23,6 @@ const SECTION_TYPES: CommunicationSectionType[] = [
   "faq_of_month",
   "full_communication",
 ];
-const CHANNELS: CommunicationChannel[] = ["tribexa", "mass_email", "tbd"];
 
 export async function GET(request: Request) {
   const admin = await requireAdmin(request);
@@ -48,6 +46,12 @@ export async function GET(request: Request) {
   });
 }
 
+/**
+ * Quick-create: just a title and (optionally, e.g. clicked from a
+ * calendar day) a send date — everything else (the HTML itself,
+ * section type, FAQ notes) is filled in on the detail page right
+ * after, which is why this is a tiny "+" action rather than a full form.
+ */
 export async function POST(request: Request) {
   const admin = await requireAdmin(request);
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -64,7 +68,6 @@ export async function POST(request: Request) {
   const sectionType: CommunicationSectionType = SECTION_TYPES.includes(body.sectionType)
     ? body.sectionType
     : "section_1";
-  const channel: CommunicationChannel = CHANNELS.includes(body.channel) ? body.channel : "tbd";
 
   const { data: row, error } = await supabase
     .from("communications")
@@ -72,12 +75,6 @@ export async function POST(request: Request) {
       title,
       section_type: sectionType,
       send_date: typeof body.sendDate === "string" && body.sendDate ? body.sendDate : null,
-      segment: typeof body.segment === "string" ? body.segment.trim() || null : null,
-      channel,
-      html_url: typeof body.htmlUrl === "string" ? body.htmlUrl.trim() || null : null,
-      compliance_report: typeof body.complianceReport === "string" ? body.complianceReport.trim() || null : null,
-      faq_notes: typeof body.faqNotes === "string" ? body.faqNotes.trim() || null : null,
-      responsible: typeof body.responsible === "string" ? body.responsible.trim() || null : null,
       created_by: admin.id,
     })
     .select("*")

@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/supabase/adminAuth";
 import {
-  COMMUNICATIONS_HTML_BUCKET,
   toCommunicationSummary,
-  type CommunicationChannel,
   type CommunicationRow,
   type CommunicationSectionType,
   type CommunicationStatus,
@@ -15,21 +13,12 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
-function serverClient() {
-  try {
-    return getSupabaseServerClient();
-  } catch {
-    return null;
-  }
-}
-
 const SECTION_TYPES: CommunicationSectionType[] = [
   "section_1",
   "section_2",
   "faq_of_month",
   "full_communication",
 ];
-const CHANNELS: CommunicationChannel[] = ["tribexa", "mass_email", "tbd"];
 const STATUSES: CommunicationStatus[] = [
   "idea",
   "in_design",
@@ -50,15 +39,6 @@ export async function GET(request: Request, { params }: Params) {
   const { data: row, error } = await supabase.from("communications").select("*").eq("id", id).maybeSingle();
   if (error || !row) return NextResponse.json({ error: "Communication not found." }, { status: 404 });
 
-  let htmlFileUrl: string | null = null;
-  const typedRow = row as CommunicationRow;
-  if (typedRow.html_file_path) {
-    const { data } = await supabase.storage
-      .from(COMMUNICATIONS_HTML_BUCKET)
-      .createSignedUrl(typedRow.html_file_path, 60 * 60);
-    htmlFileUrl = data?.signedUrl ?? null;
-  }
-
   const { data: historyRows } = await supabase
     .from("communications_status_history")
     .select("*")
@@ -74,7 +54,7 @@ export async function GET(request: Request, { params }: Params) {
     createdAt: h.created_at,
   }));
 
-  return NextResponse.json({ ...toCommunicationSummary(typedRow), htmlFileUrl, history });
+  return NextResponse.json({ ...toCommunicationSummary(row as CommunicationRow), history });
 }
 
 /**
@@ -83,7 +63,10 @@ export async function GET(request: Request, { params }: Params) {
  * "approved" requires approvedBy (who, of the approvers, clicked
  * approve); moving INTO "changes_requested" requires a comment (stored
  * as that history row's notes — there's no separate "last comment"
- * column, the detail page just reads the latest history entry).
+ * column, the detail page just reads the latest history entry). Moving
+ * INTO "sent_for_approval" requires the HTML itself to actually be
+ * there — the UI already disables that button until html_code is
+ * non-empty, this is the server-side backstop.
  */
 export async function PATCH(request: Request, { params }: Params) {
   const admin = await requireAdmin(request);
@@ -109,18 +92,21 @@ export async function PATCH(request: Request, { params }: Params) {
   }
   if (SECTION_TYPES.includes(body.sectionType)) update.section_type = body.sectionType;
   if (body.sendDate === null || typeof body.sendDate === "string") update.send_date = body.sendDate || null;
-  if (typeof body.segment === "string") update.segment = body.segment.trim() || null;
-  if (CHANNELS.includes(body.channel)) update.channel = body.channel;
-  if (typeof body.htmlUrl === "string") update.html_url = body.htmlUrl.trim() || null;
-  if (typeof body.complianceReport === "string") update.compliance_report = body.complianceReport.trim() || null;
+  if (typeof body.htmlCode === "string") update.html_code = body.htmlCode;
   if (typeof body.faqNotes === "string") update.faq_notes = body.faqNotes.trim() || null;
-  if (typeof body.responsible === "string") update.responsible = body.responsible.trim() || null;
   if (typeof body.approvers === "string" && body.approvers.trim()) update.approvers = body.approvers.trim();
 
   let statusChange: { from: CommunicationStatus; to: CommunicationStatus; notes: string | null } | null = null;
 
   if (typeof body.status === "string" && STATUSES.includes(body.status) && body.status !== existing.status) {
     const toStatus = body.status as CommunicationStatus;
+
+    if (toStatus === "sent_for_approval") {
+      const html = typeof update.html_code === "string" ? update.html_code : existing.html_code;
+      if (!html || !html.trim()) {
+        return NextResponse.json({ error: "Add the HTML for this communication before sending for approval." }, { status: 400 });
+      }
+    }
 
     if (toStatus === "approved") {
       const approvedBy = typeof body.approvedBy === "string" ? body.approvedBy.trim() : "";
@@ -173,12 +159,9 @@ export async function DELETE(request: Request, { params }: Params) {
   const { id } = await params;
   const supabase = getSupabaseServerClient();
 
-  const { data: row } = await supabase.from("communications").select("html_file_path").eq("id", id).maybeSingle();
+  const { data: row } = await supabase.from("communications").select("id").eq("id", id).maybeSingle();
   if (!row) return NextResponse.json({ error: "Communication not found." }, { status: 404 });
 
-  if (row.html_file_path) {
-    await supabase.storage.from(COMMUNICATIONS_HTML_BUCKET).remove([row.html_file_path]);
-  }
   const { error } = await supabase.from("communications").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

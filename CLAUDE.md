@@ -697,46 +697,62 @@ above:
 
 ## Communications Calendar (`/admin/communications`)
 
-An admin-only tool for planning, designing, and approving investor
+An admin-only tool for planning, drafting, and approving investor
 communications (the recurring "Section 1 / Section 2 / FAQ of the
 month" update emails, plus one-off comms) before they go out. Built
 from a real planning session (the "Communications Calendar - Prompt de
 Desarrollo" doc drafted earlier the same session has the full original
-spec) — but **deliberately not synced to ClickUp or any external email
-tool**, after the user corrected course mid-build: "no need to use
-clickup for this, is just a calendar on the operation hub." The
-original spec proposed a ClickUp Folder/List + a ClickUp automation ->
-N8N webhook -> 3-button approval email; none of that was built. This
-is a fully native feature instead:
+spec), then **simplified twice** on direct product feedback after the
+first version shipped — **deliberately not synced to ClickUp or any
+external email tool** ("no need to use clickup for this, is just a
+calendar on the operation hub"), and now deliberately narrower in
+scope than the original spec too (see below). This is a fully native
+feature:
 
-- **Storage**: one new table, `communications`
-  (`supabase/migrations/010_communications_calendar.sql` — numbered 010,
-  not 009, to avoid colliding with `009_sa_review_templates_knowledge.sql`
-  from an unrelated SA Review feature another session merged directly
-  into `claude/accesskey-request-platform-dbzoni`), holding
-  every field from the spec (title, section type, send date, segment,
-  channel, a link or uploaded file for the HTML design, status,
-  compliance report, FAQ notes, responsible, approvers, approved
-  at/by). A second table, `communications_status_history`, is an audit
-  trail of every status change (mirrors `investor_update_status_history`
-  from migration 005) -- who sent something for approval, who approved
-  or requested changes and when, and the comment left on a "changes
-  requested" (that comment has no separate column; the detail page just
-  reads the latest history row for it). Both tables are RLS-enabled
-  with **no policies at all** (service-role only, same as
-  `pdf_templates`) -- this is an internal tool with no public insert
-  path, so there's no "anyone can insert" policy the way `requests` or
-  `investor_feedback` have.
-- **The HTML design is never authored in this app**, per the original
-  spec ("el mail en si no se escribe dentro de ClickUp/el Hub") -- a
-  communication just carries a pointer to it: either a pasted link
-  (`html_url`) or an uploaded `.html` file in the private
-  `communications-html` storage bucket (same signed-upload-URL pattern
-  as the `pdf-templates` bucket: `POST
-  /api/admin/communications/[id]/html-upload` issues a short-lived
-  signed URL, the browser uploads straight to Storage with it, nothing
-  passes through the API route itself). Both are optional and either
-  satisfies the "ready for approval" gate below.
+- **Storage**: one table, `communications`
+  (`supabase/migrations/010_communications_calendar.sql` then
+  `011_communications_simplify.sql` — 010 numbered that way, not 009,
+  to avoid colliding with `009_sa_review_templates_knowledge.sql` from
+  an unrelated SA Review feature another session merged directly into
+  `claude/accesskey-request-platform-dbzoni`). Current columns: title,
+  section type, send date, `html_code` (the email's raw HTML, see
+  below), status, FAQ notes, approvers, approved at/by. Migration 011
+  **dropped** `channel`, `segment`, `compliance_report`, `responsible`,
+  `html_url`, `html_file_path`, and `html_file_name` entirely (not just
+  hidden in the UI) per explicit feedback to make the form simpler —
+  those were all in the original v1 spec/build but never actually
+  wanted once the user saw them in practice. A second table,
+  `communications_status_history`, is an audit trail of every status
+  change (mirrors `investor_update_status_history` from migration 005)
+  -- who sent something for approval, who approved or requested
+  changes and when, and the comment left on a "changes requested"
+  (that comment has no separate column; the detail page just reads the
+  latest history row for it). Both tables are RLS-enabled with **no
+  policies at all** (service-role only, same as `pdf_templates`) --
+  this is an internal tool with no public insert path. The
+  `communications-html` private storage bucket from migration 010 is
+  now unused dead weight (v1 supported uploading an `.html` file to
+  it; v2 replaced that with pasting the HTML as text) -- left in place
+  since nothing was ever uploaded to it and dropping a bucket means
+  removing its objects first, not worth a migration just for that.
+- **The email's HTML is pasted in as code, not linked or uploaded.**
+  V1 had a link field and a file-upload-to-Storage flow (`POST
+  .../html-upload`, mirroring the `pdf-templates` signed-upload-URL
+  pattern); the user explicitly rejected both ("no quiero cargar
+  diseños, solo quiero cargar el código del HTML") in favor of a plain
+  `html_code` text column edited directly on the detail page. That
+  route and the upload UI were deleted outright, not just unused.
+- **The detail page (`/admin/communications/[id]`,
+  `CommunicationDetail.tsx`) leads with the HTML**, per explicit
+  instruction ("lo primero que salga sea el HTML"): right under the
+  title/status header, before the status actions and before any other
+  field, is the HTML editor -- a code/visual tab toggle (`htmlTab`
+  state). The HTML tab is a plain monospace `<textarea>` bound to
+  `html_code`; the Visual tab renders it live via `<iframe
+  srcDoc={htmlCode} sandbox="">` -- an empty `sandbox` attribute
+  (blocks scripts, forms, same-origin access, everything) since this
+  renders arbitrary pasted HTML/email markup in an authenticated admin
+  tool and there's no reason it should ever need script execution.
 - **Approval flow is in-app, not an emailed 3-button flow.** The
   original spec's "Send for approval" sends an email to Diego and Lana
   with Ver email/Aprobar/Solicitar cambios buttons via ClickUp
@@ -744,40 +760,45 @@ is a fully native feature instead:
   at all** (confirmed by grepping for Resend/SendGrid/Postmark/
   nodemailer/SMTP before building -- nothing exists), so building that
   literally would have meant inventing new email infrastructure nobody
-  asked for. Instead, `/admin/communications/[id]`
-  (`components/admin/communications/CommunicationDetail.tsx`) shows
-  contextual status actions directly in the UI: once in
-  `sent_for_approval`, Diego or Lana (logged into `/admin` like anyone
-  else, gated by the existing `requireAdmin`/`admin_users` check) see
-  Approve (picks which of the two approved, sets `approved_at`/
-  `approved_by`) and Request changes (requires a comment, written to
-  `communications_status_history.notes`) buttons right on the page. If
-  real outbound email to Diego/Lana is wanted later, that's additive on
-  top of this -- the status/history model doesn't need to change, only
-  a notification step added.
+  asked for. Instead, the detail page shows contextual status actions
+  directly in the UI: once in `sent_for_approval`, Diego or Lana
+  (logged into `/admin` like anyone else, gated by the existing
+  `requireAdmin`/`admin_users` check) see Approve (picks which of the
+  two approved, sets `approved_at`/`approved_by`) and Request changes
+  (requires a comment, written to `communications_status_history.notes`)
+  buttons right on the page. If real outbound email to Diego/Lana is
+  wanted later, that's additive on top of this -- the status/history
+  model doesn't need to change, only a notification step added.
 - **Status model**: `idea -> in_design -> sent_for_approval ->
   (approved | changes_requested) -> scheduled -> sent`.
   `changes_requested` loops back to `in_design` (an explicit button,
   "Back to In design (edit and resend)"), matching the original spec's
   approval-flow diagram. Moving `in_design -> sent_for_approval` is
-  blocked in the UI (`canSendForApproval` in
-  `CommunicationDetail.tsx`) until both an HTML design (link or file)
-  and a compliance report are filled in, matching the spec's
-  compliance gate -- there's no compliance bot integration yet (Diego
-  was still going to share one), so `compliance_report` is just a
-  free-text field for now (pasted result or a link to one run
-  manually).
-- **List view** (`/admin/communications`,
-  `components/admin/communications/CommunicationsCalendarList.tsx`): a
-  card grid grouped by the month of `send_date` ("No date set" group
-  for anything unscheduled), status-filterable, with a banner
-  highlighting how many communications are waiting in
-  `sent_for_approval`. Loosely modeled on a reference screenshot of a
-  third-party content planner (Magnettu) the user shared as "solo una
-  guia" (just a style guide, not a literal spec) -- card-based, status
-  pill top-left, grouped by period -- not copied feature-for-feature
-  (no week-by-week grid, no AI drafting/image generation, none of
-  that tool's other panels).
+  blocked (both client-side in `CommunicationDetail.tsx`'s
+  `canSendForApproval`, and server-side in `PATCH
+  /api/admin/communications/[id]`) until `html_code` is non-empty --
+  the compliance-report gate from v1 is gone along with the field
+  itself.
+- **Two views on `/admin/communications`
+  (`CommunicationsCalendarList.tsx`)**, a toggle between them, Calendar
+  as the default: **Calendar** (`CalendarMonthView.tsx`) is a real
+  month grid (prev/next/today nav, a dot-colored chip per communication
+  on its `send_date`, up to 3 shown then "+N more"), replacing v1's
+  "card grid grouped by month" which the user didn't consider an
+  actual calendar; unscheduled communications (`send_date is null`)
+  show in a compact list below the grid since they have no day to sit
+  on. **List** is v1's status-filterable card grid, kept as a secondary
+  view. The v1 header's description paragraph ("Plan, design, and
+  approve investor communications before they go out...") was removed
+  entirely, per instruction.
+- **Creating one is a "+" button, not an inline form.** V1 had a
+  title/section-type/date form embedded in the page; replaced with a
+  round "+" icon button (top right) opening `QuickCreateModal.tsx` --
+  just a title and an optional send date. **Clicking an empty day cell
+  in the calendar opens the same modal with that day pre-filled** as
+  the send date. Either path creates the row then routes straight to
+  its detail page, where the HTML, section type, and everything else
+  gets filled in.
 - **Seeded starting content**: `supabase/seed.sql` carries over the 8
   investor-education topics that were already planned in the real
   "Axis IR Support" ClickUp list (shared as a screenshot: Topic 1-8,
@@ -786,10 +807,12 @@ is a fully native feature instead:
   to `full_communication` except Topic 4 ("Tax season Prep (Nov 2026)")
   which is `section_2` (a deadline/reminder). No send dates were set on
   the ClickUp side (beyond "Nov 2026" in Topic 4's own title), so every
-  seeded row leaves `send_date` null for someone to schedule. Matched
-  by title to stay idempotent on re-run (`communications` has no other
-  natural unique key) -- same "re-run safely in the Supabase SQL
-  editor" caveat as the rest of `seed.sql`.
+  seeded row leaves `send_date` null for someone to schedule -- these
+  show in the calendar view's "Unscheduled" list until given a date.
+  Matched by title to stay idempotent on re-run (`communications` has
+  no other natural unique key) -- same "re-run safely in the Supabase
+  SQL editor" caveat as the rest of `seed.sql`. Unaffected by the v2
+  column drops since the seed only ever set title/section_type/status.
 - Nav: "Communications" added to `getAdminNavItems`
   (`components/layout/nav.tsx`), reusing the existing `MegaphoneIcon`
   rather than adding a new one.

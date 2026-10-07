@@ -4,19 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAdminFetch } from "@/components/admin/AdminAuthContext";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
-  CHANNEL_LABELS,
   SECTION_TYPE_LABELS,
   STATUS_LABELS,
-  type CommunicationChannel,
   type CommunicationSectionType,
   type CommunicationStatus,
   type CommunicationStatusHistoryEntry,
   type CommunicationSummary,
 } from "@/lib/communications/types";
 
-type Detail = CommunicationSummary & { htmlFileUrl: string | null; history: CommunicationStatusHistoryEntry[] };
+type Detail = CommunicationSummary & { history: CommunicationStatusHistoryEntry[] };
 
 const SECTION_TYPES: CommunicationSectionType[] = [
   "section_1",
@@ -24,7 +21,6 @@ const SECTION_TYPES: CommunicationSectionType[] = [
   "faq_of_month",
   "full_communication",
 ];
-const CHANNELS: CommunicationChannel[] = ["tribexa", "mass_email", "tbd"];
 
 function fieldClass() {
   return "mt-1 w-full rounded-[8px] border border-axis-base/50 px-3 py-2 text-sm outline-none focus:border-axis-core";
@@ -37,18 +33,13 @@ export function CommunicationDetail({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Editable field state, hydrated once the row loads.
   const [title, setTitle] = useState("");
   const [sectionType, setSectionType] = useState<CommunicationSectionType>("section_1");
   const [sendDate, setSendDate] = useState("");
-  const [segment, setSegment] = useState("");
-  const [channel, setChannel] = useState<CommunicationChannel>("tbd");
-  const [htmlUrl, setHtmlUrl] = useState("");
-  const [complianceReport, setComplianceReport] = useState("");
   const [faqNotes, setFaqNotes] = useState("");
-  const [responsible, setResponsible] = useState("");
+  const [htmlCode, setHtmlCode] = useState("");
+  const [htmlTab, setHtmlTab] = useState<"code" | "visual">("code");
 
-  const [uploading, setUploading] = useState(false);
   const [approverChoice, setApproverChoice] = useState("Diego");
   const [showApprove, setShowApprove] = useState(false);
   const [showRequestChanges, setShowRequestChanges] = useState(false);
@@ -64,12 +55,8 @@ export function CommunicationDetail({ id }: { id: string }) {
       setTitle(body.title);
       setSectionType(body.sectionType);
       setSendDate(body.sendDate ?? "");
-      setSegment(body.segment ?? "");
-      setChannel(body.channel);
-      setHtmlUrl(body.htmlUrl ?? "");
-      setComplianceReport(body.complianceReport ?? "");
       setFaqNotes(body.faqNotes ?? "");
-      setResponsible(body.responsible ?? "");
+      setHtmlCode(body.htmlCode ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load this communication.");
     }
@@ -90,12 +77,8 @@ export function CommunicationDetail({ id }: { id: string }) {
           title,
           sectionType,
           sendDate: sendDate || null,
-          segment,
-          channel,
-          htmlUrl,
-          complianceReport,
           faqNotes,
-          responsible,
+          htmlCode,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -108,37 +91,13 @@ export function CommunicationDetail({ id }: { id: string }) {
     }
   }
 
-  async function handleFileUpload(file: File) {
-    setUploading(true);
-    setError("");
-    try {
-      const res = await adminFetch(`/api/admin/communications/${id}/html-upload`, {
-        method: "POST",
-        body: JSON.stringify({ fileName: file.name }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? "Could not prepare the upload.");
-
-      const { error: uploadError } = await getSupabaseBrowserClient()
-        .storage.from("communications-html")
-        .uploadToSignedUrl(body.upload.path, body.upload.token, file, { contentType: "text/html" });
-      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not upload the file.");
-    } finally {
-      setUploading(false);
-    }
-  }
-
   async function setStatus(status: CommunicationStatus, extra?: Record<string, unknown>) {
     setStatusBusy(true);
     setError("");
     try {
       const res = await adminFetch(`/api/admin/communications/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ status, ...extra }),
+        body: JSON.stringify({ status, htmlCode, ...extra }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Could not update the status.");
@@ -172,7 +131,7 @@ export function CommunicationDetail({ id }: { id: string }) {
     return <p className="rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>;
   }
 
-  const canSendForApproval = (!!htmlUrl.trim() || data.hasHtmlFile) && !!complianceReport.trim();
+  const canSendForApproval = !!htmlCode.trim();
 
   return (
     <div>
@@ -188,6 +147,61 @@ export function CommunicationDetail({ id }: { id: string }) {
       </div>
 
       {error && <p className="mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+      {/* HTML — the first thing on the page */}
+      <div className="mt-5 rounded-card border border-axis-base/30 bg-white p-5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-axis-core">Email HTML</p>
+          <div className="flex rounded-[8px] border border-axis-base/50 p-0.5">
+            <button
+              type="button"
+              onClick={() => setHtmlTab("code")}
+              className={`rounded-[6px] px-3 py-1 text-xs font-semibold transition-colors ${htmlTab === "code" ? "bg-axis-core text-white" : "text-axis-core/60 hover:bg-axis-light"}`}
+            >
+              HTML
+            </button>
+            <button
+              type="button"
+              onClick={() => setHtmlTab("visual")}
+              className={`rounded-[6px] px-3 py-1 text-xs font-semibold transition-colors ${htmlTab === "visual" ? "bg-axis-core text-white" : "text-axis-core/60 hover:bg-axis-light"}`}
+            >
+              Visual
+            </button>
+          </div>
+        </div>
+
+        {htmlTab === "code" ? (
+          <textarea
+            value={htmlCode}
+            onChange={(e) => setHtmlCode(e.target.value)}
+            spellCheck={false}
+            placeholder="Paste the email's HTML code here..."
+            className="mt-3 h-[420px] w-full rounded-[8px] border border-axis-base/50 bg-axis-light/30 p-3 font-mono text-xs leading-relaxed text-axis-core outline-none focus:border-axis-core"
+          />
+        ) : htmlCode.trim() ? (
+          <iframe
+            srcDoc={htmlCode}
+            sandbox=""
+            title="Email preview"
+            className="mt-3 h-[420px] w-full rounded-[8px] border border-axis-base/50 bg-white"
+          />
+        ) : (
+          <div className="mt-3 flex h-[420px] items-center justify-center rounded-[8px] border border-dashed border-axis-base/50 text-sm text-axis-core/40">
+            No HTML yet
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-[8px] bg-axis-core px-4 py-2 text-xs font-semibold text-white hover:bg-axis-core/90 disabled:opacity-40"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
 
       {/* Status actions */}
       <div className="mt-5 rounded-card border border-axis-base/30 bg-white p-5">
@@ -215,9 +229,7 @@ export function CommunicationDetail({ id }: { id: string }) {
               Send for approval
             </button>
             {!canSendForApproval && (
-              <p className="mt-2 text-xs text-axis-core/50">
-                Add the HTML design (link or file) and a compliance report before sending for approval.
-              </p>
+              <p className="mt-2 text-xs text-axis-core/50">Add the HTML above before sending for approval.</p>
             )}
           </div>
         )}
@@ -375,88 +387,12 @@ export function CommunicationDetail({ id }: { id: string }) {
             <span className="text-xs font-medium text-axis-core/70">Send date</span>
             <input type="date" value={sendDate} onChange={(e) => setSendDate(e.target.value)} className={fieldClass()} />
           </label>
-          <label className="block">
-            <span className="text-xs font-medium text-axis-core/70">Segment / recipients</span>
-            <input
-              type="text"
-              value={segment}
-              onChange={(e) => setSegment(e.target.value)}
-              placeholder="e.g. All funds, Exclude Phoenix, Active only"
-              className={fieldClass()}
-            />
-          </label>
-          <label className="block">
-            <span className="text-xs font-medium text-axis-core/70">Channel</span>
-            <select value={channel} onChange={(e) => setChannel(e.target.value as CommunicationChannel)} className={fieldClass()}>
-              {CHANNELS.map((c) => (
-                <option key={c} value={c}>
-                  {CHANNEL_LABELS[c]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block sm:col-span-2">
-            <span className="text-xs font-medium text-axis-core/70">HTML design link</span>
-            <input
-              type="url"
-              value={htmlUrl}
-              onChange={(e) => setHtmlUrl(e.target.value)}
-              placeholder="https://..."
-              className={fieldClass()}
-            />
-          </label>
-          <div className="sm:col-span-2">
-            <span className="text-xs font-medium text-axis-core/70">Or upload the .html file</span>
-            <div className="mt-1 flex items-center gap-3">
-              <input
-                type="file"
-                accept=".html,.htm,text/html"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file);
-                }}
-                disabled={uploading}
-                className="block text-sm text-axis-core/70 file:mr-3 file:rounded-[6px] file:border-0 file:bg-axis-light file:px-3 file:py-2 file:text-sm file:font-medium file:text-axis-core"
-              />
-              {uploading && <span className="text-xs text-axis-core/50">Uploading...</span>}
-            </div>
-            {data.htmlFileUrl && (
-              <a
-                href={data.htmlFileUrl}
-                target="_blank"
-                rel="noopener"
-                className="mt-1 inline-block text-xs font-medium text-axis-core underline"
-              >
-                View uploaded design ({data.htmlFileName})
-              </a>
-            )}
-          </div>
-          <label className="block sm:col-span-2">
-            <span className="text-xs font-medium text-axis-core/70">Compliance report</span>
-            <textarea
-              value={complianceReport}
-              onChange={(e) => setComplianceReport(e.target.value)}
-              rows={2}
-              className={fieldClass()}
-              placeholder="Paste the compliance bot's result here, or a link to it."
-            />
-          </label>
           {sectionType === "faq_of_month" && (
             <label className="block sm:col-span-2">
               <span className="text-xs font-medium text-axis-core/70">FAQ notes (question + answer)</span>
               <textarea value={faqNotes} onChange={(e) => setFaqNotes(e.target.value)} rows={3} className={fieldClass()} />
             </label>
           )}
-          <label className="block">
-            <span className="text-xs font-medium text-axis-core/70">Responsible</span>
-            <input
-              type="text"
-              value={responsible}
-              onChange={(e) => setResponsible(e.target.value)}
-              placeholder="e.g. Annelise"
-              className={fieldClass()}
-            />
-          </label>
         </div>
 
         <div className="mt-5 flex items-center gap-3">

@@ -1,13 +1,8 @@
-/** Private bucket created by supabase/migrations/010_communications_calendar.sql. */
-export const COMMUNICATIONS_HTML_BUCKET = "communications-html";
-
 export type CommunicationSectionType =
   | "section_1"
   | "section_2"
   | "faq_of_month"
   | "full_communication";
-
-export type CommunicationChannel = "tribexa" | "mass_email" | "tbd";
 
 export type CommunicationStatus =
   | "idea"
@@ -23,12 +18,6 @@ export const SECTION_TYPE_LABELS: Record<CommunicationSectionType, string> = {
   section_2: "Section 2 (Deadlines/reminders)",
   faq_of_month: "FAQ of the month",
   full_communication: "Full communication",
-};
-
-export const CHANNEL_LABELS: Record<CommunicationChannel, string> = {
-  tribexa: "Tribexa",
-  mass_email: "Mass email platform",
-  tbd: "To be defined",
 };
 
 export const STATUS_LABELS: Record<CommunicationStatus, string> = {
@@ -56,15 +45,9 @@ export interface CommunicationRow {
   title: string;
   section_type: CommunicationSectionType;
   send_date: string | null;
-  segment: string | null;
-  channel: CommunicationChannel;
-  html_url: string | null;
-  html_file_path: string | null;
-  html_file_name: string | null;
+  html_code: string | null;
   status: CommunicationStatus;
-  compliance_report: string | null;
   faq_notes: string | null;
-  responsible: string | null;
   approvers: string;
   approved_at: string | null;
   approved_by: string | null;
@@ -77,15 +60,9 @@ export interface CommunicationSummary {
   title: string;
   sectionType: CommunicationSectionType;
   sendDate: string | null;
-  segment: string | null;
-  channel: CommunicationChannel;
-  htmlUrl: string | null;
-  hasHtmlFile: boolean;
-  htmlFileName: string | null;
+  htmlCode: string | null;
   status: CommunicationStatus;
-  complianceReport: string | null;
   faqNotes: string | null;
-  responsible: string | null;
   approvers: string;
   approvedAt: string | null;
   approvedBy: string | null;
@@ -99,15 +76,9 @@ export function toCommunicationSummary(row: CommunicationRow): CommunicationSumm
     title: row.title,
     sectionType: row.section_type,
     sendDate: row.send_date,
-    segment: row.segment,
-    channel: row.channel,
-    htmlUrl: row.html_url,
-    hasHtmlFile: !!row.html_file_path,
-    htmlFileName: row.html_file_name,
+    htmlCode: row.html_code,
     status: row.status,
-    complianceReport: row.compliance_report,
     faqNotes: row.faq_notes,
-    responsible: row.responsible,
     approvers: row.approvers,
     approvedAt: row.approved_at,
     approvedBy: row.approved_by,

@@ -400,7 +400,76 @@ evidence checks like the skill itself already uses.
 - The admin UI (`components/admin/saReview/`) follows the same
   `useAdminFetch()` + `requireAdmin` pattern as every other admin
   page. Nav entry: `components/layout/nav.tsx`'s `getAdminNavItems`
-  now takes `"overview" | "forms" | "sa-review"`.
+  takes `AdminNavKey` (`"overview" | "forms" | "pdf-generator" |
+  "sa-review"`).
+
+### Format templates and the ongoing skill knowledge base (Oct 2026)
+
+Two more admin-managed inputs feed into `analyzeWithClaude.ts`'s system
+prompt on every review, both reachable from `/admin/sa-review` via
+`SaReviewSubNav`'s tabs (Reviews / Format Templates / Knowledge Base):
+
+- **Format Templates** (`/admin/sa-review/templates`,
+  `sa_format_templates` table + private `sa-format-templates` bucket):
+  an admin uploads a real SA the team has confirmed is correctly
+  formatted for mapping. At most one template is ever "active" at a
+  time (uploading a new one deactivates the previous one automatically,
+  matching activation can also be toggled explicitly from the list).
+  `lib/services/saReview/formatTemplates.ts`'s
+  `getActiveFormatTemplateReference()` runs the active template through
+  the same `extractDocxEvidence()` used for every review and summarizes
+  its real blank-underscore lengths and table cell widths (dxa) into the
+  prompt's "APPROVED FORMAT REFERENCE" section, so categories 1-2's
+  auto_fix judgments are calibrated against a real approved example
+  instead of a generic rule of thumb. When no template is active, a
+  built-in `DEFAULT_FORMAT_GUIDANCE` string in `analyzeWithClaude.ts`
+  is used instead (the "default template created by the AI" the user
+  asked for until they upload a real one) -- the system still works
+  with zero templates uploaded, it just reasons from generic defaults.
+  **This does not change what gets auto-fixed** -- still only
+  categories 1-2, still only widen-blank/left-align, never font/table
+  style changes; the template only informs Claude's judgment of
+  what counts as "too narrow" or "misaligned", per explicit user
+  decision (richer template-driven reformatting -- fonts, spacing,
+  table redesign -- was explicitly declined as a separate, larger,
+  riskier project).
+- **Knowledge Base** (`/admin/sa-review/knowledge`, `sa_skill_knowledge`
+  table): free-text title+body entries an admin can add/edit/
+  deactivate/delete at any time to keep feeding the reviewer new rules,
+  corrections, and edge cases as they're discovered, without a code
+  change. Every *active* entry is concatenated (most recently updated
+  first, capped at `MAX_TOTAL_CHARS = 6000` in
+  `lib/services/saReview/knowledgeBase.ts` to bound the added per-review
+  token cost) into the prompt's "ADDITIONAL TEAM GUIDANCE" section on
+  every future review -- per explicit user choice ("se envía
+  automáticamente en cada revisión"), not just stored for manual
+  reference. Deactivating (not deleting) is the way to stop using an
+  entry while keeping it around.
+- **Report page citations**: every `flag`/`auto_fix` finding (never
+  `ok`) now also asks Claude for a `locatorText` -- a short verbatim
+  quote quoted exactly from the evidence it was given. Since a `.docx`
+  has no fixed pagination (it reflows with font/margin/zoom) and this
+  app has no LibreOffice available to render real pages (see
+  `extractDocx.ts`'s own module doc comment), there is no way to compute
+  a verified page number -- `estimatePageForSnippet()` instead locates
+  that quoted snippet in the document's plain text and divides its
+  character offset by a flat `ESTIMATED_CHARS_PER_PAGE = 3000`
+  constant. This is a rough estimate, always labeled "~p. N" in both the
+  admin UI (`SaReviewDetail.tsx`) and the PDF report
+  (`reportPdf.ts`), never a precise or verified page number -- per the
+  user's explicit choice to show both the quoted citation (already
+  existing) and an approximate page (new), having been told plainly
+  that a real page number isn't available without a LibreOffice-based
+  render. Returns `undefined`/absent rather than a guess whenever the
+  quoted snippet can't be found verbatim in the evidence (e.g. Claude
+  paraphrased instead of quoting).
+- **The mechanical "Format document" button was reported broken live
+  (Oct 2026) and is still unresolved** -- the user asked to hold off on
+  guessing at a fix and instead first upload a real "perfect format"
+  example via the new Format Templates page above, so the actual
+  broken output can be compared against a known-good reference. Don't
+  assume this is fixed without confirming against a real uploaded
+  template and a fresh review.
 
 ## Investor feedback ("Rate Your Experience")
 

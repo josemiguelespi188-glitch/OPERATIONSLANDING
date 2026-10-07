@@ -42,7 +42,9 @@ const styles = StyleSheet.create({
   rowRight: { width: "72%" },
   categoryLabel: { fontFamily: "Helvetica-Bold", fontSize: 10, marginBottom: 2 },
   statusBadge: { fontSize: 9, fontFamily: "Helvetica-Bold" },
-  detail: { fontSize: 9.5, marginTop: 4, lineHeight: 1.4 },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
+  detail: { fontSize: 9.5, marginTop: 4, lineHeight: 1.4, flex: 1 },
+  pageEstimate: { fontSize: 8.5, marginTop: 4, color: "#888888" },
   action: { fontSize: 9.5, marginTop: 4, lineHeight: 1.4, color: "#374151" },
   actionLabel: { fontFamily: "Helvetica-Bold" },
   footer: { position: "absolute", bottom: 24, left: 36, right: 36, fontSize: 8, color: "#888888", textAlign: "center" },
@@ -67,7 +69,14 @@ function buildFindingRow(finding: SaReviewFinding) {
     h(
       View,
       { key: "right", style: styles.rowRight },
-      h(Text, { key: "detail", style: styles.detail }, finding.detail),
+      h(
+        View,
+        { key: "detailRow", style: styles.detailRow },
+        h(Text, { key: "detail", style: styles.detail }, finding.detail),
+        finding.pageEstimate
+          ? h(Text, { key: "page", style: styles.pageEstimate }, `~p. ${finding.pageEstimate}`)
+          : null
+      ),
       finding.recommendedAction
         ? h(
             Text,

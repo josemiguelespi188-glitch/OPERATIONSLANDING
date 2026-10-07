@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAdminFetch } from "@/components/admin/AdminAuthContext";
 import { fileToBase64 } from "@/lib/utils/downloadBlob";
+import { SaReviewSubNav } from "./SaReviewSubNav";
 
 interface SaReviewSummary {
   id: string;
@@ -62,6 +63,7 @@ export function SaReviewList() {
 
   return (
     <div>
+      <SaReviewSubNav active="reviews" />
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">Internal</p>
         <h1 className="mt-1 font-head text-2xl font-medium tracking-tight text-axis-core">SA Review</h1>

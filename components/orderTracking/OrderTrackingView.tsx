@@ -83,6 +83,7 @@ export function OrderTrackingView({ token }: { token: string }) {
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [accreditationRequirementsOpen, setAccreditationRequirementsOpen] = useState(false);
+  const [combinedRequirementsOpen, setCombinedRequirementsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -162,6 +163,7 @@ export function OrderTrackingView({ token }: { token: string }) {
   const muted = PANEL_MUTED[view.scenario];
   const border = PANEL_BORDER[view.scenario];
   const link = PANEL_LINK[view.scenario];
+  const needsBothDocumentTypes = view.needsKycDocuments && view.needsAccreditationDocuments;
 
   return (
     <div className="flex min-h-screen flex-col bg-axis-cream">
@@ -183,7 +185,7 @@ export function OrderTrackingView({ token }: { token: string }) {
               </h1>
               {view.dealName && (
                 <p className="mt-1 border-l-[3px] border-axis-signal pl-2.5 font-head text-lg font-bold leading-tight text-axis-core sm:text-xl">
-                  on {view.dealName}.
+                  on {view.dealName}
                 </p>
               )}
             </div>
@@ -230,7 +232,17 @@ export function OrderTrackingView({ token }: { token: string }) {
                     Go to AxisKey portal
                   </a>
                 )}
-                {view.needsKycDocuments && (
+                {needsBothDocumentTypes ? (
+                  // When both KYC and accreditation documents are
+                  // outstanding at once, two near-identical button pairs
+                  // ("How to upload KYC documents" + "How to upload
+                  // accreditation documents", etc.) is cluttered and
+                  // redundant -- the upload guide is the same generic
+                  // Scribe article either way, so collapse to one pair
+                  // that opens a combined requirements popup instead.
+                  // Only this combined case changes; KYC-only and
+                  // accreditation-only still show their own dedicated
+                  // button pair and modal below.
                   <>
                     <a
                       href={DOCUMENT_UPLOAD_GUIDE_URL}
@@ -238,36 +250,58 @@ export function OrderTrackingView({ token }: { token: string }) {
                       rel="noopener"
                       className={PANEL_SECONDARY_BUTTON}
                     >
-                      How to upload KYC documents
-                    </a>
-                    {view.accountType && ACCOUNT_REQUIREMENTS[view.accountType] && (
-                      <button
-                        type="button"
-                        onClick={() => setRequirementsOpen(true)}
-                        className={PANEL_SECONDARY_BUTTON}
-                      >
-                        View accepted KYC documents
-                      </button>
-                    )}
-                  </>
-                )}
-                {view.needsAccreditationDocuments && (
-                  <>
-                    <a
-                      href={ACCREDITATION_UPLOAD_GUIDE_URL}
-                      target="_blank"
-                      rel="noopener"
-                      className={PANEL_SECONDARY_BUTTON}
-                    >
-                      How to upload accreditation documents
+                      How to upload documents
                     </a>
                     <button
                       type="button"
-                      onClick={() => setAccreditationRequirementsOpen(true)}
+                      onClick={() => setCombinedRequirementsOpen(true)}
                       className={PANEL_SECONDARY_BUTTON}
                     >
-                      View accepted accreditation documents
+                      View accepted documents
                     </button>
+                  </>
+                ) : (
+                  <>
+                    {view.needsKycDocuments && (
+                      <>
+                        <a
+                          href={DOCUMENT_UPLOAD_GUIDE_URL}
+                          target="_blank"
+                          rel="noopener"
+                          className={PANEL_SECONDARY_BUTTON}
+                        >
+                          How to upload KYC documents
+                        </a>
+                        {view.accountType && ACCOUNT_REQUIREMENTS[view.accountType] && (
+                          <button
+                            type="button"
+                            onClick={() => setRequirementsOpen(true)}
+                            className={PANEL_SECONDARY_BUTTON}
+                          >
+                            View accepted KYC documents
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {view.needsAccreditationDocuments && (
+                      <>
+                        <a
+                          href={ACCREDITATION_UPLOAD_GUIDE_URL}
+                          target="_blank"
+                          rel="noopener"
+                          className={PANEL_SECONDARY_BUTTON}
+                        >
+                          How to upload accreditation documents
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setAccreditationRequirementsOpen(true)}
+                          className={PANEL_SECONDARY_BUTTON}
+                        >
+                          View accepted accreditation documents
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
                 {view.scenario === "completed" && (
@@ -376,6 +410,14 @@ export function OrderTrackingView({ token }: { token: string }) {
 
       {accreditationRequirementsOpen && (
         <AccreditationRequirementsModal onClose={() => setAccreditationRequirementsOpen(false)} />
+      )}
+
+      {combinedRequirementsOpen && view.accountType && ACCOUNT_REQUIREMENTS[view.accountType] && (
+        <CombinedRequirementsModal
+          accountType={view.accountType}
+          docsNeeded={view.docsNeeded}
+          onClose={() => setCombinedRequirementsOpen(false)}
+        />
       )}
     </div>
   );
@@ -723,6 +765,246 @@ function AccreditationRequirementsModal({ onClose }: { onClose: () => void }) {
             className="inline-flex items-center justify-center rounded-full border border-axis-base/60 px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-light"
           >
             How to upload accreditation documents
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * KYC + accreditation requirements stacked in one dialog, opened from
+ * the single "View accepted documents" button that replaces two
+ * separate button pairs when an order has both outstanding at once
+ * (see needsBothDocumentTypes in OrderTrackingView). Same content as
+ * RequirementsModal and AccreditationRequirementsModal, just combined
+ * under one header and one footer instead of two near-identical popups.
+ */
+function CombinedRequirementsModal({
+  accountType,
+  docsNeeded,
+  onClose,
+}: {
+  accountType: string;
+  docsNeeded: string | null;
+  onClose: () => void;
+}) {
+  const requirement = ACCOUNT_REQUIREMENTS[accountType];
+  if (!requirement) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-axis-core/50 p-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-card bg-white p-6 shadow-modal">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <h2 className="font-head text-lg font-bold leading-tight text-axis-core">Accepted documents</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 text-axis-core/40 transition-colors hover:text-axis-core"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <h3 className="mb-1.5 text-sm font-bold text-axis-core">Identity verification (KYC)</h3>
+        <p className="mb-2 text-xs text-axis-core/60">
+          To verify your account, provide the documents below. Select an item to see what is accepted.
+        </p>
+        <span className="mb-4 inline-block rounded-full bg-axis-light px-2.5 py-1 text-[11px] font-semibold text-axis-core/70">
+          {requirement.count}
+        </span>
+
+        <div className="flex flex-col gap-2.5">
+          {requirement.documents.map((doc, index) => (
+            <details key={doc.title} className="group rounded-[6px] border border-axis-base/40">
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-axis-light text-xs font-bold text-axis-core">
+                  {index + 1}
+                </span>
+                <span className="flex-1 text-sm font-semibold text-axis-core">{doc.title}</span>
+                <span className="rounded-full bg-axis-light px-2 py-0.5 text-[10px] font-bold uppercase text-axis-core/60">
+                  Required
+                </span>
+                <svg
+                  className="h-2.5 w-2.5 shrink-0 text-axis-core/40 transition-transform group-open:rotate-180"
+                  viewBox="0 0 12 8"
+                  fill="none"
+                >
+                  <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="border-t border-axis-base/30 px-4 py-3 text-xs text-axis-core/70">
+                <p className="mb-2 leading-relaxed">{doc.description}</p>
+                {(doc.accepted || doc.notAccepted) && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {doc.accepted && (
+                      <div>
+                        <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-axis-core/50">
+                          Accepted
+                        </h4>
+                        <ul className="space-y-1">
+                          {doc.accepted.map((item) => (
+                            <li key={item} className="flex gap-1.5">
+                              <span className="text-axis-core">&#10003;</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {doc.notAccepted && (
+                      <div>
+                        <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-axis-core/50">
+                          Not accepted
+                        </h4>
+                        <ul className="space-y-1">
+                          {doc.notAccepted.map((item) => (
+                            <li key={item} className="flex gap-1.5 text-red-700/75">
+                              <span>&times;</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {doc.options && (
+                  <div className="mt-2.5">
+                    <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-axis-core/50">
+                      You can provide one of these
+                    </h4>
+                    <ul className="space-y-1">
+                      {doc.options.map((item) => (
+                        <li key={item} className="flex gap-1.5">
+                          <span className="text-axis-core">&#10003;</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {doc.includes && (
+                  <div className="mt-2.5">
+                    <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-axis-core/50">
+                      Your document must show
+                    </h4>
+                    <ul className="space-y-1">
+                      {doc.includes.map((item) => (
+                        <li key={item} className="flex gap-1.5">
+                          <span className="text-axis-core">&#10003;</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </details>
+          ))}
+        </div>
+
+        {requirement.notice && (
+          <div className="mt-4 rounded-[6px] bg-axis-light px-3.5 py-3 text-xs leading-relaxed text-axis-core/70">
+            {requirement.notice}
+          </div>
+        )}
+
+        {docsNeeded && (
+          <div className="mt-4 rounded-[6px] border border-axis-base/40 px-3.5 py-3 text-xs leading-relaxed text-axis-core/70">
+            <span className="font-bold text-axis-core">Note from AxisKey: </span>
+            {docsNeeded}
+          </div>
+        )}
+
+        <div className="my-5 border-t border-axis-base/30" />
+
+        <h3 className="mb-2 text-sm font-bold text-axis-core">Accreditation</h3>
+        <p className="mb-4 text-xs text-axis-core/60">
+          Choose one of these three accepted ways to verify your accreditation.
+        </p>
+        <div className="flex flex-col gap-2.5">
+          {ACCREDITATION_VERIFICATION_METHODS.map((method, index) => (
+            <details key={method.title} className="group rounded-[6px] border border-axis-base/40">
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-axis-light text-xs font-bold text-axis-core">
+                  {index + 1}
+                </span>
+                <span className="flex-1 text-sm font-semibold text-axis-core">{method.title}</span>
+                <span className="rounded-full bg-axis-signal/30 px-2 py-0.5 text-[10px] font-bold uppercase text-axis-core">
+                  Accepted
+                </span>
+                <svg
+                  className="h-2.5 w-2.5 shrink-0 text-axis-core/40 transition-transform group-open:rotate-180"
+                  viewBox="0 0 12 8"
+                  fill="none"
+                >
+                  <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="border-t border-axis-base/30 px-4 py-3 text-xs text-axis-core/70">
+                <p className="mb-2 leading-relaxed">{method.description}</p>
+                <ul className="space-y-1">
+                  {method.accepted.map((item) => (
+                    <li key={item} className="flex gap-1.5">
+                      <span className="text-axis-core">&#10003;</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                {method.templateUrl && (
+                  <a
+                    href={method.templateUrl}
+                    target="_blank"
+                    rel="noopener"
+                    className="mt-3 inline-flex items-center justify-center rounded-full border border-axis-base/60 px-3.5 py-2 text-xs font-bold text-axis-core transition-colors hover:bg-axis-light"
+                  >
+                    {method.templateLabel}
+                  </a>
+                )}
+              </div>
+            </details>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-[6px] bg-axis-light px-3.5 py-3">
+          <p className="mb-2 text-sm font-bold text-axis-core">Not accepted</p>
+          <ul className="space-y-1.5 text-xs text-red-700/75">
+            {ACCREDITATION_NOT_ACCEPTED.map((item) => (
+              <li key={item} className="flex gap-1.5">
+                <span>&times;</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-4 rounded-[6px] border border-axis-base/40 bg-axis-base/30 px-3.5 py-3 text-xs leading-relaxed text-axis-core/80">
+          {ACCREDITATION_NOTICE}
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2.5">
+          <a
+            href={PORTAL_URL}
+            className="inline-flex items-center justify-center rounded-full bg-axis-signal px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-signal/85"
+          >
+            Open AxisKey portal
+          </a>
+          <a
+            href={DOCUMENT_UPLOAD_GUIDE_URL}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center justify-center rounded-full border border-axis-base/60 px-4 py-2.5 text-sm font-bold text-axis-core transition-colors hover:bg-axis-light"
+          >
+            How to upload documents
           </a>
         </div>
       </div>

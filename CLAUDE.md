@@ -499,10 +499,29 @@ above:
   that part specifically to stay as it was. Don't recolor the header
   again without asking.
 - **Header copy**: the offering name moved out of a separate chip and
-  into the title itself ("Track your investment on {offering name}.");
+  into the title itself ("Track your investment on {offering name}");
   the chip row now leads with an "Order ID" chip (`view.orderName`,
   which is the same ClickUp order number used as the page's token)
-  instead of the offering name.
+  instead of the offering name. No trailing period after the offering
+  name: a real offering name can already end in one (e.g. "Tech
+  Holdings Inc."), which read as a double period. The `<h1>`'s own
+  separate fallback period (only rendered when there's no deal name at
+  all, `{!view.dealName && "."}`) is unrelated and unaffected.
+- **Combined KYC + accreditation requirements, only when both are
+  outstanding at once**: when `needsKycDocuments` and
+  `needsAccreditationDocuments` are both true
+  (`needsBothDocumentTypes` in `OrderTrackingView.tsx`), the status
+  panel shows one button pair instead of two near-identical ones --
+  "How to upload documents" (the generic Scribe guide,
+  `DOCUMENT_UPLOAD_GUIDE_URL` from `accountRequirements.ts`, not the
+  KYC- or accreditation-specific one) and "View accepted documents"
+  (opens `CombinedRequirementsModal`, which stacks the same KYC section
+  as `RequirementsModal` and the same Accreditation section as
+  `AccreditationRequirementsModal` under one header/footer, with the
+  accreditation `<details>` not defaulting open this time to avoid an
+  all-expanded wall of content). This only changes the both-pending
+  case -- KYC-only and accreditation-only orders still show their own
+  separate dedicated button pair and modal exactly as before.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

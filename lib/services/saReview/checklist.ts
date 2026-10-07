@@ -58,4 +58,8 @@ export interface SaReviewFinding {
   status: SaReviewFindingStatus;
   detail: string;
   recommendedAction?: string;
+  // Approximate page number (see extractDocx.ts's estimatePageForSnippet --
+  // a .docx has no fixed pagination, so this is a rough estimate, never a
+  // verified page). Absent when the snippet couldn't be located.
+  pageEstimate?: number;
 }

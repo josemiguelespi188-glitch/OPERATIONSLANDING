@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { DocxEvidence } from "./extractDocx";
+import { estimatePageForSnippet, type DocxEvidence } from "./extractDocx";
 import { SA_REVIEW_CATEGORIES, type SaReviewFinding } from "./checklist";
 
 const MODEL = "claude-sonnet-5-5";
@@ -16,33 +16,44 @@ Entity Countersign Fields: Day, Month Name, Date, Name, Title, Initial, Signatur
 A field doesn't need an exact predefined type -- Input Field, Label Field, Checkbox, and Checkbox Group are valid wildcards when the specific field type doesn't exist.
 `.trim();
 
-const SYSTEM_PROMPT = `
+const DEFAULT_FORMAT_GUIDANCE = `
+No approved reference template is active. Fall back to these defaults when judging categories 1-2: a blank for a full name or IRA custodial account name should comfortably fit 60+ characters on one line (e.g. "Directed Trust for Benefit of Jose Miguel Espinosa IRA"); a blank for an email, phone, or short amount typically needs 25-35 characters; table cells holding the same kind of field (e.g. every "Name" column) should have consistent widths across the document.
+`.trim();
+
+function buildSystemPrompt(formatTemplateReference: string | null, knowledgeBaseText: string | null): string {
+  return `
 You are reviewing a Subscription Agreement (SA) for AxisKey against its mapping-readiness checklist, before the deal/mapping team creates the DocuSign-style mapping. The central question for every category: can this information be mapped accurately, clearly, and consistently with the available tools, without needing manual corrections after mapping?
 
 ${MAPPING_FIELDS_REFERENCE}
 
 You will be given extracted evidence from the document (plain text, table cell widths in dxa twentieths-of-a-point units, runs of underscores used as blank fill-in lines, highlighted/shaded text, literal dates found, security/unit class mentions, and investment fields that may already have a value instead of being blank). You do NOT have a visual render of the document -- reason from this structural evidence, and say so plainly in your "detail" text whenever the evidence is genuinely inconclusive for a category rather than guessing.
 
+APPROVED FORMAT REFERENCE (for categories 1-2):
+${formatTemplateReference ?? DEFAULT_FORMAT_GUIDANCE}
+
 Score exactly these 7 categories. For each: status is "ok" (no issue found), "auto_fix" (a mechanical formatting problem that can be safely fixed without touching legal content), or "flag" (a content or legal decision that needs a human to resolve).
 
 Rules that must not be broken:
 - Never invent or guess the correct legal content of a blank, TBD, date, or pre-filled value. If something needs a human decision, it is "flag", never "auto_fix".
 - Only categories 1 and 2 (space, alignment) can ever be "auto_fix" -- categories 3-7 are content/legal decisions and must always be "ok" or "flag", never "auto_fix", even if the fix seems obvious.
+- Never suggest or imply deleting or rewording any existing legal content, anywhere, for any category -- the only two mechanical operations that ever touch the file are widening a blank and left-aligning a field; every other category is report-only.
 - "recommendedAction" is required whenever status is "flag" or "auto_fix", and should name exactly what to do and, where relevant, who should be asked (e.g. "Ask the project/client for a final version without TBDs" or "Widen the Investor Account Name field -- current line is too short for a typical IRA custodial name").
 - Whenever category 1 or 2 is "auto_fix", also add one entry per specific instance to "mechanicalFixes" so the fix can be applied programmatically. "targetText" MUST be copied verbatim (exact substring, not paraphrased) from the evidence you were given (from a "context" field in blanks or tableCells) so it can be located again in the document text.
 - "detail" should cite concrete evidence (quote the relevant snippet) rather than a generic description.
+- Whenever status is "flag" or "auto_fix" (never for "ok"), also set "locatorText" to a short (8-20 word) verbatim substring copied exactly from the evidence you were given (plainTextExcerpt, or a context field) that pinpoints where in the document this issue is -- it's used to show the admin an approximate page location, so it must be an exact quote that actually appears in the evidence, not a paraphrase or summary.
 
 Categories to score, in order:
-1. Insufficient space for variable information (names, addresses, emails, amounts) -- judge from blank underscore-run lengths and table cell widths (dxa) against a reasonable maximum length for that kind of data (e.g. a full IRA custodial account name can be 60+ characters).
-2. Inconsistent field positioning or alignment -- with no visual render available, only flag this when the structural evidence itself shows something concrete (e.g. wildly inconsistent cell widths for fields of the same kind); otherwise mark "ok" and say in "detail" that alignment could not be fully assessed without a visual render.
+1. Insufficient space for variable information (names, addresses, emails, amounts) -- judge from blank underscore-run lengths and table cell widths (dxa) against the approved format reference above.
+2. Inconsistent field positioning or alignment -- with no visual render available, only flag this when the structural evidence itself shows something concrete (e.g. wildly inconsistent cell widths for fields of the same kind, or widths that don't match the approved format reference above); otherwise mark "ok" and say in "detail" that alignment could not be fully assessed without a visual render.
 3. Highlighted text, TBDs, and unresolved placeholders -- from the highlightedOrShaded and tbdMatches evidence.
 4. Default or restrictive dates -- from literalDates evidence; only flag a date that plausibly represents an investor execution/sign date fixed to a specific year, not every 4-digit number (e.g. an offering's formation year or a fund name containing a year is not an issue).
 5. Multiple security/unit classes or deal rooms -- from classMentions evidence; only an issue if multiple distinct classes appear with no clear mapping mechanism (checkbox/dropdown) to distinguish them.
 6. Pre-populated investor commitments -- from possiblyPrefilledFields evidence (Shares Subscribed, Total Purchase Price, Price Per Share, Security Class already showing a value instead of blank).
 7. Operating Agreement and entity countersignature compatibility -- from any Operating Agreement / countersignature / entity signature mentions in the text; flag if the structure looks like it needs more signers/fields than the available Entity Countersign Fields (Day, Month Name, Date, Name, Title, Initial, Signature) can support.
-
+${knowledgeBaseText ? `\nADDITIONAL TEAM GUIDANCE (keep applying the rules above; this adds more specific rules/corrections the team has identified since):\n${knowledgeBaseText}\n` : ""}
 Respond by calling the submit_review tool exactly once, with "categories" containing exactly 7 entries, one per category above (category values 1 through 7, each appearing exactly once).
 `.trim();
+}
 
 function buildUserMessage(evidence: DocxEvidence): string {
   return JSON.stringify(
@@ -88,8 +99,12 @@ const SUBMIT_REVIEW_TOOL: Anthropic.Tool = {
               type: ["string", "null"],
               description: "Required whenever status is \"flag\" or \"auto_fix\"; null when status is \"ok\".",
             },
+            locatorText: {
+              type: ["string", "null"],
+              description: "Verbatim 8-20 word quote copied exactly from the evidence, pinpointing this issue's location. Required whenever status is \"flag\" or \"auto_fix\"; null when status is \"ok\".",
+            },
           },
-          required: ["category", "status", "detail", "recommendedAction"],
+          required: ["category", "status", "detail", "recommendedAction", "locatorText"],
           additionalProperties: false,
         },
         // Strict mode only allows minItems/maxItems of 0 or 1 (a 400
@@ -123,7 +138,10 @@ export interface MechanicalFix {
   note?: string;
 }
 
-export async function analyzeWithClaude(evidence: DocxEvidence): Promise<{
+export async function analyzeWithClaude(
+  evidence: DocxEvidence,
+  options?: { formatTemplateReference?: string | null; knowledgeBaseText?: string | null }
+): Promise<{
   mappingReady: boolean;
   findings: SaReviewFinding[];
   mechanicalFixes: MechanicalFix[];
@@ -138,7 +156,7 @@ export async function analyzeWithClaude(evidence: DocxEvidence): Promise<{
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 4096,
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(options?.formatTemplateReference ?? null, options?.knowledgeBaseText ?? null),
     tools: [SUBMIT_REVIEW_TOOL],
     // Claude Sonnet 5.5 rejects a forced tool_choice (400) -- "auto" plus
     // the system prompt's explicit "call submit_review exactly once"
@@ -154,7 +172,13 @@ export async function analyzeWithClaude(evidence: DocxEvidence): Promise<{
   }
 
   const input = toolUse.input as {
-    categories: { category: number; status: SaReviewFinding["status"]; detail: string; recommendedAction: string | null }[];
+    categories: {
+      category: number;
+      status: SaReviewFinding["status"];
+      detail: string;
+      recommendedAction: string | null;
+      locatorText: string | null;
+    }[];
     mechanicalFixes: (Omit<MechanicalFix, "note"> & { note: string | null })[];
   };
 
@@ -174,6 +198,7 @@ export async function analyzeWithClaude(evidence: DocxEvidence): Promise<{
       status: c.status,
       detail: c.detail,
       recommendedAction: c.recommendedAction ?? undefined,
+      pageEstimate: estimatePageForSnippet(evidence.plainText, c.locatorText) ?? undefined,
     };
   });
 

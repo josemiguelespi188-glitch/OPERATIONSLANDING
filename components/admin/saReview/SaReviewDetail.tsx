@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAdminFetch } from "@/components/admin/AdminAuthContext";
 import { downloadBlobResponse } from "@/lib/utils/downloadBlob";
 import type { SaReviewFinding, SaReviewFindingStatus } from "@/lib/services/saReview/checklist";
+import { SaReviewSubNav } from "./SaReviewSubNav";
 
 interface SaReviewDetailData {
   id: string;
@@ -90,6 +91,7 @@ export function SaReviewDetail({ id }: { id: string }) {
 
   return (
     <div>
+      <SaReviewSubNav active="reviews" />
       <Link href="/admin/sa-review" className="text-xs font-semibold text-axis-core/50 hover:text-axis-core">
         ← Back to SA Review
       </Link>
@@ -189,7 +191,14 @@ export function SaReviewDetail({ id }: { id: string }) {
                       <FindingBadge status={finding.status} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-axis-core/80">{finding.detail}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm text-axis-core/80">{finding.detail}</p>
+                        {finding.pageEstimate && (
+                          <span className="shrink-0 whitespace-nowrap rounded-full bg-axis-light px-2 py-0.5 text-[11px] font-semibold text-axis-core/60">
+                            ~p. {finding.pageEstimate}
+                          </span>
+                        )}
+                      </div>
                       {finding.recommendedAction && (
                         <p className="mt-1.5 text-sm text-axis-core/60">
                           <span className="font-semibold text-axis-core/80">Recommended action: </span>

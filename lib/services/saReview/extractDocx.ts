@@ -169,3 +169,31 @@ export async function extractDocxEvidence(buffer: Buffer): Promise<DocxEvidence>
     possiblyPrefilledFields,
   };
 }
+
+/**
+ * A .docx has no fixed pagination (it reflows with font/margin/zoom), and
+ * this app has no LibreOffice available to render real pages (see the
+ * module doc comment above) -- so "page" here is a rough estimate from a
+ * typical legal document's characters-per-page, not a verified page
+ * number. Always label it as approximate wherever it's shown.
+ */
+const ESTIMATED_CHARS_PER_PAGE = 3000;
+
+export function estimatePageFromOffset(charIndex: number): number {
+  return Math.max(1, Math.floor(charIndex / ESTIMATED_CHARS_PER_PAGE) + 1);
+}
+
+/**
+ * Locates a verbatim quoted snippet (as Claude is asked to provide for
+ * citation) inside the document's plain text and converts its position to
+ * an estimated page number. Returns null if the snippet can't be found
+ * (e.g. Claude paraphrased instead of quoting) rather than guessing.
+ */
+export function estimatePageForSnippet(plainText: string, snippet: string | null | undefined): number | null {
+  if (!snippet) return null;
+  const trimmed = snippet.trim();
+  if (!trimmed) return null;
+  const index = plainText.indexOf(trimmed);
+  if (index === -1) return null;
+  return estimatePageFromOffset(index);
+}

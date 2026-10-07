@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/supabase/adminAuth";
 import { extractDocxEvidence } from "@/lib/services/saReview/extractDocx";
 import { analyzeWithClaude } from "@/lib/services/saReview/analyzeWithClaude";
 import { uploadSaReviewFile } from "@/lib/services/saReview/storage";
+import { getActiveFormatTemplateReference } from "@/lib/services/saReview/formatTemplates";
+import { getActiveSkillKnowledgeText } from "@/lib/services/saReview/knowledgeBase";
 
 export const dynamic = "force-dynamic";
 // Docx extraction + a Claude call can take a while on a large document.
@@ -75,7 +77,14 @@ export async function POST(request: Request) {
     await supabase.from("sa_reviews").update({ original_file_path: originalPath }).eq("id", review.id);
 
     const evidence = await extractDocxEvidence(buffer);
-    const { mappingReady, findings, mechanicalFixes } = await analyzeWithClaude(evidence);
+    const [formatTemplateReference, knowledgeBaseText] = await Promise.all([
+      getActiveFormatTemplateReference(supabase),
+      getActiveSkillKnowledgeText(supabase),
+    ]);
+    const { mappingReady, findings, mechanicalFixes } = await analyzeWithClaude(evidence, {
+      formatTemplateReference,
+      knowledgeBaseText,
+    });
 
     await supabase
       .from("sa_reviews")

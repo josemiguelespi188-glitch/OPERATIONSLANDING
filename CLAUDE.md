@@ -309,6 +309,168 @@ below) is the one deliberate exception, and it doesn't use `PageShell`
 either — it has no chrome at all, not even the plain header the request
 forms use.
 
+## SA Review (Subscription Agreement mapping-readiness tool)
+
+`/admin/sa-review` lets an admin upload a Subscription Agreement (.docx)
+and runs it through the same 7-category mapping-readiness checklist the
+`anthropic-skills:sa-mapping-review` Claude Code skill uses (see that
+skill's `SKILL.md` and the team's own
+`Subscription_Agreement_Review_Guide_AxisKey_Branded.docx`) -- not PPMs,
+despite how the feature was first described; PPM and SA are different
+legal documents and this tool is specifically about SAs.
+
+**This is a from-scratch Vercel-only reimplementation of the skill's
+logic, not a web wrapper around the skill itself.** The real skill's
+process (unzip -> render to PDF/images via LibreOffice -> read the
+render with Claude vision -> apply XML fixes -> rezip) needs a shell and
+LibreOffice, neither of which exists in a Vercel serverless function. The
+two categories the skill detects visually (insufficient blank space,
+inconsistent alignment) are approximated here from docx XML geometry
+(cell widths in `w:tcW`, underscore-run lengths) instead of an actual
+render -- this is a known, deliberate accuracy tradeoff for the other 5
+categories (TBDs/highlights, dates, multiple classes, pre-filled
+commitments, countersignature compatibility), which stay text/XML-based
+evidence checks like the skill itself already uses.
+
+- `lib/services/saReview/extractDocx.ts` pulls deterministic evidence
+  out of the docx XML (blanks, table cell widths, highlighted/shaded
+  runs, TBD/placeholder matches, literal dates, class mentions,
+  possibly-prefilled fields) -- pure code, no Claude call.
+- `lib/services/saReview/analyzeWithClaude.ts` sends that evidence to
+  the Claude Messages API (`ANTHROPIC_API_KEY`, required -- see
+  `.env.example`) with a forced `submit_review` tool call so the 7
+  categories always come back as structured JSON, never free text to
+  parse. Model is pinned in `MODEL` in that file.
+- **Only categories 1 (space) and 2 (alignment) can ever be
+  `"auto_fix"`.** This is a hard product constraint, not just a
+  default: dates, TBDs, multiple classes, pre-filled commitments, and
+  countersignature issues are legal-content judgment calls and must
+  always come back as `"flag"` for a human to resolve, matching the
+  skill's own "never guess legal content" philosophy. The system
+  prompt in `analyzeWithClaude.ts` enforces this; don't loosen it
+  without an explicit product decision to do so.
+- `lib/services/saReview/applyMechanicalFixes.ts` re-locates each
+  category 1/2 fix's verbatim `targetText` (which Claude copies
+  directly from the evidence it was given, specifically so it can be
+  found again) in the original docx XML and widens the blank / cell or
+  left-aligns the paragraph. A fix it can't re-locate is left unapplied
+  and reported back rather than guessed at.
+- `supabase/migrations/007_sa_reviews.sql` adds the `sa_reviews` table
+  (RLS enabled, no policies -- service-role only, same strictness as
+  `order_tracking_links`) and a private `sa-reviews` storage bucket.
+  **This migration has not been confirmed run against the live
+  Supabase project** -- run it in the SQL editor before using the
+  feature.
+- Uploads/downloads go through `requireAdmin`-gated API routes
+  (`app/api/admin/sa-review/**`), not direct browser-to-Storage
+  upload like the public `attachments` bucket uses, since this bucket
+  may hold investor PII and must stay admin-only. The upload endpoint
+  takes base64 JSON (`{fileName, fileBase64}`), not multipart
+  `FormData`, because `useAdminFetch()`'s `adminFetch()` always sets
+  `Content-Type: application/json` whenever a body is present, which
+  would otherwise corrupt a multipart upload. Downloads
+  (`GET .../download`) stream the file through the same gate rather
+  than a signed URL or `<a href>`, since plain browser navigation
+  doesn't carry the Authorization bearer header `adminFetch()` attaches
+  -- the admin UI fetches these as a blob and triggers a synthetic
+  download (`lib/utils/downloadBlob.ts`).
+- **The branded PDF report
+  (`GET /api/admin/sa-review/[id]/report`) deliberately lives in
+  `pages/api/admin/sa-review/[id]/report.ts` (Pages Router), not
+  alongside the other sa-review routes in `app/api/admin/sa-review/`
+  (App Router).** `@react-pdf/renderer`'s own React copy doesn't
+  recognize elements created inside the `app/` directory's module
+  graph -- Next bundles that graph against a "react-server" conditioned
+  React build for RSC, and `@react-pdf/renderer` throws a minified
+  invariant #31 ("Objects are not valid as a React child") even though
+  the markup is correct. Confirmed by reproducing the identical render
+  standalone in plain Node (works) vs. through an App Router route
+  handler (fails) with the same code, in both `next dev` and a real
+  production build (`next build && next start`) -- not a dev-only
+  quirk. Pages API routes aren't part of that module graph, which is
+  why this one endpoint is the sole thing under `pages/` in an
+  otherwise fully App Router codebase. `lib/services/saReview/reportPdf.ts`
+  itself is also deliberately plain `React.createElement` calls in a
+  `.ts` file, not JSX in a `.tsx` file, since `next.config.mjs`'s
+  `serverExternalPackages: ["@react-pdf/renderer"]` keeps the package
+  itself out of webpack's bundle either way. Don't move this route
+  back into `app/api` or reintroduce JSX there without re-confirming
+  the underlying Next/React-PDF incompatibility is actually fixed
+  upstream first.
+- The admin UI (`components/admin/saReview/`) follows the same
+  `useAdminFetch()` + `requireAdmin` pattern as every other admin
+  page. Nav entry: `components/layout/nav.tsx`'s `getAdminNavItems`
+  takes `AdminNavKey` (`"overview" | "forms" | "pdf-generator" |
+  "sa-review"`).
+
+### Format templates and the ongoing skill knowledge base (Oct 2026)
+
+Two more admin-managed inputs feed into `analyzeWithClaude.ts`'s system
+prompt on every review, both reachable from `/admin/sa-review` via
+`SaReviewSubNav`'s tabs (Reviews / Format Templates / Knowledge Base):
+
+- **Format Templates** (`/admin/sa-review/templates`,
+  `sa_format_templates` table + private `sa-format-templates` bucket):
+  an admin uploads a real SA the team has confirmed is correctly
+  formatted for mapping. At most one template is ever "active" at a
+  time (uploading a new one deactivates the previous one automatically,
+  matching activation can also be toggled explicitly from the list).
+  `lib/services/saReview/formatTemplates.ts`'s
+  `getActiveFormatTemplateReference()` runs the active template through
+  the same `extractDocxEvidence()` used for every review and summarizes
+  its real blank-underscore lengths and table cell widths (dxa) into the
+  prompt's "APPROVED FORMAT REFERENCE" section, so categories 1-2's
+  auto_fix judgments are calibrated against a real approved example
+  instead of a generic rule of thumb. When no template is active, a
+  built-in `DEFAULT_FORMAT_GUIDANCE` string in `analyzeWithClaude.ts`
+  is used instead (the "default template created by the AI" the user
+  asked for until they upload a real one) -- the system still works
+  with zero templates uploaded, it just reasons from generic defaults.
+  **This does not change what gets auto-fixed** -- still only
+  categories 1-2, still only widen-blank/left-align, never font/table
+  style changes; the template only informs Claude's judgment of
+  what counts as "too narrow" or "misaligned", per explicit user
+  decision (richer template-driven reformatting -- fonts, spacing,
+  table redesign -- was explicitly declined as a separate, larger,
+  riskier project).
+- **Knowledge Base** (`/admin/sa-review/knowledge`, `sa_skill_knowledge`
+  table): free-text title+body entries an admin can add/edit/
+  deactivate/delete at any time to keep feeding the reviewer new rules,
+  corrections, and edge cases as they're discovered, without a code
+  change. Every *active* entry is concatenated (most recently updated
+  first, capped at `MAX_TOTAL_CHARS = 6000` in
+  `lib/services/saReview/knowledgeBase.ts` to bound the added per-review
+  token cost) into the prompt's "ADDITIONAL TEAM GUIDANCE" section on
+  every future review -- per explicit user choice ("se envía
+  automáticamente en cada revisión"), not just stored for manual
+  reference. Deactivating (not deleting) is the way to stop using an
+  entry while keeping it around.
+- **Report page citations**: every `flag`/`auto_fix` finding (never
+  `ok`) now also asks Claude for a `locatorText` -- a short verbatim
+  quote quoted exactly from the evidence it was given. Since a `.docx`
+  has no fixed pagination (it reflows with font/margin/zoom) and this
+  app has no LibreOffice available to render real pages (see
+  `extractDocx.ts`'s own module doc comment), there is no way to compute
+  a verified page number -- `estimatePageForSnippet()` instead locates
+  that quoted snippet in the document's plain text and divides its
+  character offset by a flat `ESTIMATED_CHARS_PER_PAGE = 3000`
+  constant. This is a rough estimate, always labeled "~p. N" in both the
+  admin UI (`SaReviewDetail.tsx`) and the PDF report
+  (`reportPdf.ts`), never a precise or verified page number -- per the
+  user's explicit choice to show both the quoted citation (already
+  existing) and an approximate page (new), having been told plainly
+  that a real page number isn't available without a LibreOffice-based
+  render. Returns `undefined`/absent rather than a guess whenever the
+  quoted snippet can't be found verbatim in the evidence (e.g. Claude
+  paraphrased instead of quoting).
+- **The mechanical "Format document" button was reported broken live
+  (Oct 2026) and is still unresolved** -- the user asked to hold off on
+  guessing at a fix and instead first upload a real "perfect format"
+  example via the new Format Templates page above, so the actual
+  broken output can be compared against a known-good reference. Don't
+  assume this is fixed without confirming against a real uploaded
+  template and a fresh review.
+
 ## Investor feedback ("Rate Your Experience")
 
 `app/rate-your-experience` is a standalone public page linked from

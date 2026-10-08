@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/supabase/adminAuth";
+import { sendApprovalRequestEmail } from "@/lib/services/communications/sendApprovalEmail";
 import {
   toCommunicationSummary,
+  type CommunicationComment,
   type CommunicationRow,
   type CommunicationSectionType,
   type CommunicationStatus,
@@ -54,25 +56,51 @@ export async function GET(request: Request, { params }: Params) {
     createdAt: h.created_at,
   }));
 
+  const { data: commentRows } = await supabase
+    .from("communication_comments")
+    .select("id, author, body, created_at")
+    .eq("communication_id", id)
+    .order("created_at", { ascending: false });
+
+  const comments: CommunicationComment[] = (commentRows ?? []).map((c) => ({
+    id: c.id,
+    author: c.author,
+    body: c.body,
+    createdAt: c.created_at,
+  }));
+
   const { data: recipientRows } = await supabase
     .from("communication_recipients")
     .select("client_id")
     .eq("communication_id", id);
   const recipientClientIds = (recipientRows ?? []).map((r) => r.client_id as string);
 
-  return NextResponse.json({ ...toCommunicationSummary(row as CommunicationRow), history, recipientClientIds });
+  return NextResponse.json({
+    ...toCommunicationSummary(row as CommunicationRow),
+    history,
+    comments,
+    recipientClientIds,
+  });
 }
 
 /**
  * Updates a communication's fields and/or advances its status. A status
- * change always writes a communications_status_history row. Moving INTO
- * "ready_for_launch" requires approvedBy (who, of the approvers, clicked
- * approve); moving INTO "changes_requested" requires a comment (stored
- * as that history row's notes — there's no separate "last comment"
- * column, the detail page just reads the latest history entry). Moving
- * INTO "pending_approval" requires the HTML itself to actually be
- * there — the UI already disables that button until html_code is
- * non-empty, this is the server-side backstop.
+ * change always writes a communications_status_history row.
+ *
+ * Normal (gated) transitions: moving INTO "pending_approval" requires
+ * the HTML itself to actually be there and a chosen approver
+ * (approverName/approverEmail -- the detail page's "Send for approval"
+ * picker), which also triggers a best-effort email via
+ * sendApprovalRequestEmail; moving INTO "ready_for_launch" requires
+ * approvedBy; moving INTO "changes_requested" requires a comment
+ * (stored as that history row's notes).
+ *
+ * `manualOverride: true` skips all of the above requirements and just
+ * sets the status directly -- the detail page's "Change status
+ * manually" dropdown, for correcting a mistake or handling a case the
+ * guided flow doesn't cover. Deliberately separate from the guided
+ * buttons rather than replacing them, so the normal approval workflow
+ * still can't be skipped by accident.
  */
 export async function PATCH(request: Request, { params }: Params) {
   const admin = await requireAdmin(request);
@@ -104,34 +132,47 @@ export async function PATCH(request: Request, { params }: Params) {
   if (RECIPIENT_TYPES.includes(body.recipientType)) update.recipient_type = body.recipientType;
 
   let statusChange: { from: CommunicationStatus; to: CommunicationStatus; notes: string | null } | null = null;
+  let approvalEmailTarget: { name: string; email: string } | null = null;
+  const manualOverride = body.manualOverride === true;
 
   if (typeof body.status === "string" && STATUSES.includes(body.status) && body.status !== existing.status) {
     const toStatus = body.status as CommunicationStatus;
 
-    if (toStatus === "pending_approval") {
-      const html = typeof update.html_code === "string" ? update.html_code : existing.html_code;
-      if (!html || !html.trim()) {
-        return NextResponse.json({ error: "Add the HTML for this communication before sending for approval." }, { status: 400 });
+    if (!manualOverride) {
+      if (toStatus === "pending_approval") {
+        const html = typeof update.html_code === "string" ? update.html_code : existing.html_code;
+        if (!html || !html.trim()) {
+          return NextResponse.json({ error: "Add the HTML for this communication before sending for approval." }, { status: 400 });
+        }
+        const approverName = typeof body.approverName === "string" ? body.approverName.trim() : "";
+        const approverEmail = typeof body.approverEmail === "string" ? body.approverEmail.trim() : "";
+        if (!approverName || !approverEmail) {
+          return NextResponse.json({ error: "Choose who you're requesting approval from." }, { status: 400 });
+        }
+        update.requested_approver_name = approverName;
+        update.requested_approver_email = approverEmail;
+        approvalEmailTarget = { name: approverName, email: approverEmail };
       }
-    }
 
-    if (toStatus === "ready_for_launch") {
-      const approvedBy = typeof body.approvedBy === "string" ? body.approvedBy.trim() : "";
-      if (!approvedBy) {
-        return NextResponse.json({ error: "Select who approved this communication." }, { status: 400 });
+      if (toStatus === "ready_for_launch") {
+        const approvedBy = typeof body.approvedBy === "string" ? body.approvedBy.trim() : "";
+        if (!approvedBy) {
+          return NextResponse.json({ error: "Select who approved this communication." }, { status: 400 });
+        }
+        update.approved_at = new Date().toISOString();
+        update.approved_by = approvedBy;
       }
-      update.approved_at = new Date().toISOString();
-      update.approved_by = approvedBy;
     }
 
     let notes: string | null = null;
-    if (toStatus === "changes_requested") {
+    if (toStatus === "changes_requested" && !manualOverride) {
       const comment = typeof body.comment === "string" ? body.comment.trim() : "";
       if (!comment) {
         return NextResponse.json({ error: "Add a comment describing the requested changes." }, { status: 400 });
       }
       notes = comment;
     }
+    if (manualOverride) notes = "Manually changed.";
 
     update.status = toStatus;
     statusChange = { from: existing.status, to: toStatus, notes };
@@ -153,6 +194,18 @@ export async function PATCH(request: Request, { params }: Params) {
       to_status: statusChange.to,
       changed_by: admin.email ?? admin.id,
       notes: statusChange.notes,
+    });
+  }
+
+  // Best-effort: never fails the transition itself if email sending
+  // isn't configured or the call errors -- see sendApprovalRequestEmail.
+  if (approvalEmailTarget) {
+    await sendApprovalRequestEmail({
+      communicationId: id,
+      communicationTitle: row.title,
+      approverName: approvalEmailTarget.name,
+      approverEmail: approvalEmailTarget.email,
+      requestedBy: admin.email ?? "The Operations Hub",
     });
   }
 

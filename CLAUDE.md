@@ -918,6 +918,92 @@ feature:
   it lives in a structured sidebar" feel already established in the
   prior pass and reinforced here.
 
+### Fifth pass: 3-column layout, manual status, real approver emails, comments (Oct 2026)
+
+- **Yellow hover everywhere in this section**: every button across
+  `CommunicationDetail.tsx`, `CommunicationsCalendarList.tsx`,
+  `CalendarMonthView.tsx`, and `QuickCreateModal.tsx` now hovers to
+  `axis-signal` (the brand yellow/lime, `#E3F464`) -- solid dark
+  buttons fill yellow with dark text (`PRIMARY_BTN` in
+  `CommunicationDetail.tsx`), outline buttons tint yellow
+  (`SECONDARY_BTN`), calendar day cells and chips tint yellow on
+  hover. Deliberately **not** applied to Delete (stays red-on-hover)
+  since a destructive action shouldn't invite a "go ahead" color. The
+  "← Communications" back link is now a real button
+  (`TEXT_BTN`) with the same yellow hover, not a bare text link.
+- **Manual status override**: a `<select>` inside the Status card
+  (always visible, every one of the 5 statuses as an option) lets an
+  admin force the status directly, bypassing the guided workflow's
+  required fields (`manualOverride: true` in the PATCH body, handled
+  server-side in `app/api/admin/communications/[id]/route.ts` by
+  skipping the approver/comment/HTML checks for that one request).
+  This sits alongside, not instead of, the guided action buttons --
+  the normal path still can't skip the approval gate by accident, this
+  is purely an escape hatch for corrections.
+- **Approvers are now a real, admin-managed list with actual email
+  sending**, replacing the old hardcoded "Diego"/"Lana" radio buttons.
+  New `approvers` table (migration
+  `014_communications_approvers_comments.sql`, name+email, unique by
+  email, same `/api/admin/approvers` GET/POST pattern as
+  `/api/admin/clients`). "Send for approval" now opens a picker
+  (who to request from, with an inline "add a new approver" mini-form)
+  instead of transitioning immediately; the chosen approver's
+  name/email are snapshotted onto the communication
+  (`requested_approver_name`/`requested_approver_email` columns -- text,
+  not a foreign key, so it still reads correctly if that approver is
+  later edited or removed from the list) and shown on the Status card
+  once pending. The later "Who is approving?" step also now picks from
+  the same saved Approvers list instead of two hardcoded names.
+- **A real approval-request email now goes out**, via
+  `lib/services/communications/sendApprovalEmail.ts` -- a single
+  `fetch` to Resend's REST API (no SDK added), gated on
+  `RESEND_API_KEY` + `RESEND_FROM_EMAIL` (see `.env.example`). Chosen
+  the same way `CLICKUP_API_TOKEN` is handled elsewhere in this
+  codebase: **best-effort and non-blocking** -- if the keys aren't set,
+  or the Resend call fails, the status transition still succeeds and
+  the chosen approver is still recorded, the email just silently isn't
+  sent (the PATCH route never surfaces that failure to the UI). This
+  is the first real outbound-email integration in this codebase (every
+  other "notify someone" flow here, like Order Tracking or Rate Your
+  Experience, is either investor-facing and sent from outside this app,
+  or was explicitly built as in-app-only to avoid exactly this kind of
+  new infrastructure) -- Resend was picked unprompted as the
+  lowest-friction standard choice for a Vercel/Next app (no SMTP setup,
+  generous free tier), not confirmed with the user first; the user
+  still needs to create a Resend account, verify a sending domain (or
+  use `onboarding@resend.dev` for testing), and set the two env vars
+  on Vercel before any email actually sends.
+- **Comments, merged with the status-change history into one
+  timeline** (new `communication_comments` table, same migration 014;
+  `POST /api/admin/communications/[id]/comments`; `GET
+  .../[id]` now also returns both `comments` and `history`). The
+  detail page's right-most column renders them interleaved by
+  timestamp (`TimelineEntry` union type in `CommunicationDetail.tsx`)
+  -- a free-text comment card, or a compact "Status A → Status B · who
+  · when" line for a history entry, newest first. Posting a comment is
+  its own action (an inline textarea + button in that column), not
+  folded into the big Save button, since a comment is a timestamped
+  event, not a field to persist.
+- **3-column layout at the `xl` breakpoint**
+  (`xl:grid-cols-[1.3fr_0.9fr_0.9fr]`): email (left) · Status/
+  Recipients/Details/Save (middle) · Comments+history (right) --
+  previously Comments/History sat full-width below a 2-column grid,
+  which the user didn't like ("no me encanta que las cosas vayan para
+  abajo"). Collapses to a single stacked column below `xl`.
+- **The email preview/editor is capped at `max-w-[640px]`**, centered
+  within its card, instead of stretching to fill the whole left
+  column -- 640px matches the width real email clients render HTML
+  emails at, so what you see while editing now actually represents
+  what gets sent, instead of looking stretched/wide on a big monitor.
+- **The admin content area now grows with the screen**
+  (`app/admin/layout.tsx`'s wrapper: `max-w-6xl` →
+  `xl:max-w-[1400px]` → `2xl:max-w-[1800px]`, up from a flat
+  `max-w-5xl` that capped every `/admin/*` page, not just
+  Communications, at 1024px regardless of monitor size). Still capped
+  (unbounded width would make long lines of text hard to read), just
+  at sizes that actually use a wide screen instead of leaving most of
+  it as margin.
+
 ## PDF Generator (`/admin/pdf-generator`)
 
 Admin-only tool with nothing to do with the Operations Hub request flow;

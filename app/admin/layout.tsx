@@ -100,7 +100,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         }
       >
-        <div className="mx-auto max-w-5xl px-10 py-10">{children}</div>
+        <div className="mx-auto max-w-6xl px-10 py-10 xl:max-w-[1400px] 2xl:max-w-[1800px]">{children}</div>
       </PageShell>
     </AdminAuthContext.Provider>
   );

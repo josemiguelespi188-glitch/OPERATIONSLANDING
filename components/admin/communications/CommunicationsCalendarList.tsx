@@ -109,14 +109,14 @@ export function CommunicationsCalendarList() {
             <button
               type="button"
               onClick={() => setView("calendar")}
-              className={`rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-colors ${view === "calendar" ? "bg-axis-core text-white" : "text-axis-core/60 hover:bg-axis-light"}`}
+              className={`rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-colors ${view === "calendar" ? "bg-axis-core text-white" : "text-axis-core/60 hover:bg-axis-signal/30 hover:text-axis-core"}`}
             >
               Calendar
             </button>
             <button
               type="button"
               onClick={() => setView("list")}
-              className={`rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-colors ${view === "list" ? "bg-axis-core text-white" : "text-axis-core/60 hover:bg-axis-light"}`}
+              className={`rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-colors ${view === "list" ? "bg-axis-core text-white" : "text-axis-core/60 hover:bg-axis-signal/30 hover:text-axis-core"}`}
             >
               List
             </button>
@@ -125,7 +125,7 @@ export function CommunicationsCalendarList() {
             type="button"
             onClick={() => openQuickCreate(null)}
             aria-label="New communication"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-axis-core text-lg font-bold text-white hover:bg-axis-core/90"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-axis-core text-lg font-bold text-white transition-colors hover:bg-axis-signal hover:text-axis-core"
           >
             +
           </button>
@@ -176,7 +176,7 @@ export function CommunicationsCalendarList() {
                   <Link
                     key={item.id}
                     href={`/admin/communications/${item.id}`}
-                    className="flex flex-col rounded-card border border-axis-base/30 bg-white p-4 shadow-card transition-colors hover:border-axis-core/30"
+                    className="flex flex-col rounded-card border border-axis-base/30 bg-white p-4 shadow-card transition-colors hover:border-axis-signal hover:bg-axis-signal/10"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_BADGE[item.status]}`}>
@@ -228,7 +228,7 @@ export function CommunicationsCalendarList() {
                     <Link
                       key={item.id}
                       href={`/admin/communications/${item.id}`}
-                      className="flex flex-col rounded-card border border-axis-base/30 bg-white p-4 shadow-card transition-colors hover:border-axis-core/30"
+                      className="flex flex-col rounded-card border border-axis-base/30 bg-white p-4 shadow-card transition-colors hover:border-axis-signal hover:bg-axis-signal/10"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_BADGE[item.status]}`}>

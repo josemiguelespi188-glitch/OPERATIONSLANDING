@@ -18,6 +18,19 @@ export interface Client {
   name: string;
 }
 
+export interface Approver {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface CommunicationComment {
+  id: string;
+  author: string;
+  body: string;
+  createdAt: string;
+}
+
 export const SECTION_TYPE_LABELS: Record<CommunicationSectionType, string> = {
   section_1: "Section 1 (Who we are)",
   section_2: "Section 2 (Deadlines/reminders)",
@@ -53,6 +66,8 @@ export interface CommunicationRow {
   approvers: string;
   approved_at: string | null;
   approved_by: string | null;
+  requested_approver_name: string | null;
+  requested_approver_email: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,6 +84,8 @@ export interface CommunicationSummary {
   approvers: string;
   approvedAt: string | null;
   approvedBy: string | null;
+  requestedApproverName: string | null;
+  requestedApproverEmail: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,6 +103,8 @@ export function toCommunicationSummary(row: CommunicationRow): CommunicationSumm
     approvers: row.approvers,
     approvedAt: row.approved_at,
     approvedBy: row.approved_by,
+    requestedApproverName: row.requested_approver_name,
+    requestedApproverEmail: row.requested_approver_email,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

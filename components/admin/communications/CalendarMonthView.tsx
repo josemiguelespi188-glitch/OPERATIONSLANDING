@@ -65,7 +65,7 @@ export function CalendarMonthView({
           <button
             type="button"
             onClick={onToday}
-            className="rounded-[6px] border border-axis-base/50 px-2.5 py-1 text-xs font-medium text-axis-core hover:bg-axis-light"
+            className="rounded-[6px] border border-axis-base/50 px-2.5 py-1 text-xs font-medium text-axis-core transition-colors hover:border-axis-signal hover:bg-axis-signal/30"
           >
             Today
           </button>
@@ -73,7 +73,7 @@ export function CalendarMonthView({
             type="button"
             onClick={onPrevMonth}
             aria-label="Previous month"
-            className="rounded-[6px] border border-axis-base/50 px-2 py-1 text-xs font-medium text-axis-core hover:bg-axis-light"
+            className="rounded-[6px] border border-axis-base/50 px-2 py-1 text-xs font-medium text-axis-core transition-colors hover:border-axis-signal hover:bg-axis-signal/30"
           >
             ←
           </button>
@@ -81,7 +81,7 @@ export function CalendarMonthView({
             type="button"
             onClick={onNextMonth}
             aria-label="Next month"
-            className="rounded-[6px] border border-axis-base/50 px-2 py-1 text-xs font-medium text-axis-core hover:bg-axis-light"
+            className="rounded-[6px] border border-axis-base/50 px-2 py-1 text-xs font-medium text-axis-core transition-colors hover:border-axis-signal hover:bg-axis-signal/30"
           >
             →
           </button>
@@ -103,7 +103,7 @@ export function CalendarMonthView({
               key={key}
               type="button"
               onClick={() => onDayClick(key)}
-              className={`flex min-h-[92px] flex-col items-stretch gap-1 border-b border-r border-axis-base/15 p-1.5 text-left transition-colors hover:bg-axis-light/60 ${
+              className={`flex min-h-[92px] flex-col items-stretch gap-1 border-b border-r border-axis-base/15 p-1.5 text-left transition-colors hover:bg-axis-signal/15 ${
                 (i + 1) % 7 === 0 ? "border-r-0" : ""
               } ${inMonth ? "bg-white" : "bg-axis-light/30"}`}
             >
@@ -123,7 +123,7 @@ export function CalendarMonthView({
                       e.stopPropagation();
                       onItemClick(item.id);
                     }}
-                    className="flex items-center gap-1 truncate rounded-[4px] bg-axis-light px-1 py-0.5 text-[10px] font-medium text-axis-core hover:bg-axis-base/40"
+                    className="flex items-center gap-1 truncate rounded-[4px] bg-axis-light px-1 py-0.5 text-[10px] font-medium text-axis-core transition-colors hover:bg-axis-signal"
                   >
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[item.status]}`} />
                     <span className="truncate">{item.title}</span>

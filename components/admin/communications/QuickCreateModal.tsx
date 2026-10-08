@@ -80,14 +80,14 @@ export function QuickCreateModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-[8px] px-4 py-2 text-sm font-medium text-axis-core/60 hover:bg-axis-light"
+            className="rounded-[8px] px-4 py-2 text-sm font-medium text-axis-core/60 transition-colors hover:bg-axis-signal/25 hover:text-axis-core"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!title.trim() || !sendDate || creating}
-            className="rounded-[8px] bg-axis-core px-4 py-2 text-sm font-semibold text-white hover:bg-axis-core/90 disabled:opacity-40"
+            className="rounded-[8px] bg-axis-core px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-axis-signal hover:text-axis-core disabled:opacity-40 disabled:hover:bg-axis-core disabled:hover:text-white"
           >
             {creating ? "Creating..." : "Create"}
           </button>

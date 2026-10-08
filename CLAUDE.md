@@ -857,6 +857,67 @@ feature:
   (`components/layout/nav.tsx`), reusing the existing `MegaphoneIcon`
   rather than adding a new one.
 
+### Fourth pass: ClickUp-styled detail page, recipients, "Next up" (Oct 2026)
+
+- **The title now saves itself on blur** (`handleTitleBlur` in
+  `CommunicationDetail.tsx`), not just as part of the big Save button.
+  The earlier version's title field visually let you type but only
+  persisted on the unified Save click, far down the right column and
+  with no "unsaved" indicator -- the user read that as the title not
+  being editable at all, since it would quietly revert on reload if
+  Save was never clicked. It still gets included in the full Save
+  payload too, so both paths work. Styled with a dashed border so it
+  visibly reads as an editable field (ClickUp's own click-to-edit
+  title has no border at rest either, but this app's hover/focus
+  states needed something to signal "this is a field" up front).
+- **Status panel is now the dominant, color-filled card at the top of
+  the right column** (`STATUS_PANEL_COLOR` in `CommunicationDetail.tsx`,
+  one color per status, matching `STATUS_BADGE` elsewhere) instead of a
+  plain white card with a small label -- the primary action button
+  (Send for approval / Approve + Request changes / Back to Building /
+  Mark as Deployed) was always there and rendering correctly before,
+  but visually blended into the rest of the page enough that the user
+  didn't register it as "the button that advances the SLA." This is
+  a styling fix, not a logic change -- the same gated transitions
+  (blocked on `html_code` before `pending_approval`, requires
+  `approvedBy`/a comment for the other two) still apply; this was
+  never free-jump between statuses like a ClickUp status dropdown,
+  and stays that way on purpose (skipping the approval gate would
+  defeat the point of the workflow).
+- **Recipients** (new, migration
+  `013_communications_recipients.sql`): a `clients` table (just `id`,
+  `name`, unique by name) is a small reusable address book, separate
+  from any one communication -- added once via the Recipients
+  section's "Add a client" box, it then shows up as a checkbox on
+  every future communication too, per explicit instruction ("tiene
+  que haber una sección para poder añadir los nombres de los clientes
+  y que se queden guardados"). `communications.recipient_type`
+  (`all_investors` default | `specific`) plus a `communication_recipients`
+  join table hold the per-communication selection. `GET`/`POST
+  /api/admin/clients` manage the shared list (`POST` is
+  case-insensitively idempotent -- adding "Acme" twice reuses the same
+  row rather than erroring on the unique constraint); the detail
+  `PATCH` endpoint accepts `recipientType` + `clientIds` and replaces
+  the full recipient set for that communication (delete-then-reinsert,
+  not diffed -- a small admin-managed list, not worth the extra
+  complexity). Selecting recipients is folded into the same single
+  Save button as everything else, not a separate action.
+- **"Next up" panel on `/admin/communications`'s Calendar view**
+  (`CommunicationsCalendarList.tsx`): next to the month grid (a
+  `xl:grid-cols-[1fr_320px]` layout, stacks below it on narrower
+  screens), the next 3 communications with `send_date >= today`
+  sorted ascending, as large clickable cards -- same card style as
+  the List view's cards but bigger type, so the upcoming sends are
+  visible at a glance without hunting across the calendar grid.
+- The overall detail-page direction ("que esta pantalla se vea como
+  la organización de ClickUp") took the large-content-pane-left +
+  property-panel-right shape and the per-section small-caps labels
+  from ClickUp's task view, not a literal clone -- no activity feed,
+  no assignee avatars, no custom-field system; just that same "the
+  thing itself is big and front-and-center, everything you can do to
+  it lives in a structured sidebar" feel already established in the
+  prior pass and reinforced here.
+
 ## PDF Generator (`/admin/pdf-generator`)
 
 Admin-only tool with nothing to do with the Operations Hub request flow;

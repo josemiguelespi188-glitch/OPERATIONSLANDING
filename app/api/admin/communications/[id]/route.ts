@@ -7,6 +7,7 @@ import {
   type CommunicationSectionType,
   type CommunicationStatus,
   type CommunicationStatusHistoryEntry,
+  type RecipientType,
 } from "@/lib/communications/types";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ const STATUSES: CommunicationStatus[] = [
   "ready_for_launch",
   "deployed",
 ];
+const RECIPIENT_TYPES: RecipientType[] = ["all_investors", "specific"];
 
 export async function GET(request: Request, { params }: Params) {
   const admin = await requireAdmin(request);
@@ -52,7 +54,13 @@ export async function GET(request: Request, { params }: Params) {
     createdAt: h.created_at,
   }));
 
-  return NextResponse.json({ ...toCommunicationSummary(row as CommunicationRow), history });
+  const { data: recipientRows } = await supabase
+    .from("communication_recipients")
+    .select("client_id")
+    .eq("communication_id", id);
+  const recipientClientIds = (recipientRows ?? []).map((r) => r.client_id as string);
+
+  return NextResponse.json({ ...toCommunicationSummary(row as CommunicationRow), history, recipientClientIds });
 }
 
 /**
@@ -93,6 +101,7 @@ export async function PATCH(request: Request, { params }: Params) {
   if (typeof body.htmlCode === "string") update.html_code = body.htmlCode;
   if (typeof body.faqNotes === "string") update.faq_notes = body.faqNotes.trim() || null;
   if (typeof body.approvers === "string" && body.approvers.trim()) update.approvers = body.approvers.trim();
+  if (RECIPIENT_TYPES.includes(body.recipientType)) update.recipient_type = body.recipientType;
 
   let statusChange: { from: CommunicationStatus; to: CommunicationStatus; notes: string | null } | null = null;
 
@@ -145,6 +154,19 @@ export async function PATCH(request: Request, { params }: Params) {
       changed_by: admin.email ?? admin.id,
       notes: statusChange.notes,
     });
+  }
+
+  // Recipients: replace the full selection whenever clientIds is sent,
+  // rather than diffing -- this is a small admin-managed list, not a
+  // high-churn relation, so delete-then-reinsert is simple and correct.
+  if (Array.isArray(body.clientIds)) {
+    const clientIds: string[] = body.clientIds.filter((v: unknown): v is string => typeof v === "string");
+    await supabase.from("communication_recipients").delete().eq("communication_id", id);
+    if (clientIds.length > 0) {
+      await supabase
+        .from("communication_recipients")
+        .insert(clientIds.map((clientId: string) => ({ communication_id: id, client_id: clientId })));
+    }
   }
 
   return NextResponse.json(toCommunicationSummary(row as CommunicationRow));

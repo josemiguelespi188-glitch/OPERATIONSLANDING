@@ -74,6 +74,18 @@ export function CommunicationsCalendarList() {
 
   const pendingApprovalCount = items?.filter((i) => i.status === "pending_approval").length ?? 0;
 
+  const nextUp = useMemo(() => {
+    if (!items) return [];
+    const todayKey = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    })();
+    return items
+      .filter((i) => i.sendDate && i.sendDate >= todayKey)
+      .sort((a, b) => (a.sendDate! < b.sendDate! ? -1 : a.sendDate! > b.sendDate! ? 1 : 0))
+      .slice(0, 3);
+  }, [items]);
+
   const grouped = useMemo(() => {
     const filtered = (items ?? []).filter((i) => statusFilter === "all" || i.status === statusFilter);
     const byMonth = new Map<string, CommunicationSummary[]>();
@@ -141,7 +153,7 @@ export function CommunicationsCalendarList() {
       {items === null && !error && <p className="mt-10 py-6 text-center text-sm text-axis-core/50">Loading...</p>}
 
       {items !== null && view === "calendar" && (
-        <div className="mt-6">
+        <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
           <CalendarMonthView
             monthDate={monthDate}
             items={items}
@@ -151,6 +163,36 @@ export function CommunicationsCalendarList() {
             onDayClick={(dateKey) => openQuickCreate(dateKey)}
             onItemClick={(id) => router.push(`/admin/communications/${id}`)}
           />
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-axis-core/50">Next up</p>
+            {nextUp.length === 0 ? (
+              <p className="rounded-card border border-dashed border-axis-base/40 px-4 py-6 text-center text-xs text-axis-core/40">
+                Nothing scheduled ahead.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {nextUp.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={`/admin/communications/${item.id}`}
+                    className="flex flex-col rounded-card border border-axis-base/30 bg-white p-4 shadow-card transition-colors hover:border-axis-core/30"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_BADGE[item.status]}`}>
+                        {STATUS_LABELS[item.status]}
+                      </span>
+                      <span className="text-xs font-semibold text-axis-core/60">
+                        {new Date(`${item.sendDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </span>
+                    </div>
+                    <p className="mt-2.5 text-base font-semibold leading-snug text-axis-core">{item.title}</p>
+                    <p className="mt-1 text-xs text-axis-core/50">{SECTION_TYPE_LABELS[item.sectionType]}</p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

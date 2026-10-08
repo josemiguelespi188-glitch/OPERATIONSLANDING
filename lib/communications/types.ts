@@ -11,6 +11,13 @@ export type CommunicationStatus =
   | "ready_for_launch"
   | "deployed";
 
+export type RecipientType = "all_investors" | "specific";
+
+export interface Client {
+  id: string;
+  name: string;
+}
+
 export const SECTION_TYPE_LABELS: Record<CommunicationSectionType, string> = {
   section_1: "Section 1 (Who we are)",
   section_2: "Section 2 (Deadlines/reminders)",
@@ -42,6 +49,7 @@ export interface CommunicationRow {
   html_code: string | null;
   status: CommunicationStatus;
   faq_notes: string | null;
+  recipient_type: RecipientType;
   approvers: string;
   approved_at: string | null;
   approved_by: string | null;
@@ -57,6 +65,7 @@ export interface CommunicationSummary {
   htmlCode: string | null;
   status: CommunicationStatus;
   faqNotes: string | null;
+  recipientType: RecipientType;
   approvers: string;
   approvedAt: string | null;
   approvedBy: string | null;
@@ -73,6 +82,7 @@ export function toCommunicationSummary(row: CommunicationRow): CommunicationSumm
     htmlCode: row.html_code,
     status: row.status,
     faqNotes: row.faq_notes,
+    recipientType: row.recipient_type,
     approvers: row.approvers,
     approvedAt: row.approved_at,
     approvedBy: row.approved_by,

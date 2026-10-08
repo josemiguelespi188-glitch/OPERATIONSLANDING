@@ -1088,11 +1088,23 @@ feature:
   token no longer resolves (already acted on, or superseded by a newer
   request), it shows a plain "This review link is no longer valid"
   card instead of erroring.
-- Still unresolved / explicitly flagged to the user: sending an actual
-  test email to Diego Traversari (`Diego@AxisKey.com`) requires
-  `RESEND_API_KEY` and `RESEND_FROM_EMAIL=ir@axiskey.com` to be set on
-  Vercel first -- this session has no Vercel or Resend access, so
-  nothing here can trigger a real send until those are configured.
+- Resolved: `RESEND_API_KEY` and `RESEND_FROM_EMAIL=ir@axiskey.com` are
+  now set on Vercel and migration 015 has been run against the live
+  Supabase project, so the approval-request email actually sends.
+- **Every approval-request email is CC'd to `mike@axiskey.com`**
+  (`MIKE_CC_EMAIL` in `sendApprovalEmail.ts`), unconditionally, for
+  every approver (saved or one-time) -- per explicit instruction while
+  this flow is being tested ("todas las pruebas y correos con copia a
+  este mail"). Hardcoded, not env-configurable, since it was asked for
+  as a blanket "every send" rule rather than a per-environment
+  setting; revisit if this should become optional or temporary.
+- A real Resend API key was pasted directly into chat during this
+  session (while asking "de donde saco ese api") -- flagged to the
+  user as compromised the same way an exposed admin password was
+  treated earlier in this file, with instructions to revoke/rotate it
+  in the Resend dashboard and only ever paste a new one straight into
+  Vercel's env var UI, never into a prompt. Confirm this key was
+  actually rotated if it wasn't already.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

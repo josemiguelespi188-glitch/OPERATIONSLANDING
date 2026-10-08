@@ -19,7 +19,15 @@ import { getSiteBaseUrl } from "@/lib/orderTracking";
  * the status transition and the rest of the app work either way, the
  * approver just doesn't get an email and has to be told to check
  * /admin/communications directly until a key is configured.
+ *
+ * Every send is CC'd to mike@axiskey.com, per explicit instruction
+ * while this flow is being tested ("todas las pruebas y correos con
+ * copia a este mail") -- not conditional on anything, applies to every
+ * approver (saved or one-time). Remove/change MIKE_CC_EMAIL below if
+ * this is only meant to be temporary.
  */
+const MIKE_CC_EMAIL = "mike@axiskey.com";
+
 export async function sendApprovalRequestEmail(input: {
   reviewToken: string;
   communicationTitle: string;
@@ -45,6 +53,7 @@ export async function sendApprovalRequestEmail(input: {
       body: JSON.stringify({
         from,
         to: input.approverEmail,
+        cc: MIKE_CC_EMAIL,
         subject: `Approval needed: ${input.communicationTitle}`,
         html: `
           <p>Hi ${input.approverName},</p>

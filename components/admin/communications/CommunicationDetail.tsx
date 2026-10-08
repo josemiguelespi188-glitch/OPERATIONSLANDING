@@ -92,6 +92,9 @@ export function CommunicationDetail({ id }: { id: string }) {
 
   const [selectedApproverId, setSelectedApproverId] = useState("");
   const [showSendForApproval, setShowSendForApproval] = useState(false);
+  const [sendForApprovalMode, setSendForApprovalMode] = useState<"team" | "once">("team");
+  const [onceApproverName, setOnceApproverName] = useState("");
+  const [onceApproverEmail, setOnceApproverEmail] = useState("");
   const [approverChoiceId, setApproverChoiceId] = useState("");
   const [showApprove, setShowApprove] = useState(false);
   const [showRequestChanges, setShowRequestChanges] = useState(false);
@@ -246,6 +249,9 @@ export function CommunicationDetail({ id }: { id: string }) {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Could not update the status.");
       setShowSendForApproval(false);
+      setSendForApprovalMode("team");
+      setOnceApproverName("");
+      setOnceApproverEmail("");
       setShowApprove(false);
       setShowRequestChanges(false);
       setChangesComment("");
@@ -263,6 +269,13 @@ export function CommunicationDetail({ id }: { id: string }) {
   }
 
   function handleConfirmSendForApproval() {
+    if (sendForApprovalMode === "once") {
+      const name = onceApproverName.trim();
+      const email = onceApproverEmail.trim();
+      if (!name || !email) return;
+      setStatus("pending_approval", { approverName: name, approverEmail: email });
+      return;
+    }
     const approver = approvers.find((a) => a.id === selectedApproverId);
     if (!approver) return;
     setStatus("pending_approval", { approverName: approver.name, approverEmail: approver.email });
@@ -439,54 +452,114 @@ export function CommunicationDetail({ id }: { id: string }) {
             {showSendForApproval && (
               <div className="mt-3 rounded-[8px] bg-white/70 p-4">
                 <p className="text-xs font-semibold text-axis-core">Request approval from</p>
-                <div className="mt-2 flex max-h-32 flex-col gap-1.5 overflow-y-auto">
-                  {approvers.length === 0 && <p className="text-xs text-axis-core/50">No approvers saved yet -- add one below.</p>}
-                  {approvers.map((a) => (
-                    <label key={a.id} className="flex items-center gap-2 text-sm text-axis-core">
-                      <input
-                        type="radio"
-                        name="sendForApprovalChoice"
-                        checked={selectedApproverId === a.id}
-                        onChange={() => setSelectedApproverId(a.id)}
-                      />
-                      {a.name} <span className="text-xs text-axis-core/50">{a.email}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    value={newApproverName}
-                    onChange={(e) => setNewApproverName(e.target.value)}
-                    placeholder="Name"
-                    className="min-w-0 flex-1 rounded-[8px] border border-axis-base/50 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-axis-core"
-                  />
-                  <input
-                    type="email"
-                    value={newApproverEmail}
-                    onChange={(e) => setNewApproverEmail(e.target.value)}
-                    placeholder="Email"
-                    className="min-w-0 flex-1 rounded-[8px] border border-axis-base/50 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-axis-core"
-                  />
+
+                <div className="mt-2 flex gap-1 rounded-[8px] bg-axis-base/20 p-1">
                   <button
                     type="button"
-                    onClick={() => handleAddApprover(setSelectedApproverId)}
-                    disabled={!newApproverName.trim() || !newApproverEmail.trim() || addingApprover}
-                    className={SECONDARY_BTN}
+                    onClick={() => setSendForApprovalMode("team")}
+                    className={`flex-1 rounded-[6px] py-1.5 text-xs font-semibold transition-colors ${
+                      sendForApprovalMode === "team" ? "bg-white text-axis-core shadow-sm" : "text-axis-core/60 hover:text-axis-core"
+                    }`}
                   >
-                    Add
+                    From the team
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSendForApprovalMode("once")}
+                    className={`flex-1 rounded-[6px] py-1.5 text-xs font-semibold transition-colors ${
+                      sendForApprovalMode === "once" ? "bg-white text-axis-core shadow-sm" : "text-axis-core/60 hover:text-axis-core"
+                    }`}
+                  >
+                    Someone else (one time)
                   </button>
                 </div>
+
+                {sendForApprovalMode === "team" ? (
+                  <>
+                    <div className="mt-3 flex max-h-32 flex-col gap-1.5 overflow-y-auto">
+                      {approvers.length === 0 && <p className="text-xs text-axis-core/50">No approvers saved yet -- add one below.</p>}
+                      {approvers.map((a) => (
+                        <label key={a.id} className="flex items-center gap-2 text-sm text-axis-core">
+                          <input
+                            type="radio"
+                            name="sendForApprovalChoice"
+                            checked={selectedApproverId === a.id}
+                            onChange={() => setSelectedApproverId(a.id)}
+                          />
+                          {a.name} <span className="text-xs text-axis-core/50">{a.email}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        value={newApproverName}
+                        onChange={(e) => setNewApproverName(e.target.value)}
+                        placeholder="Name"
+                        className="min-w-0 flex-1 rounded-[8px] border border-axis-base/50 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-axis-core"
+                      />
+                      <input
+                        type="email"
+                        value={newApproverEmail}
+                        onChange={(e) => setNewApproverEmail(e.target.value)}
+                        placeholder="Email"
+                        className="min-w-0 flex-1 rounded-[8px] border border-axis-base/50 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-axis-core"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddApprover(setSelectedApproverId)}
+                        disabled={!newApproverName.trim() || !newApproverEmail.trim() || addingApprover}
+                        className={SECONDARY_BTN}
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-axis-core/45">Added here, this person is saved to the team list for next time.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        value={onceApproverName}
+                        onChange={(e) => setOnceApproverName(e.target.value)}
+                        placeholder="Name"
+                        className="min-w-0 flex-1 rounded-[8px] border border-axis-base/50 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-axis-core"
+                      />
+                      <input
+                        type="email"
+                        value={onceApproverEmail}
+                        onChange={(e) => setOnceApproverEmail(e.target.value)}
+                        placeholder="Email"
+                        className="min-w-0 flex-1 rounded-[8px] border border-axis-base/50 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-axis-core"
+                      />
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-axis-core/45">Not saved -- just for this one request.</p>
+                  </>
+                )}
+
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"
-                    disabled={statusBusy || !selectedApproverId}
+                    disabled={
+                      statusBusy ||
+                      (sendForApprovalMode === "team" ? !selectedApproverId : !onceApproverName.trim() || !onceApproverEmail.trim())
+                    }
                     onClick={handleConfirmSendForApproval}
                     className={PRIMARY_BTN}
                   >
                     Send request
                   </button>
-                  <button type="button" onClick={() => setShowSendForApproval(false)} className={TEXT_BTN}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSendForApproval(false);
+                      setSendForApprovalMode("team");
+                      setOnceApproverName("");
+                      setOnceApproverEmail("");
+                    }}
+                    className={TEXT_BTN}
+                  >
                     Cancel
                   </button>
                 </div>

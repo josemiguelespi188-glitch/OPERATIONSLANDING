@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/supabase/adminAuth";
 import { sendApprovalRequestEmail } from "@/lib/services/communications/sendApprovalEmail";
@@ -132,7 +133,7 @@ export async function PATCH(request: Request, { params }: Params) {
   if (RECIPIENT_TYPES.includes(body.recipientType)) update.recipient_type = body.recipientType;
 
   let statusChange: { from: CommunicationStatus; to: CommunicationStatus; notes: string | null } | null = null;
-  let approvalEmailTarget: { name: string; email: string } | null = null;
+  let approvalEmailTarget: { name: string; email: string; reviewToken: string } | null = null;
   const manualOverride = body.manualOverride === true;
 
   if (typeof body.status === "string" && STATUSES.includes(body.status) && body.status !== existing.status) {
@@ -149,9 +150,11 @@ export async function PATCH(request: Request, { params }: Params) {
         if (!approverName || !approverEmail) {
           return NextResponse.json({ error: "Choose who you're requesting approval from." }, { status: 400 });
         }
+        const reviewToken = crypto.randomUUID();
         update.requested_approver_name = approverName;
         update.requested_approver_email = approverEmail;
-        approvalEmailTarget = { name: approverName, email: approverEmail };
+        update.review_token = reviewToken;
+        approvalEmailTarget = { name: approverName, email: approverEmail, reviewToken };
       }
 
       if (toStatus === "ready_for_launch") {
@@ -201,7 +204,7 @@ export async function PATCH(request: Request, { params }: Params) {
   // isn't configured or the call errors -- see sendApprovalRequestEmail.
   if (approvalEmailTarget) {
     await sendApprovalRequestEmail({
-      communicationId: id,
+      reviewToken: approvalEmailTarget.reviewToken,
       communicationTitle: row.title,
       approverName: approvalEmailTarget.name,
       approverEmail: approvalEmailTarget.email,

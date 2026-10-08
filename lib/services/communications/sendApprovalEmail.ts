@@ -6,6 +6,12 @@ import { getSiteBaseUrl } from "@/lib/orderTracking";
  * with how this codebase already talks to ClickUp) when "Send for
  * approval" is clicked with a chosen approver.
  *
+ * Links to /communications-review/<reviewToken> -- a standalone,
+ * chrome-free page (no admin sidebar, no "back" link) scoped to just
+ * this one communication, not the admin UI -- per explicit
+ * instruction that clicking the email button should open straight
+ * into the review screen with nothing else to navigate.
+ *
  * Gated on RESEND_API_KEY / RESEND_FROM_EMAIL (see .env.example) --
  * this codebase otherwise has no email-sending integration at all
  * (confirmed before building this). Exactly like CLICKUP_API_TOKEN
@@ -15,7 +21,7 @@ import { getSiteBaseUrl } from "@/lib/orderTracking";
  * /admin/communications directly until a key is configured.
  */
 export async function sendApprovalRequestEmail(input: {
-  communicationId: string;
+  reviewToken: string;
   communicationTitle: string;
   approverName: string;
   approverEmail: string;
@@ -27,7 +33,7 @@ export async function sendApprovalRequestEmail(input: {
     return { sent: false, error: "RESEND_API_KEY / RESEND_FROM_EMAIL not configured." };
   }
 
-  const link = `${getSiteBaseUrl()}/admin/communications/${input.communicationId}`;
+  const link = `${getSiteBaseUrl()}/communications-review/${input.reviewToken}`;
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
@@ -42,8 +48,13 @@ export async function sendApprovalRequestEmail(input: {
         subject: `Approval needed: ${input.communicationTitle}`,
         html: `
           <p>Hi ${input.approverName},</p>
-          <p>${input.requestedBy} sent a communication for your approval: <strong>${input.communicationTitle}</strong>.</p>
-          <p><a href="${link}">Review it in the Operations Hub</a></p>
+          <p>There's a new investor communication that needs to be approved: <strong>${input.communicationTitle}</strong>.</p>
+          <p>Requested by ${input.requestedBy}.</p>
+          <p>
+            <a href="${link}" style="display:inline-block;padding:12px 24px;background:#201C1A;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">
+              Review this communication
+            </a>
+          </p>
         `,
       }),
     });

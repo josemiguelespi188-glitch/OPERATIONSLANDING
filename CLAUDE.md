@@ -1004,6 +1004,96 @@ feature:
   at sizes that actually use a wide screen instead of leaving most of
   it as margin.
 
+### Sixth pass: two approver-picker modes, FROM address, public review-token flow (Oct 2026)
+
+- **"Send for approval" now has two explicit modes**, a small pill
+  toggle at the top of the picker in `CommunicationDetail.tsx`
+  (`sendForApprovalMode: "team" | "once"`): **"From the team"** is the
+  prior behavior unchanged (radio list of saved `approvers`, plus an
+  inline add-and-save form that still persists to the `approvers`
+  table via `POST /api/admin/approvers`); **"Someone else (one time)"**
+  is new -- plain name/email inputs passed straight into
+  `setStatus("pending_approval", { approverName, approverEmail })`
+  without ever calling the approvers-save endpoint, per explicit
+  instruction that this person should **not** be saved ("no se queda
+  guardada"). Both modes end up calling the exact same PATCH
+  (`approverName`/`approverEmail` in the body), which already accepted
+  arbitrary values not present in the `approvers` table -- the
+  one-time mode needed no server-side change, only the new UI split
+  and `handleConfirmSendForApproval` branching on `sendForApprovalMode`.
+- **Notification FROM address**: `RESEND_FROM_EMAIL` should be set to
+  `ir@axiskey.com` on Vercel (requires verifying the `axiskey.com`
+  sending domain in Resend first) -- `.env.example` updated to say so
+  explicitly. `sendApprovalRequestEmail` itself doesn't hardcode the
+  address (it already just reads `RESEND_FROM_EMAIL`, matching this
+  codebase's existing "configured via env, not hardcoded" pattern for
+  every other optional integration), so no code change was needed
+  there, only the env var's value once it's set.
+- **Approval-request email copy**, matching the user's literal
+  requested wording ("There's a new communication, investor
+  communication that needs to be approved"): `sendApprovalRequestEmail`
+  (`lib/services/communications/sendApprovalEmail.ts`) sends "There's a
+  new investor communication that needs to be approved: `<title>`",
+  who requested it, and a single styled button labeled "Review this
+  communication".
+- **The email's button opens a public, token-gated, back-navigation-
+  free review screen scoped to exactly one communication** -- new
+  `/communications-review/[token]` page
+  (`app/communications-review/[token]/page.tsx` +
+  `components/communicationsReview/CommunicationReviewView.tsx`),
+  mirroring `/order-tracking/[token]`'s and `/rate-your-experience`'s
+  existing "no `PageShell`/`Sidebar`, no auth guard,
+  `export const dynamic = "force-dynamic"`" conventions for standalone
+  public pages. Unlike `/order-tracking/[token]`'s token (the ClickUp
+  order number -- an intentionally guessable, read-only identifier per
+  an earlier explicit product decision documented above), this token
+  gates **write** actions (approve / request changes), so it's a real
+  high-entropy secret: a fresh `crypto.randomUUID()` generated server-
+  side in `PATCH /api/admin/communications/[id]` on every "Send for
+  approval" click (new `review_token` column,
+  `supabase/migrations/015_communications_review_token.sql`, unique
+  index, not yet confirmed run against the live Supabase project --
+  run it in the SQL editor before relying on this flow). There is no
+  separate expiry or revoke step: `getPendingCommunicationByToken`
+  (`lib/services/communications/reviewToken.ts`) only resolves a token
+  while the communication's status is still `pending_approval`, so a
+  token naturally stops working the moment it's acted on (by its own
+  use, or by an admin acting directly in `/admin`) or superseded by a
+  new "Send for approval" click, which overwrites `review_token` with a
+  fresh value.
+- **Four new public API routes** under `app/api/communications-review/
+  [token]/`, all looking the token up via the same
+  `getPendingCommunicationByToken` helper and returning 404
+  (`"This review link is no longer valid."`) once it's gone: `GET
+  [token]` (the communication + its history + comments, same shape the
+  admin detail GET returns), `POST .../comments` (adds a comment,
+  author = the snapshotted `requested_approver_name`/`_email`), `POST
+  .../approve` (-> `ready_for_launch`, sets `approved_at`/`approved_by`
+  to that same snapshotted identity, writes a history row), `POST
+  .../request-changes` (-> `changes_requested`, requires a non-empty
+  `comment`, written as that history row's `notes`). None of these
+  require `requireAdmin` -- the token itself is the credential, same
+  trust model as `/order-tracking/[token]`'s page-level token gate.
+- **The review screen itself** (`CommunicationReviewView.tsx`): a
+  `Shell` with just the dark header + logo (no nav, no back link,
+  nothing else on the page to click into) showing the email (same
+  `max-w-[640px]` sandboxed iframe preview as the admin detail page),
+  a Comments panel (post a new comment + the same merged
+  comments/history `TimelineEntry` list the admin detail page shows,
+  "con los comentarios anteriores" per the request), and an Actions
+  card with exactly two buttons -- Approve, or Request changes
+  (expands into a required comment box) -- per the user's explicit
+  "dos opciones" spec. After either action, the page replaces itself
+  with a simple thank-you/outcome card (no further navigation); if the
+  token no longer resolves (already acted on, or superseded by a newer
+  request), it shows a plain "This review link is no longer valid"
+  card instead of erroring.
+- Still unresolved / explicitly flagged to the user: sending an actual
+  test email to Diego Traversari (`Diego@AxisKey.com`) requires
+  `RESEND_API_KEY` and `RESEND_FROM_EMAIL=ir@axiskey.com` to be set on
+  Vercel first -- this session has no Vercel or Resend access, so
+  nothing here can trigger a real send until those are configured.
+
 ## PDF Generator (`/admin/pdf-generator`)
 
 Admin-only tool with nothing to do with the Operations Hub request flow;

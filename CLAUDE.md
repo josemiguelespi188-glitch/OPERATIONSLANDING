@@ -1105,6 +1105,35 @@ feature:
   in the Resend dashboard and only ever paste a new one straight into
   Vercel's env var UI, never into a prompt. Confirm this key was
   actually rotated if it wasn't already.
+- **The approval email's send result used to be completely invisible
+  from the UI** -- `sendApprovalRequestEmail`'s best-effort design
+  (never fails the status transition) meant a misconfigured Resend
+  setup (wrong/rotated key, unverified sending domain) looked
+  identical to a successful send from the admin's point of view: the
+  status still moved to `pending_approval`, no error anywhere. Live
+  testing (Oct 2026) hit exactly this -- four real "Send for approval"
+  attempts via the guided flow, zero of them showing up in Resend's
+  own Emails log at all (not even as a failed attempt), which points
+  at a Resend-side rejection before an email record is even created --
+  most likely the `axiskey.com` sending domain not actually verified
+  in Resend yet, since an unverified-domain `from` address is rejected
+  before Resend logs anything, unlike a bad API key (which usually
+  still shows a failed log entry). Fixed by threading the
+  `{sent, error}` result all the way through: `PATCH
+  /api/admin/communications/[id]` now also `console.error`s a failed
+  send (visible in Vercel's function logs) and includes it as
+  `emailResult` in its JSON response; `CommunicationDetail.tsx`'s
+  `setStatus()` reads that and shows an amber warning banner ("The
+  status changed, but the approval email was not sent: `<error>`")
+  right on the page instead of failing silently. Still doesn't block
+  the status transition itself -- only makes the failure visible.
+  **Next debugging step for the user**: check Resend -> Domains for
+  `axiskey.com`'s verification status, or temporarily set
+  `RESEND_FROM_EMAIL=onboarding@resend.dev` (no domain verification
+  needed) to isolate whether the problem is the domain or something
+  else -- this file's earlier `.env.example` guidance already
+  mentioned this fallback but the user had moved straight to
+  `ir@axiskey.com` without confirming verification first.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

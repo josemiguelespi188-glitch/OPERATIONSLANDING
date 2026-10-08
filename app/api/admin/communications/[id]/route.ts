@@ -202,14 +202,22 @@ export async function PATCH(request: Request, { params }: Params) {
 
   // Best-effort: never fails the transition itself if email sending
   // isn't configured or the call errors -- see sendApprovalRequestEmail.
+  // The outcome is still surfaced in the response (emailResult) and
+  // logged server-side, so a failure is visible instead of silent --
+  // this was previously swallowed entirely, which made a misconfigured
+  // Resend domain/key indistinguishable from "working" from the UI.
+  let emailResult: { sent: boolean; error?: string } | null = null;
   if (approvalEmailTarget) {
-    await sendApprovalRequestEmail({
+    emailResult = await sendApprovalRequestEmail({
       reviewToken: approvalEmailTarget.reviewToken,
       communicationTitle: row.title,
       approverName: approvalEmailTarget.name,
       approverEmail: approvalEmailTarget.email,
       requestedBy: admin.email ?? "The Operations Hub",
     });
+    if (!emailResult.sent) {
+      console.error(`[communications] approval email not sent for ${id}:`, emailResult.error);
+    }
   }
 
   // Recipients: replace the full selection whenever clientIds is sent,
@@ -225,7 +233,10 @@ export async function PATCH(request: Request, { params }: Params) {
     }
   }
 
-  return NextResponse.json(toCommunicationSummary(row as CommunicationRow));
+  return NextResponse.json({
+    ...toCommunicationSummary(row as CommunicationRow),
+    ...(emailResult ? { emailResult } : {}),
+  });
 }
 
 export async function DELETE(request: Request, { params }: Params) {

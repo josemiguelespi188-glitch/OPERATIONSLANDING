@@ -70,6 +70,7 @@ export function CommunicationDetail({ id }: { id: string }) {
   const router = useRouter();
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState("");
+  const [emailWarning, setEmailWarning] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [title, setTitle] = useState("");
@@ -241,6 +242,7 @@ export function CommunicationDetail({ id }: { id: string }) {
   async function setStatus(status: CommunicationStatus, extra?: Record<string, unknown>) {
     setStatusBusy(true);
     setError("");
+    setEmailWarning("");
     try {
       const res = await adminFetch(`/api/admin/communications/${id}`, {
         method: "PATCH",
@@ -248,6 +250,9 @@ export function CommunicationDetail({ id }: { id: string }) {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Could not update the status.");
+      if (body.emailResult && body.emailResult.sent === false) {
+        setEmailWarning(`The status changed, but the approval email was not sent: ${body.emailResult.error ?? "Unknown error."}`);
+      }
       setShowSendForApproval(false);
       setSendForApprovalMode("team");
       setOnceApproverName("");
@@ -357,6 +362,7 @@ export function CommunicationDetail({ id }: { id: string }) {
       />
 
       {error && <p className="mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {emailWarning && <p className="mt-4 rounded-[8px] bg-amber-50 px-3 py-2 text-sm text-amber-800">{emailWarning}</p>}
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.3fr_0.9fr_0.9fr]">
         {/* Left: the email itself, capped at a realistic email width */}

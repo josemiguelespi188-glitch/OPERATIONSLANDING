@@ -1156,60 +1156,29 @@ feature:
   `claude/accesskey-request-platform-dbzoni` deploy to Production
   automatically. Worth checking first the next time a shipped fix
   "doesn't show up" live.
-- **Switched the approval-request email from Resend to Microsoft
-  Graph (Oct 2026), sending as the real `ir@axiskey.com` Microsoft 365
-  mailbox.** Root cause that forced this: Resend requires verifying
-  ownership of the sending domain before it will relay mail as that
-  domain, and `axiskey.com` was never verified there (confirmed live --
-  every real send attempt came back `Resend API error 403: "The
-  axiskey.com domain is not verified"`). Rather than complete that DNS
-  verification, the user chose to send through the mailbox the
-  Microsoft 365 tenant already owns instead, which sidesteps third-
-  party domain verification entirely. `lib/services/communications/
-  graphMail.ts` (new) holds `sendMailViaGraph()`: an OAuth2 **client
-  credentials** flow (app-only token, no interactive sign-in) against
-  `https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token`, then
-  `POST https://graph.microsoft.com/v1.0/users/{sender}/sendMail`.
-  `sendApprovalEmail.ts` is otherwise unchanged (same HTML copy, same
-  CC to `mike@axiskey.com`) -- only the transport underneath it moved.
-  Gated the same best-effort way as the old Resend code: missing
-  config returns `{sent: false, error}` rather than throwing, so a
-  misconfigured app registration still doesn't block the status
-  transition, and now shows up via the `last_approval_email_error`
-  banner described above.
-  **One-time Azure AD setup required** (this app cannot do any of this
-  itself -- it's tenant admin work in the Microsoft 365 admin center /
-  Azure portal, same category as the ClickUp webhook registration
-  above):
-  1. In the Azure Portal (portal.azure.com) for the axiskey.com
-     tenant: **Azure Active Directory (Entra ID) -> App registrations
-     -> New registration**. Name it something like "AxisKey
-     Operations Hub Mailer". Note the **Application (client) ID** and
-     **Directory (tenant) ID** shown after creation.
-  2. **Certificates & secrets -> New client secret**. Copy the
-     secret's *value* immediately (shown once) -- this is
-     `MS_GRAPH_CLIENT_SECRET`.
-  3. **API permissions -> Add a permission -> Microsoft Graph ->
-     Application permissions -> Mail.Send -> Add permissions**, then
-     **Grant admin consent for AxisKey** (needs a Global Administrator
-     or Privileged Role Administrator in that tenant). Without this
-     consent step, every send fails with an authorization error even
-     with a valid client secret.
-  4. By default an app with `Mail.Send` can send as **any** mailbox in
-     the tenant, not just `ir@axiskey.com` -- tighten this with an
-     Exchange Online **application access policy** (PowerShell:
-     `New-ApplicationAccessPolicy -AppId <client id> -PolicyScopeGroupId
-     ir@axiskey.com -AccessRight RestrictAccess -Description "..."`,
-     run via `Connect-ExchangeOnline` from an Exchange admin account).
-     Optional but strongly recommended; skipping it just means the
-     app's blast radius is wider than it needs to be if the secret
-     ever leaks.
-  5. Set `MS_GRAPH_TENANT_ID`, `MS_GRAPH_CLIENT_ID`,
-     `MS_GRAPH_CLIENT_SECRET` on Vercel (see `.env.example`).
-     `MS_GRAPH_SENDER_EMAIL` is optional, defaults to `ir@axiskey.com`.
-  The old `RESEND_API_KEY`/`RESEND_FROM_EMAIL` env vars (if still set
-  on Vercel) are now unused dead config -- harmless to leave, safe to
-  remove once Graph sending is confirmed working.
+- **Briefly switched the approval-request email to Microsoft Graph
+  (sending as the real `ir@axiskey.com` Microsoft 365 mailbox), then
+  reverted back to Resend the same day (Oct 2026).** The switch was
+  made to avoid Resend's domain-verification requirement (every real
+  send attempt against `axiskey.com` came back `Resend API error 403:
+  "The axiskey.com domain is not verified"`), but Graph's setup --
+  register an Azure AD (Entra ID) app, generate a client secret, grant
+  admin consent for the `Mail.Send` application permission, optionally
+  lock it down with an Exchange Online application access policy via
+  PowerShell -- needs real Microsoft 365 tenant admin work, which the
+  user judged too heavy for this. `lib/services/communications/
+  graphMail.ts` and the `MS_GRAPH_*` env vars were added and then
+  removed again; `sendApprovalEmail.ts` is back to the original
+  Resend `fetch` call, unchanged from before the detour. **The actual
+  fix for the 403 is still pending**: either verify `axiskey.com` as a
+  sending domain at resend.com/domains (just 2-3 DNS records at
+  whoever manages that domain's DNS -- no admin-consent flow, much
+  lighter than the Graph route), or, for the fastest possible test
+  send with zero setup, set `RESEND_FROM_EMAIL=onboarding@resend.dev`
+  (Resend's shared test sender -- works immediately, but mail won't
+  come from `ir@axiskey.com` and may land in spam). Don't re-attempt
+  the Microsoft Graph route without the user explicitly asking for it
+  again, now that it's been tried and declined as overkill.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

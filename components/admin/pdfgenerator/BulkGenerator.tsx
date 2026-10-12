@@ -75,10 +75,12 @@ function revokeRow(row: Row) {
 export function BulkGenerator({
   templateBytes,
   config,
+  onChange,
   unsaved,
 }: {
   templateBytes: Uint8Array;
   config: PdfTemplateConfig;
+  onChange: (next: PdfTemplateConfig) => void;
   unsaved: boolean;
 }) {
   const [rows, setRows] = useState<Row[]>(() => Array.from({ length: EMPTY_ROWS }, emptyRow));
@@ -357,6 +359,38 @@ export function BulkGenerator({
           )}
         </div>
       )}
+
+      <section className="rounded-card border border-axis-base/30 bg-white p-5">
+        <p className="text-sm font-semibold text-axis-core">Document name</p>
+        <p className="mt-1 text-xs leading-relaxed text-axis-core/60">
+          Default file name for each PDF. Click a field to insert it. Can be changed per row below, or per row when
+          importing from Excel (a {DOC_NAME_LABEL} column).
+        </p>
+        <input
+          value={config.fileNamePattern}
+          onChange={(e) => onChange({ ...config, fileNamePattern: e.target.value })}
+          placeholder={textFields[0] ? `{${textFields[0].label}}` : "Document"}
+          className="mt-2 w-full max-w-md rounded-[8px] border border-axis-base/50 bg-white px-2 py-1.5 text-sm outline-none focus:border-axis-core"
+        />
+        <div className="mt-2 flex flex-wrap gap-1">
+          {textFields.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => onChange({ ...config, fileNamePattern: `${config.fileNamePattern}{${f.label}}` })}
+              className="rounded-full bg-axis-light px-2 py-0.5 text-[11px] font-medium text-axis-core hover:bg-axis-base/40"
+            >
+              + {f.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 truncate text-[11px] text-axis-core/60">
+          Example:{" "}
+          <span className="font-medium text-axis-core">
+            {resolveFileName(config, "", (f) => f.sample || f.defaultValue, "document")}.pdf
+          </span>
+        </p>
+      </section>
 
       <section className="rounded-card border border-axis-base/30 bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">

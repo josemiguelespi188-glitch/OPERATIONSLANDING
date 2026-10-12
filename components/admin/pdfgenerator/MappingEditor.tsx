@@ -6,7 +6,6 @@ import {
   BOX_DEFAULTS,
   PDF_FONT_FAMILIES,
   newId,
-  resolveFileName,
   type PdfBox,
   type PdfField,
   type PdfFieldType,
@@ -361,7 +360,6 @@ export function MappingEditor({
   const pageBoxes = config.boxes.filter((b) => b.page === pageIndex);
   const scale = viewport?.scale ?? 1;
   const activeField = activeFieldId ? fieldById.get(activeFieldId) ?? null : null;
-  const exampleFileName = resolveFileName(config, "", (f) => f.sample || f.defaultValue, "document");
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -797,35 +795,6 @@ export function MappingEditor({
             <p className="mt-1 text-[10px] text-axis-core/40">Position and size in points (1/72 inch), from the bottom-left.</p>
           </Panel>
         )}
-
-        <Panel title="Document name">
-          <p className="text-[11px] leading-snug text-axis-core/50">
-            Default file name for each PDF. Click a field to insert it. Can be changed per row when generating.
-          </p>
-          <input
-            value={config.fileNamePattern}
-            onChange={(e) => setConfig({ fileNamePattern: e.target.value })}
-            placeholder={config.fields.find((f) => f.type === "text") ? `{${config.fields.find((f) => f.type === "text")!.label}}` : "Document"}
-            className={`${inputCls} mt-2`}
-          />
-          <div className="mt-2 flex flex-wrap gap-1">
-            {config.fields
-              .filter((f) => f.type === "text")
-              .map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setConfig({ fileNamePattern: `${config.fileNamePattern}{${f.label}}` })}
-                  className="rounded-full bg-axis-light px-2 py-0.5 text-[11px] font-medium text-axis-core hover:bg-axis-base/40"
-                >
-                  + {f.label}
-                </button>
-              ))}
-          </div>
-          <p className="mt-2 truncate text-[11px] text-axis-core/60">
-            Example: <span className="font-medium text-axis-core">{exampleFileName}.pdf</span>
-          </p>
-        </Panel>
 
         <button
           type="button"

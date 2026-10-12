@@ -168,7 +168,7 @@ export function PdfTemplateWorkspace({ id }: { id: string }) {
           {tab === "mapping" ? (
             <MappingEditor pdfDoc={pdfDoc} templateBytes={templateBytes} config={mapping} onChange={setMapping} />
           ) : (
-            <BulkGenerator templateBytes={templateBytes} config={mapping} unsaved={dirty} />
+            <BulkGenerator templateBytes={templateBytes} config={mapping} onChange={setMapping} unsaved={dirty} />
           )}
         </div>
       )}

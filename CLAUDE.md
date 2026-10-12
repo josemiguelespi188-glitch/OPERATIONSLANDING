@@ -1200,3 +1200,30 @@ the editor converts with pdf.js `viewport.convertToViewportRectangle` /
 standard PDF fonts (WinAnsi only): characters outside that set are
 stripped of accents or replaced with `?` — embedding a custom font via
 `@pdf-lib/fontkit` would be the fix if that ever matters.
+
+**The "Document name" pattern editor (`config.fileNamePattern`) lives
+in the "2. Generate PDFs" tab (`BulkGenerator.tsx`), not "1. Mapping"
+(Oct 2026)** — it used to be a panel in `MappingEditor.tsx`'s sidebar,
+but per explicit feedback ("el document name solo debería salir en el
+generate pdf") it only matters for generation, not for placing fields
+on the page, so it moved. Still the same `config.fileNamePattern`
+field persisted through the same `onChange`/"Save mapping" flow —
+`PdfTemplateWorkspace.tsx` now passes `onChange={setMapping}` into
+`BulkGenerator` too, not just `MappingEditor`.
+
+Excel import (`lib/pdfGenerator/xlsx.ts`'s `parseXlsx`) is a from-
+scratch, browser-only .xlsx reader (unzips with fflate, reads the raw
+XML with DOMParser — no spreadsheet library) that has to handle two
+completely different ways Excel can put a picture in a cell: legacy
+floating pictures anchored over a cell (`twoCellAnchor`/
+`oneCellAnchor` in a `drawing` part) and Excel 365's newer "Place in
+Cell" picture (a rich-value cell, resolved through
+`xl/metadata.xml` -> `xl/richData/rdrichvalue.xml` ->
+`xl/richData/richValueRel.xml` -> the actual media file). **Reported
+broken live (Oct 2026)**: imported Document Name and Logo not loading
+correctly from a real user Excel file — not yet root-caused, since
+diagnosing a hand-rolled OOXML parser without the actual failing file
+is guesswork; next step is getting that real .xlsx from the user and
+tracing `parseXlsx`/`mapSheetToFields` against its actual XML
+structure (Excel's picture XML varies by version/OS/Mac vs Windows,
+and this parser was never tested against that range).

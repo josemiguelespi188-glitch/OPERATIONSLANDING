@@ -220,6 +220,19 @@ export async function PATCH(request: Request, { params }: Params) {
     }
   }
 
+  // Persist the outcome so it survives a reload -- see migration 016.
+  // Cleared on any other status change too, so a stale failure doesn't
+  // linger once the admin has moved past it.
+  if (statusChange) {
+    const lastApprovalEmailError = approvalEmailTarget
+      ? emailResult && !emailResult.sent
+        ? emailResult.error ?? "Unknown error."
+        : null
+      : null;
+    await supabase.from("communications").update({ last_approval_email_error: lastApprovalEmailError }).eq("id", id);
+    row.last_approval_email_error = lastApprovalEmailError;
+  }
+
   // Recipients: replace the full selection whenever clientIds is sent,
   // rather than diffing -- this is a small admin-managed list, not a
   // high-churn relation, so delete-then-reinsert is simple and correct.

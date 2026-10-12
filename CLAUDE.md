@@ -1127,13 +1127,35 @@ feature:
   status changed, but the approval email was not sent: `<error>`")
   right on the page instead of failing silently. Still doesn't block
   the status transition itself -- only makes the failure visible.
-  **Next debugging step for the user**: check Resend -> Domains for
-  `axiskey.com`'s verification status, or temporarily set
-  `RESEND_FROM_EMAIL=onboarding@resend.dev` (no domain verification
-  needed) to isolate whether the problem is the domain or something
-  else -- this file's earlier `.env.example` guidance already
-  mentioned this fallback but the user had moved straight to
-  `ir@axiskey.com` without confirming verification first.
+- **That amber warning only lived in React state, not persisted** --
+  a reload or navigating away and back lost it, which is exactly what
+  happened during live debugging: two real send attempts went out
+  (confirmed via `communications_status_history`) but the admin never
+  saw the error because they'd navigated back to the page afterward.
+  Fixed (migration `016_communications_last_email_error.sql`,
+  `communications.last_approval_email_error`): the PATCH route now
+  writes the send outcome into this column on every status change --
+  the latest error message when a `pending_approval` email attempt
+  fails, `null` on success or on any other status transition (so a
+  stale failure doesn't linger once the admin has moved past it). The
+  detail page now reads `data.lastApprovalEmailError` directly (no
+  more ephemeral local state) so the warning survives reloads and is
+  visible any time the page is opened, not just right after the click.
+- **Root cause of the "nothing ever arrives" live debugging session
+  (Oct 2026) turned out to be deployment promotion, not code**: Vercel
+  deployments page showed the admin's git pushes landing as **Preview**
+  only, with **Production** still pinned to an older commit (manually
+  re-triggered via "Redeploy", which rebuilds the same commit a
+  deployment already had rather than pulling the branch's latest) --
+  so every code fix in this section (the CC, the amber banner, this
+  persisted-error column) existed in the repo and in Preview
+  deployments well before it ever reached the live site the admin was
+  testing against. The fix is **"Promote to Production"** on the
+  correct branch's Preview deployment (not "Redeploy"), or fixing
+  Vercel's Production Branch setting so pushes to
+  `claude/accesskey-request-platform-dbzoni` deploy to Production
+  automatically. Worth checking first the next time a shipped fix
+  "doesn't show up" live.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

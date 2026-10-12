@@ -1,0 +1,14 @@
+-- Persists the outcome of the most recent approval-request email send
+-- attempt, so a failure (misconfigured Resend key/domain, etc.) is
+-- visible on the communication's detail page even after a reload --
+-- previously this only lived in the admin's browser state for the
+-- single page load right after clicking "Send request", so refreshing
+-- or navigating away and back silently lost it, making a real failure
+-- indistinguishable from "nobody has checked yet".
+--
+-- Null means either no approval email has been attempted yet, or the
+-- most recent attempt succeeded; non-null is the error message from
+-- that most recent attempt. Cleared (set back to null) on any other
+-- status transition so a stale error doesn't linger after the admin
+-- has moved past it.
+alter table communications add column if not exists last_approval_email_error text;

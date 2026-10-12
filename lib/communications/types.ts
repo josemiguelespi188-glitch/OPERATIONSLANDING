@@ -68,6 +68,7 @@ export interface CommunicationRow {
   approved_by: string | null;
   requested_approver_name: string | null;
   requested_approver_email: string | null;
+  last_approval_email_error: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -86,6 +87,7 @@ export interface CommunicationSummary {
   approvedBy: string | null;
   requestedApproverName: string | null;
   requestedApproverEmail: string | null;
+  lastApprovalEmailError: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -105,6 +107,7 @@ export function toCommunicationSummary(row: CommunicationRow): CommunicationSumm
     approvedBy: row.approved_by,
     requestedApproverName: row.requested_approver_name,
     requestedApproverEmail: row.requested_approver_email,
+    lastApprovalEmailError: row.last_approval_email_error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

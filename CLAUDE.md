@@ -1346,3 +1346,50 @@ is guesswork; next step is getting that real .xlsx from the user and
 tracing `parseXlsx`/`mapSheetToFields` against its actual XML
 structure (Excel's picture XML varies by version/OS/Mac vs Windows,
 and this parser was never tested against that range).
+
+**Bulk-generated PDFs corrupted / "may be damaged" in macOS Preview
+(Oct 2026), fixed in `prepareLogo()` (`lib/pdfGenerator/generate.ts`):**
+reported from a real "Wire Instructions" batch (Excel-imported company
+logos) where several output PDFs wouldn't open in Preview and Quick
+Look couldn't even thumbnail one of them, while most of the batch was
+fine. Root-caused by reproducing the actual generation + ZIP pipeline
+standalone (pdf-lib + fflate, same versions as this repo) against
+deliberately truncated PNG/JPEG bytes, since a truncated source image
+is exactly what the still-open Excel logo-import bug above can produce:
+- A **truncated PNG fed to pdf-lib's `embedPng` doesn't throw -- it
+  hangs forever** (confirmed: 4+ minutes of 100% CPU on an 8 KB PNG cut
+  to 80/50/10% before being killed). This is strictly worse than one bad
+  file: it would freeze the whole bulk batch on that row.
+- A **truncated/corrupted JPEG fed to `embedJpg` also doesn't throw** --
+  pdf-lib doesn't validate JPEG data, it just wraps whatever bytes it's
+  given as a DCTDecode stream. The resulting PDF's container (xref,
+  trailer, pages) is completely valid -- pdf-lib and presumably Chrome/
+  Acrobat would still open it -- but the embedded image stream itself is
+  broken. macOS Preview/Quick Look (ImageIO) is markedly stricter about
+  malformed embedded JPEG data than other renderers and can refuse to
+  open the *entire* PDF over it, which is exactly the reported symptom
+  (and why Quick Look couldn't thumbnail the other file either -- same
+  underlying ImageIO path).
+- A wide battery of *valid* exotic inputs (progressive JPEG, CMYK JPEG,
+  interlaced/palette/16-bit PNGs, unicode + emoji file names, duplicate
+  doc names hitting the `uniqueFileName` "(2)" suffix path) all round-
+  tripped byte-identical through generation + `zipFiles()` with no
+  corruption -- ruling out pdf-lib's save(), fflate's `zipSync`, and the
+  file-naming/dedup logic as the cause.
+- Fix: `prepareLogo()` now checks a PNG ends with the IEND chunk
+  (`PNG_IEND`, the fixed 12-byte trailer every PNG ends with) and a JPEG
+  ends with the `FFD9` EOI marker *before* trusting raw bytes. A PNG/JPEG
+  that fails this check no longer short-circuits to the direct-bytes
+  path -- it now falls through to the same canvas-rasterize path already
+  used for SVG/WebP/GIF, since the browser's native image decoder
+  recovers a partial/slightly-damaged image far more often than pdf-lib
+  does, and `canvas.toBlob` always re-encodes a clean, complete PNG
+  either way. If the browser's own decoder also can't read it, this now
+  throws a clear, catchable error (surfaced through the exact same
+  `generateAll()`/`failures` reporting `BulkGenerator.tsx` already had
+  for any other per-row generation error) instead of hanging the batch
+  or silently baking in a broken image stream.
+- This doesn't fix the underlying Excel logo-extraction bug above (still
+  unconfirmed without the user's real .xlsx) -- it makes this codebase
+  tolerate whatever that bug (or any other source of a bad image file)
+  hands it, without hanging or shipping an unopenable PDF.

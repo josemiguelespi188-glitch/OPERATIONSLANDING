@@ -29,16 +29,49 @@ export function standardFontFor(box: Pick<PdfBox, "fontFamily" | "bold" | "itali
   return FONT_MAP[box.fontFamily][(box.bold ? 1 : 0) + (box.italic ? 2 : 0)];
 }
 
+const PNG_IEND = new Uint8Array([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);
+
+function endsWith(bytes: Uint8Array, suffix: Uint8Array): boolean {
+  if (bytes.length < suffix.length) return false;
+  const start = bytes.length - suffix.length;
+  for (let i = 0; i < suffix.length; i++) if (bytes[start + i] !== suffix[i]) return false;
+  return true;
+}
+
+/**
+ * A truncated/incomplete PNG or JPEG (e.g. from a bad Excel image
+ * extraction) can't be trusted as-is: pdf-lib's PNG decoder hangs
+ * forever on an incomplete IDAT stream instead of throwing, and a
+ * truncated JPEG embeds "successfully" as a broken DCTDecode stream
+ * that some PDF viewers (macOS Preview/Quick Look in particular) then
+ * refuse to open at all, even though the PDF container itself is
+ * valid. Checking for the PNG IEND chunk / JPEG EOI marker catches a
+ * cut-off file before it ever reaches pdf-lib.
+ */
+function isCompleteImage(bytes: Uint8Array, kind: "png" | "jpg"): boolean {
+  if (kind === "png") return endsWith(bytes, PNG_IEND);
+  return bytes.length >= 2 && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
+}
+
 /**
  * pdf-lib can only embed PNG and JPEG. Anything else the browser can
- * decode (SVG, WebP, GIF, ...) is rasterized to a PNG through a canvas,
- * at a resolution high enough to stay sharp when printed.
+ * decode (SVG, WebP, GIF, ...) -- or a PNG/JPEG whose bytes turn out to
+ * be truncated, see isCompleteImage() above -- is rasterized to a PNG
+ * through a canvas instead, at a resolution high enough to stay sharp
+ * when printed. The browser's own decoder is far more tolerant of a
+ * slightly-damaged source file than pdf-lib is, and canvas.toBlob always
+ * produces a clean, complete PNG, so routing a suspect file through this
+ * path either recovers it or fails it with a clear error -- never a hang
+ * or a silently corrupt embed.
  */
 export async function prepareLogo(file: Blob): Promise<PreparedLogo> {
   const type = file.type.toLowerCase();
-  if (type === "image/png") return { bytes: new Uint8Array(await file.arrayBuffer()), kind: "png" };
-  if (type === "image/jpeg" || type === "image/jpg") {
-    return { bytes: new Uint8Array(await file.arrayBuffer()), kind: "jpg" };
+  if (type === "image/png") {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (isCompleteImage(bytes, "png")) return { bytes, kind: "png" };
+  } else if (type === "image/jpeg" || type === "image/jpg") {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (isCompleteImage(bytes, "jpg")) return { bytes, kind: "jpg" };
   }
 
   const url = URL.createObjectURL(file);

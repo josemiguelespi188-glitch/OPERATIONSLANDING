@@ -1298,6 +1298,38 @@ feature:
   comments}/route.ts`) were updated to match: approve has no
   `quoteHtml` (nothing to quote), request-changes and comments both
   quote the actual text in the highlighted box.
+- **Both hosted logo files from the Outlook base64 fix above were
+  themselves corrupted (found Oct 2026, from a real screenshot showing
+  broken-image icons for both logos in every email, not just Outlook)**:
+  the "verbatim decode from the original base64" that produced
+  `public/email/approval-header-axis-logo.jpg` and
+  `approval-footer-axiskey-logo.png` silently truncated both files --
+  confirmed with the same completeness checks added for the PDF
+  Generator bug the same day (`isCompleteImage` in
+  `lib/pdfGenerator/generate.ts`): neither file's JPEG ended with the
+  `FFD9` EOI marker nor the PNG with its IEND chunk, and trying to
+  actually decode either one (`sharp`) failed outright ("premature end
+  of data segment" / "libpng read error") -- not just a missing
+  trailer, real pixel data was gone. **So the Outlook fix never
+  actually fixed anything**: these two files have been broken in every
+  email client (Gmail, Apple Mail, Outlook alike), not just Outlook,
+  ever since that commit shipped -- the base64 inline images it
+  replaced would at least have rendered in non-Outlook clients.
+  `approval-header-axis-logo.jpg` is fixed (Oct 2026): the user
+  supplied a fresh, complete, byte-valid 200x73 JPEG of the same AXIS
+  mark (confirmed decodable). **`approval-footer-axiskey-logo.png` is
+  still broken** -- its corruption is mid-IDAT (real pixel data
+  missing, not just a missing trailing chunk), so unlike a
+  missing-IEND-only file it can't be mechanically repaired by
+  re-appending a valid trailer; a fresh complete export of the
+  AxisKey wordmark is needed from the user before the footer logo will
+  render anywhere. Until that's supplied, every email built from
+  `sendApprovalEmail.ts`'s or `notifyAnnelise.ts`'s shared template
+  shell still has a broken footer logo. Lesson for any future
+  "extract an image from base64/elsewhere and commit it to `public/`"
+  step in this codebase: verify the written file actually decodes
+  (don't trust `file`'s magic-byte check alone, which both corrupted
+  files still passed) before considering it fixed.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

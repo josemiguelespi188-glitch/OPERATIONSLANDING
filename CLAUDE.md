@@ -1257,6 +1257,27 @@ feature:
   (request-changes and approve both move status off
   `pending_approval`), and the admin page is what Annelise needs to
   act regardless.
+- **The approval email's two logos showed as broken-image icons in
+  Outlook desktop** (reported live, Oct 2026, with a real screenshot
+  from an Outlook inbox) -- confirmed root cause: **Outlook's desktop
+  app (the Word-based rendering engine on Windows) refuses to render
+  base64-embedded `data:image/...;base64,...` `<img>` sources at all**,
+  even though the exact same HTML renders fine in Gmail and Apple
+  Mail. The user's original template had both logos inline that way.
+  Fixed by extracting them to real files -- decoded verbatim from the
+  original base64 (pixel-for-pixel identical, not re-exported or
+  recompressed) to `public/email/approval-header-axis-logo.jpg` (the
+  small header "AXIS" mark) and
+  `public/email/approval-footer-axiskey-logo.png` (the footer
+  "AxisKey" wordmark) -- and referencing them by public HTTPS URL
+  (`${getSiteBaseUrl()}/email/...`, via a new `baseUrl` param threaded
+  into `approvalEmailHtml()`) instead of inlining the bytes.
+  **General rule for any future email HTML in this codebase**: never
+  embed images as base64 `data:` URIs -- host them as real files
+  under `public/` (or anywhere else with a stable public HTTPS URL)
+  and reference them by URL, since Outlook desktop is a large enough
+  share of real investor/admin inboxes that base64 images will
+  silently break for a meaningful fraction of recipients.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

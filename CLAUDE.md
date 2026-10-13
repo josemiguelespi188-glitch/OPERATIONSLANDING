@@ -1240,6 +1240,23 @@ feature:
   explicit instruction to mirror "la pantalla de creación de
   comunicados" (the admin detail page's right-column structure) rather
   than inventing a new layout.
+- **Annelise now gets notified on every reviewer action on the public
+  review page, not just approval** (Oct 2026) -- per explicit
+  instruction ("en cada acción que se requiera notificación").
+  `sendApprovedNotificationEmail.ts` was replaced with a shared
+  `lib/services/communications/notifyAnnelise.ts` (same
+  `annelise@axiskey.com` recipient, `mike@axiskey.com` CC, same
+  best-effort/non-blocking gating), called from all three
+  `app/api/communications-review/[token]/*` route handlers: `POST
+  .../approve` ("Approved: `<title>`"), `POST .../request-changes`
+  ("Changes requested: `<title>`", quoting the actual comment left),
+  and `POST .../comments` ("New comment: `<title>`", quoting the
+  comment). All three link to the real admin page
+  (`/admin/communications/[id]`), same reasoning as before -- the
+  public review token is often already dead by the time these fire
+  (request-changes and approve both move status off
+  `pending_approval`), and the admin page is what Annelise needs to
+  act regardless.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

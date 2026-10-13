@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getPendingCommunicationByToken } from "@/lib/services/communications/reviewToken";
-import { sendApprovedNotificationEmail } from "@/lib/services/communications/sendApprovedNotificationEmail";
+import { notifyAnnelise } from "@/lib/services/communications/notifyAnnelise";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +36,11 @@ export async function POST(request: Request, { params }: Params) {
 
   // Best-effort: never fails the approval itself if the notification
   // can't be sent -- same pattern as the approval-request email.
-  const emailResult = await sendApprovedNotificationEmail({
+  const emailResult = await notifyAnnelise({
     communicationId: row.id,
     communicationTitle: row.title,
-    approvedBy,
+    subject: `Approved: ${row.title}`,
+    message: `<strong>${approvedBy}</strong> just approved this communication and it's ready for launch.`,
   });
   if (!emailResult.sent) {
     console.error(`[communications] approved notification not sent for ${row.id}:`, emailResult.error);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getPendingCommunicationByToken } from "@/lib/services/communications/reviewToken";
+import { notifyAnnelise } from "@/lib/services/communications/notifyAnnelise";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,18 @@ export async function POST(request: Request, { params }: Params) {
     changed_by: changedBy,
     notes: comment,
   });
+
+  // Best-effort: never fails the action itself if the notification
+  // can't be sent -- same pattern as every other email here.
+  const emailResult = await notifyAnnelise({
+    communicationId: row.id,
+    communicationTitle: row.title,
+    subject: `Changes requested: ${row.title}`,
+    message: `<strong>${changedBy}</strong> requested changes before approving this communication:</p><p style="margin:12px 0;padding:12px;background:#f6f4f0;border-radius:8px;">${comment}`,
+  });
+  if (!emailResult.sent) {
+    console.error(`[communications] changes-requested notification not sent for ${row.id}:`, emailResult.error);
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { STATUS_LABELS, type CommunicationComment, type CommunicationStatusHistoryEntry, type CommunicationSummary } from "@/lib/communications/types";
 
@@ -29,6 +29,8 @@ export function CommunicationReviewView({ token }: { token: string }) {
   const [newCommentBody, setNewCommentBody] = useState("");
   const [postingComment, setPostingComment] = useState(false);
 
+  const commentsEndRef = useRef<HTMLDivElement>(null);
+
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/communications-review/${token}`);
@@ -47,6 +49,11 @@ export function CommunicationReviewView({ token }: { token: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Chat-style: always land on the newest comment at the bottom of the thread.
+  useEffect(() => {
+    commentsEndRef.current?.scrollIntoView({ block: "end" });
+  }, [data?.comments.length, data?.history.length]);
 
   async function handleApprove() {
     setBusy(true);
@@ -105,7 +112,7 @@ export function CommunicationReviewView({ token }: { token: string }) {
   if (notFound) {
     return (
       <Shell>
-        <div className="mx-auto max-w-md rounded-card border border-axis-base/30 bg-white p-8 text-center">
+        <div className="mx-auto mt-10 max-w-md rounded-card border border-axis-base/30 bg-white p-8 text-center">
           <p className="font-head text-lg font-bold text-axis-core">This review link is no longer valid.</p>
           <p className="mt-2 text-sm text-axis-core/60">
             It may have already been acted on, or a new approval request was sent out since.
@@ -118,7 +125,7 @@ export function CommunicationReviewView({ token }: { token: string }) {
   if (outcome) {
     return (
       <Shell>
-        <div className="mx-auto max-w-md rounded-card border border-axis-base/30 bg-white p-8 text-center">
+        <div className="mx-auto mt-10 max-w-md rounded-card border border-axis-base/30 bg-white p-8 text-center">
           <p className="font-head text-lg font-bold text-axis-core">
             {outcome === "approved" ? "Approved — thank you." : "Changes requested — thank you."}
           </p>
@@ -135,18 +142,19 @@ export function CommunicationReviewView({ token }: { token: string }) {
   if (!data && !error) {
     return (
       <Shell>
-        <p className="text-center text-sm text-axis-core/50">Loading...</p>
+        <p className="mt-10 text-center text-sm text-axis-core/50">Loading...</p>
       </Shell>
     );
   }
   if (!data) {
     return (
       <Shell>
-        <p className="mx-auto max-w-md rounded-[8px] bg-red-50 px-4 py-3 text-center text-sm text-red-700">{error}</p>
+        <p className="mx-auto mt-10 max-w-md rounded-[8px] bg-red-50 px-4 py-3 text-center text-sm text-red-700">{error}</p>
       </Shell>
     );
   }
 
+  // Oldest first, newest last -- a chat-style thread, not a reverse-chronological feed.
   const timeline: TimelineEntry[] = [
     ...data.comments.map((c): TimelineEntry => ({ kind: "comment", id: c.id, createdAt: c.createdAt, author: c.author, body: c.body })),
     ...data.history.map((h): TimelineEntry => ({
@@ -158,12 +166,12 @@ export function CommunicationReviewView({ token }: { token: string }) {
       toStatus: h.toStatus,
       notes: h.notes,
     })),
-  ].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+  ].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
 
   return (
     <Shell>
-      <div className="mx-auto max-w-[900px]">
-        <div className="flex items-start justify-between gap-4">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">Review this communication</p>
             <h1 className="mt-1 font-head text-2xl font-medium tracking-tight text-axis-core">{data.title}</h1>
@@ -173,87 +181,105 @@ export function CommunicationReviewView({ token }: { token: string }) {
           </span>
         </div>
 
-        {error && <p className="mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-3 shrink-0 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-        <div className="mt-5 rounded-card border border-axis-base/30 bg-white p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-axis-core/45">Email</p>
-          {data.htmlCode?.trim() ? (
-            <div className="mx-auto mt-3 w-full max-w-[640px]">
-              <iframe srcDoc={data.htmlCode} sandbox="" title="Email preview" className="h-[560px] w-full rounded-[8px] border border-axis-base/50 bg-white" />
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-axis-core/40">No HTML yet.</p>
-          )}
-        </div>
-
-        <div className="mt-5 rounded-card border border-axis-base/30 bg-white p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-axis-core/45">Comments</p>
-          <div className="mt-3 flex flex-col gap-2">
-            <textarea
-              value={newCommentBody}
-              onChange={(e) => setNewCommentBody(e.target.value)}
-              rows={2}
-              placeholder="Add a comment..."
-              className="w-full rounded-[8px] border border-axis-base/50 px-3 py-2 text-sm outline-none focus:border-axis-core"
-            />
-            <button type="button" onClick={handlePostComment} disabled={!newCommentBody.trim() || postingComment} className={`self-start ${SECONDARY_BTN}`}>
-              {postingComment ? "Posting..." : "Post comment"}
-            </button>
-          </div>
-
-          <div className="mt-4 max-h-[320px] space-y-3 overflow-y-auto">
-            {timeline.length === 0 && <p className="text-xs text-axis-core/40">Nothing here yet.</p>}
-            {timeline.map((entry) =>
-              entry.kind === "comment" ? (
-                <div key={`c-${entry.id}`} className="rounded-[8px] border border-axis-base/20 p-3">
-                  <p className="text-xs font-semibold text-axis-core">{entry.author}</p>
-                  <p className="mt-1 text-sm text-axis-core/80">{entry.body}</p>
-                  <p className="mt-1 text-[11px] text-axis-core/40">{new Date(entry.createdAt).toLocaleString("en-US")}</p>
-                </div>
-              ) : (
-                <div key={`s-${entry.id}`} className="border-l-2 border-axis-base/30 pl-3 text-xs text-axis-core/60">
-                  <span className="font-medium text-axis-core">
-                    {entry.fromStatus ? `${STATUS_LABELS[entry.fromStatus]} → ${STATUS_LABELS[entry.toStatus]}` : `Created as ${STATUS_LABELS[entry.toStatus]}`}
-                  </span>
-                  {" · "}
-                  {entry.author} · {new Date(entry.createdAt).toLocaleString("en-US")}
-                  {entry.notes && <p className="mt-1 text-axis-core/70">"{entry.notes}"</p>}
-                </div>
-              )
+        <div className="mt-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto lg:grid lg:grid-cols-[1.3fr_0.9fr] lg:overflow-visible">
+          {/* Left: the email, full width -- never cropped by the right column */}
+          <div className="flex min-h-[320px] flex-col overflow-hidden rounded-card border border-axis-base/30 bg-white p-5 lg:min-h-0">
+            <p className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-axis-core/45">Email</p>
+            {data.htmlCode?.trim() ? (
+              <div className="mx-auto mt-3 h-full min-h-[300px] w-full max-w-[640px] flex-1">
+                <iframe
+                  srcDoc={data.htmlCode}
+                  sandbox=""
+                  title="Email preview"
+                  className="h-full min-h-[300px] w-full rounded-[8px] border border-axis-base/50 bg-white"
+                />
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-axis-core/40">No HTML yet.</p>
             )}
           </div>
-        </div>
 
-        <div className="mt-5 rounded-card border border-axis-base/30 bg-white p-5">
-          {!showRequestChanges ? (
-            <div className="flex flex-wrap gap-3">
-              <button type="button" onClick={handleApprove} disabled={busy} className={PRIMARY_BTN}>
-                Approve
-              </button>
-              <button type="button" onClick={() => setShowRequestChanges(true)} disabled={busy} className={SECONDARY_BTN}>
-                Request changes
-              </button>
+          {/* Right: comments (scrollable, oldest-to-newest) + add-comment box + actions, ClickUp-style */}
+          <div className="flex min-h-[320px] flex-col overflow-hidden rounded-card border border-axis-base/30 bg-white p-5 lg:min-h-0">
+            <p className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-axis-core/45">Comments</p>
+
+            <div className="mt-3 max-h-[50vh] min-h-0 flex-1 space-y-3 overflow-y-auto lg:max-h-none">
+              {timeline.length === 0 && <p className="text-xs text-axis-core/40">Nothing here yet.</p>}
+              {timeline.map((entry) =>
+                entry.kind === "comment" ? (
+                  <div key={`c-${entry.id}`} className="rounded-[8px] border border-axis-base/20 p-3">
+                    <p className="text-xs font-semibold text-axis-core">{entry.author}</p>
+                    <p className="mt-1 text-sm text-axis-core/80">{entry.body}</p>
+                    <p className="mt-1 text-[11px] text-axis-core/40">{new Date(entry.createdAt).toLocaleString("en-US")}</p>
+                  </div>
+                ) : (
+                  <div key={`s-${entry.id}`} className="border-l-2 border-axis-base/30 pl-3 text-xs text-axis-core/60">
+                    <span className="font-medium text-axis-core">
+                      {entry.fromStatus ? `${STATUS_LABELS[entry.fromStatus]} → ${STATUS_LABELS[entry.toStatus]}` : `Created as ${STATUS_LABELS[entry.toStatus]}`}
+                    </span>
+                    {" · "}
+                    {entry.author} · {new Date(entry.createdAt).toLocaleString("en-US")}
+                    {entry.notes && <p className="mt-1 text-axis-core/70">"{entry.notes}"</p>}
+                  </div>
+                )
+              )}
+              <div ref={commentsEndRef} />
             </div>
-          ) : (
-            <div>
-              <p className="text-sm font-semibold text-axis-core">What needs to change?</p>
+
+            {/* Add a comment: directly below the thread, ClickUp-style */}
+            <div className="mt-3 shrink-0 border-t border-axis-base/20 pt-3">
               <textarea
-                value={changesComment}
-                onChange={(e) => setChangesComment(e.target.value)}
-                rows={3}
-                className="mt-2 w-full rounded-[8px] border border-axis-base/50 px-3 py-2 text-sm outline-none focus:border-axis-core"
-                placeholder="Describe what needs to change before this is sent out..."
+                value={newCommentBody}
+                onChange={(e) => setNewCommentBody(e.target.value)}
+                rows={2}
+                placeholder="Add a comment..."
+                className="w-full rounded-[8px] border border-axis-base/50 px-3 py-2 text-sm outline-none focus:border-axis-core"
               />
-              <div className="mt-3 flex gap-2">
-                <button type="button" onClick={handleRequestChanges} disabled={busy || !changesComment.trim()} className={PRIMARY_BTN}>
-                  Send
-                </button>
-                <button type="button" onClick={() => setShowRequestChanges(false)} className="rounded-[8px] px-4 py-2.5 text-sm font-semibold text-axis-core/60 hover:bg-axis-light">
-                  Cancel
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handlePostComment}
+                disabled={!newCommentBody.trim() || postingComment}
+                className={`mt-2 ${SECONDARY_BTN}`}
+              >
+                {postingComment ? "Posting..." : "Post comment"}
+              </button>
             </div>
-          )}
+
+            {/* Approve / request changes: below the comments, per spec */}
+            <div className="mt-3 shrink-0 border-t border-axis-base/20 pt-3">
+              {!showRequestChanges ? (
+                <div className="flex flex-wrap gap-3">
+                  <button type="button" onClick={handleApprove} disabled={busy} className={PRIMARY_BTN}>
+                    Approve
+                  </button>
+                  <button type="button" onClick={() => setShowRequestChanges(true)} disabled={busy} className={SECONDARY_BTN}>
+                    Request changes
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm font-semibold text-axis-core">What needs to change?</p>
+                  <textarea
+                    value={changesComment}
+                    onChange={(e) => setChangesComment(e.target.value)}
+                    rows={3}
+                    className="mt-2 w-full rounded-[8px] border border-axis-base/50 px-3 py-2 text-sm outline-none focus:border-axis-core"
+                    placeholder="Describe what needs to change before this is sent out..."
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" onClick={handleRequestChanges} disabled={busy || !changesComment.trim()} className={PRIMARY_BTN}>
+                      Send
+                    </button>
+                    <button type="button" onClick={() => setShowRequestChanges(false)} className="rounded-[8px] px-4 py-2.5 text-sm font-semibold text-axis-core/60 hover:bg-axis-light">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </Shell>
@@ -262,11 +288,11 @@ export function CommunicationReviewView({ token }: { token: string }) {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-axis-cream">
-      <header className="bg-axis-core px-6 py-5">
+    <div className="flex h-[100dvh] flex-col overflow-y-auto bg-axis-cream lg:overflow-hidden">
+      <header className="shrink-0 bg-axis-core px-6 py-4">
         <Logo variant="light" />
       </header>
-      <main className="px-4 py-10 sm:px-8">{children}</main>
+      <main className="min-h-0 flex-1 px-4 py-4 sm:px-8">{children}</main>
     </div>
   );
 }

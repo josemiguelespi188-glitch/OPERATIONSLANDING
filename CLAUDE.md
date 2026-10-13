@@ -1179,6 +1179,67 @@ feature:
   come from `ir@axiskey.com` and may land in spam). Don't re-attempt
   the Microsoft Graph route without the user explicitly asking for it
   again, now that it's been tried and declined as overkill.
+- **`axiskey.com` verified in Resend (Oct 2026)** -- the DKIM TXT
+  (`resend._domainkey`) and the two SPF CNAMEs (`rsend`, `send`) were
+  added at GoDaddy (the domain's registrar/DNS host) and all show
+  Verified in Resend. The approval-request email now actually sends
+  from `ir@axiskey.com` in production -- confirmed with a real send to
+  `mike@axiskey.com` that arrived.
+- **The approval-request email's HTML was replaced with a fully
+  branded template the user supplied directly** (Oct 2026,
+  `approvalEmailHtml()` in `sendApprovalEmail.ts`) -- an AxisKey-styled
+  layout with inline base64 AXIS/AxisKey logos, an "Approval Needed"
+  eyebrow, headline, greeting, body copy, a yellow pill CTA button
+  ("Review This Communication"), and a dark footer with contact info
+  and legal text, replacing the earlier plain-paragraph version. Only
+  `{Recipient Name}`, `{Communication Name}`, `{Requester Email}`, and
+  `{Review Link}` are substituted; the rest of the markup (including
+  both embedded logo images) is reproduced verbatim as given -- don't
+  hand-edit the HTML without a fresh copy from the user.
+- **A second, separate notification email now fires when a reviewer
+  approves** (`lib/services/communications/
+  sendApprovedNotificationEmail.ts`, called from `POST
+  /api/communications-review/[token]/approve` right after the status
+  write and history insert succeed): hardcoded to `annelise@axiskey.com`
+  -- she owns creating communications and launching them, so she's the
+  one who needs to know the instant something clears
+  `pending_approval` -- CC'd to `mike@axiskey.com` "for tests rn" per
+  explicit instruction, same temporary testing CC as
+  `sendApprovalEmail.ts`'s `MIKE_CC_EMAIL` (remove/change both
+  together once testing is done). Links to the real admin page
+  (`/admin/communications/[id]`), not the public review token, since
+  that token stops resolving the moment status leaves
+  `pending_approval` (see `reviewToken.ts`) -- by the time this email
+  sends, the review link is already dead, so Annelise needs the actual
+  admin detail page to get to the HTML and launch it. Same best-effort
+  gating as every other email here: a missing Resend key/unconfigured
+  domain returns `{sent: false, error}` and is `console.error`'d, but
+  never blocks the approval itself.
+- **`/communications-review/[token]`'s layout was redone to fit one
+  screen with no outer scroll** (Oct 2026,
+  `CommunicationReviewView.tsx`), per explicit feedback that the old
+  version needed scrolling to reach the comments and action buttons.
+  `Shell` is now `h-[100dvh] flex flex-col overflow-hidden` at the
+  `lg` breakpoint (mobile still scrolls the page normally, since a
+  fixed-height split doesn't work on a narrow screen -- `overflow-y-auto`
+  there instead), with the header/title/status row `shrink-0` and the
+  two-column body taking the remaining height. Left column (email)
+  and right column (comments) are each independently
+  `overflow-hidden` wrappers around their own internally-scrolling
+  content, not one page-level scrollbar -- the email keeps its full
+  `max-w-[640px]` realistic-email width (never cropped by the right
+  column) and now fills the available vertical height instead of a
+  fixed `560px` iframe. The comments thread is sorted **oldest-first,
+  newest-last** (reversed from the admin detail page's
+  newest-first feed) with a ref-based auto-scroll-to-bottom on load
+  and on every new comment, chat-style; the "Add a comment" box sits
+  directly below the thread (ClickUp's own comment-composer placement,
+  not above it like the admin detail page does), and the
+  Approve/Request-changes buttons sit below that, in their own
+  bordered section at the bottom of the same column -- matching the
+  explicit instruction to mirror "la pantalla de creación de
+  comunicados" (the admin detail page's right-column structure) rather
+  than inventing a new layout.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

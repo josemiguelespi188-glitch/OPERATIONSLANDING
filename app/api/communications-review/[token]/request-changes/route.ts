@@ -38,7 +38,10 @@ export async function POST(request: Request, { params }: Params) {
     communicationId: row.id,
     communicationTitle: row.title,
     subject: `Changes requested: ${row.title}`,
-    message: `<strong>${changedBy}</strong> requested changes before approving this communication:</p><p style="margin:12px 0;padding:12px;background:#f6f4f0;border-radius:8px;">${comment}`,
+    eyebrow: "Changes Requested",
+    headline: `Changes requested on ${row.title}`,
+    introHtml: `<strong>${changedBy}</strong> requested changes before approving this communication:`,
+    quoteHtml: comment,
   });
   if (!emailResult.sent) {
     console.error(`[communications] changes-requested notification not sent for ${row.id}:`, emailResult.error);

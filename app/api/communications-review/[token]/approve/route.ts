@@ -40,7 +40,9 @@ export async function POST(request: Request, { params }: Params) {
     communicationId: row.id,
     communicationTitle: row.title,
     subject: `Approved: ${row.title}`,
-    message: `<strong>${approvedBy}</strong> just approved this communication and it's ready for launch.`,
+    eyebrow: "Approved",
+    headline: `${row.title} is ready for launch`,
+    introHtml: `<strong>${approvedBy}</strong> just approved this communication and it's ready for launch.`,
   });
   if (!emailResult.sent) {
     console.error(`[communications] approved notification not sent for ${row.id}:`, emailResult.error);

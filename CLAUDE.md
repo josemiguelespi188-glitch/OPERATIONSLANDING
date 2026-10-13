@@ -1278,6 +1278,26 @@ feature:
   and reference them by URL, since Outlook desktop is a large enough
   share of real investor/admin inboxes that base64 images will
   silently break for a meaningful fraction of recipients.
+- **Annelise's notification emails (comment/changes-requested/
+  approved) are now branded with the same AxisKey template shell as
+  the approval-request email**, not plain unstyled HTML -- per
+  explicit feedback on a real screenshot ("no me gusta este formato.
+  hazle parecido al mail de request for approval"). `notifyAnnelise.ts`
+  gained its own `notificationEmailHtml()` (header accent bar, AXIS
+  logo, eyebrow label, headline, greeting, intro line, an optional
+  quoted-text box for comments/changes-requested, a yellow pill CTA
+  "Open This Communication", and the same dark AxisKey footer),
+  reusing the identical two hosted logo files
+  (`public/email/approval-header-axis-logo.jpg`,
+  `public/email/approval-footer-axiskey-logo.png`) as
+  `sendApprovalEmail.ts` rather than duplicating or re-embedding them.
+  `notifyAnnelise()`'s signature changed from a single free-text
+  `message` string to `{eyebrow, headline, introHtml, quoteHtml?}` --
+  all three call sites
+  (`app/api/communications-review/[token]/{approve,request-changes,
+  comments}/route.ts`) were updated to match: approve has no
+  `quoteHtml` (nothing to quote), request-changes and comments both
+  quote the actual text in the highlighted box.
 
 ## PDF Generator (`/admin/pdf-generator`)
 

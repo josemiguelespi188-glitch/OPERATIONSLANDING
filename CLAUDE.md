@@ -610,6 +610,41 @@ type more than one").
   `DYNAMIC_TO_CONFIG_KIND` has no reverse entry for it, so the admin's
   "Add question" picker still can't create a new one from scratch.
 
+### Dynamic checkbox labels (Oct 2026)
+
+A `"checkbox"` field can now reference another field's live value in
+its own label via a literal `"{value}"` token, e.g.
+`ira-funding-request`'s new `hasExistingCustodianAccount` field:
+label `"Does the investor already have an account with {value}?"` +
+`dynamicLabelField: "custodian"` renders as "...with Directed IRA?"
+and updates on every keystroke as the investor types the custodian
+name, falling back to `dynamicLabelFallback` ("this custodian") while
+that field is still empty. Per explicit request ("si pone directed
+IRA. La pregunta que salga: does the investor already has an account
+with directed ira?").
+
+- Implemented narrowly: `FormShell`'s `displayLabel(field)` only
+  substitutes `{value}` for a `"checkbox"` field that sets
+  `dynamicLabelField`; every other field kind (and every checkbox that
+  doesn't opt in) renders `field.label` as plain text, unchanged. This
+  isn't a general templating system across all labels -- deliberately
+  scoped to avoid any field whose label happens to contain a literal
+  `{` rendering unexpectedly.
+- `hasExistingCustodianAccount` has **no ClickUp custom field mapping**
+  (`CUSTOM_FIELD_MAP` in `lib/integrations/clickup.ts`) -- no confirmed
+  field exists for this yet, and this session can't reach the ClickUp
+  API to check (see "Network access from a Claude Code" above), so
+  guessing an id would risk the exact silent-no-op mistake flagged
+  elsewhere in this file. It only reaches ClickUp via the task
+  description (`notesFields`, `skipIfEmpty: true` so the line is
+  omitted entirely when left unchecked, same pattern as
+  `redemption-request`'s `issuerApprovedRedemption`). Add a real
+  `customFields` entry once a field is provisioned and confirmed.
+- `fieldConfigBridge.ts`'s `applyOverride` needed no change for this --
+  its existing checkbox branch spreads `...base` first, so
+  `dynamicLabelField`/`dynamicLabelFallback` always carry through an
+  admin's label/required/helper edits unchanged.
+
 ## Style
 
 No em dash (`—`) in any user-facing platform text — form labels,

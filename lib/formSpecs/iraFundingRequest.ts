@@ -27,6 +27,14 @@ const fields: FieldConfig[] = [
     placeholder: "Sterling Custodial Trust",
   },
   {
+    kind: "checkbox",
+    name: "hasExistingCustodianAccount",
+    label: "Does the investor already have an account with {value}?",
+    helper: "Check this if the investor already has an account set up with this custodian.",
+    dynamicLabelField: "custodian",
+    dynamicLabelFallback: "this custodian",
+  },
+  {
     kind: "currency",
     name: "investingAmount",
     label: "What's the investing amount?",
@@ -71,6 +79,7 @@ export const iraFundingRequestSpec: FormSpec = {
     dealNameField: "offeringName",
     notesFields: [
       { label: "Custodian", field: "custodian" },
+      { label: "Investor Already Has an Account With Custodian", field: "hasExistingCustodianAccount", skipIfEmpty: true },
       { label: "Investing Amount", field: "investingAmount" },
       { label: "Order Number", field: "orderNumber" },
     ],

@@ -64,11 +64,19 @@ export type FieldConfig =
   | {
       kind: "checkbox";
       name: string;
+      /** A literal "{value}" token is replaced live with another field's
+       *  current value (dynamicLabelField) as the investor types, e.g.
+       *  "Does the investor already have an account with {value}?" ->
+       *  "...with Directed IRA?". Falls back to dynamicLabelFallback (or
+       *  "it") while that other field is still empty. Plain fields never
+       *  use this -- it's opt-in per checkbox. */
       label: string;
       required?: boolean;
       helper?: string;
       checkboxLabel?: string;
       fullWidth?: boolean;
+      dynamicLabelField?: string;
+      dynamicLabelFallback?: string;
     }
   | {
       /** Like "file", but accepts any number of files (e.g. "Upload
@@ -217,6 +225,14 @@ export function FormShell({
     });
     setMultiEmailDraft((prev) => ({ ...prev, [name]: "" }));
     setMultiEmailErrors((prev) => ({ ...prev, [name]: "" }));
+  }
+
+  function displayLabel(field: FieldConfig): string {
+    if (field.kind === "checkbox" && field.dynamicLabelField) {
+      const liveValue = values[field.dynamicLabelField]?.trim();
+      return field.label.replace("{value}", liveValue || field.dynamicLabelFallback || "it");
+    }
+    return field.label;
   }
 
   function removeEmail(name: string, index: number) {
@@ -386,7 +402,7 @@ export function FormShell({
               <div className="grid grid-cols-1 gap-x-10 gap-y-8 sm:grid-cols-2">
                 {fields.map((field) => (
                   <div key={field.name} className={field.fullWidth ? "sm:col-span-2" : undefined}>
-                    <FieldLabel label={field.label} required={field.required} />
+                    <FieldLabel label={displayLabel(field)} required={field.required} />
                     {field.helper && <p className="mt-1 text-xs text-axis-core/50">{field.helper}</p>}
 
                     <div className="mt-2">

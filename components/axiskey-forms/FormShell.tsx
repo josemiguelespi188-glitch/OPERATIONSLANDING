@@ -45,12 +45,20 @@ export type FieldConfig =
   | {
       kind: "select";
       name: string;
+      /** A literal "{value}" token is replaced live with another field's
+       *  current value (dynamicLabelField), e.g. a required Yes/No
+       *  question whose wording names the custodian the investor just
+       *  typed elsewhere in the form. Falls back to dynamicLabelFallback
+       *  while that other field is still empty. Opt-in, same as on
+       *  "checkbox" below. */
       label: string;
       required?: boolean;
       helper?: string;
       placeholder: string;
       options: string[];
       fullWidth?: boolean;
+      dynamicLabelField?: string;
+      dynamicLabelFallback?: string;
     }
   | {
       kind: "file";
@@ -228,7 +236,7 @@ export function FormShell({
   }
 
   function displayLabel(field: FieldConfig): string {
-    if (field.kind === "checkbox" && field.dynamicLabelField) {
+    if ((field.kind === "checkbox" || field.kind === "select") && field.dynamicLabelField) {
       const liveValue = values[field.dynamicLabelField]?.trim();
       return field.label.replace("{value}", liveValue || field.dynamicLabelFallback || "it");
     }

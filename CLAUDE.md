@@ -610,12 +610,12 @@ type more than one").
   `DYNAMIC_TO_CONFIG_KIND` has no reverse entry for it, so the admin's
   "Add question" picker still can't create a new one from scratch.
 
-### Dynamic checkbox labels (Oct 2026)
+### Dynamic field labels (Oct 2026)
 
-A `"checkbox"` field can now reference another field's live value in
-its own label via a literal `"{value}"` token, e.g.
-`ira-funding-request`'s new `hasExistingCustodianAccount` field:
-label `"Does the investor already have an account with {value}?"` +
+A `"checkbox"` **or** `"select"` field can reference another field's
+live value in its own label via a literal `"{value}"` token, e.g.
+`ira-funding-request`'s `hasExistingCustodianAccount` field: label
+`"Does the investor already have an account with {value}?"` +
 `dynamicLabelField: "custodian"` renders as "...with Directed IRA?"
 and updates on every keystroke as the investor types the custodian
 name, falling back to `dynamicLabelFallback` ("this custodian") while
@@ -624,26 +624,40 @@ IRA. La pregunta que salga: does the investor already has an account
 with directed ira?").
 
 - Implemented narrowly: `FormShell`'s `displayLabel(field)` only
-  substitutes `{value}` for a `"checkbox"` field that sets
-  `dynamicLabelField`; every other field kind (and every checkbox that
-  doesn't opt in) renders `field.label` as plain text, unchanged. This
-  isn't a general templating system across all labels -- deliberately
-  scoped to avoid any field whose label happens to contain a literal
-  `{` rendering unexpectedly.
-- `hasExistingCustodianAccount` has **no ClickUp custom field mapping**
+  substitutes `{value}` for a `"checkbox"` or `"select"` field that
+  sets `dynamicLabelField`; every other field kind (and every
+  checkbox/select that doesn't opt in) renders `field.label` as plain
+  text, unchanged. This isn't a general templating system across all
+  labels -- deliberately scoped to avoid any field whose label happens
+  to contain a literal `{` rendering unexpectedly.
+- `fieldConfigBridge.ts`'s `applyOverride` needed no change for this --
+  neither the checkbox branch nor the generic fallback branch (which
+  `"select"` falls through) strip unknown properties, so
+  `dynamicLabelField`/`dynamicLabelFallback`/`options` always carry
+  through an admin's label/required/helper edits unchanged.
+
+**`hasExistingCustodianAccount` is `"select"` (Yes/No), not
+`"checkbox"`** -- it started as a plain checkbox, but the user then
+asked for it to be obligatory ("THIS QUESTION SHOULD BE OBLIGATORY").
+A native HTML `required` checkbox can only mean "must be checked,"
+which would have forced every submission to claim the investor already
+has an account, including the (common, valid) cases where they don't
+-- asked the user to confirm this tradeoff before building either way,
+and they picked the dropdown so "No" stays a real, submittable answer
+while still blocking submission until the question is actually
+answered (confirmed live: submitting with the placeholder option still
+selected shows the browser's native "Please select an item in the
+list" validation and blocks submit; selecting "No" is accepted as
+valid, not just "Yes"). `options: ["Yes", "No"]`.
+- Still has **no ClickUp custom field mapping**
   (`CUSTOM_FIELD_MAP` in `lib/integrations/clickup.ts`) -- no confirmed
   field exists for this yet, and this session can't reach the ClickUp
   API to check (see "Network access from a Claude Code" above), so
   guessing an id would risk the exact silent-no-op mistake flagged
   elsewhere in this file. It only reaches ClickUp via the task
-  description (`notesFields`, `skipIfEmpty: true` so the line is
-  omitted entirely when left unchecked, same pattern as
-  `redemption-request`'s `issuerApprovedRedemption`). Add a real
-  `customFields` entry once a field is provisioned and confirmed.
-- `fieldConfigBridge.ts`'s `applyOverride` needed no change for this --
-  its existing checkbox branch spreads `...base` first, so
-  `dynamicLabelField`/`dynamicLabelFallback` always carry through an
-  admin's label/required/helper edits unchanged.
+  description (`notesFields`) -- no `skipIfEmpty` needed now that it's
+  required and always has a value. Add a real `customFields` entry
+  once a field is provisioned and confirmed.
 
 ## Style
 

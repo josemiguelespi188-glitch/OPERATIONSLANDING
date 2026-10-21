@@ -467,7 +467,15 @@ export function FormShell({
                               }
                             }}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+                              if (e.key === " ") {
+                                // Emails can't contain spaces, so Space never
+                                // types one -- it just commits the draft, same
+                                // as Enter.
+                                e.preventDefault();
+                                if ((multiEmailDraft[field.name] ?? "").trim()) {
+                                  commitEmailDraft(field.name);
+                                }
+                              } else if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
                                 if ((multiEmailDraft[field.name] ?? "").trim()) {
                                   e.preventDefault();
                                   commitEmailDraft(field.name);

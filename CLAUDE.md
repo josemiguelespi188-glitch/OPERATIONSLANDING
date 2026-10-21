@@ -558,11 +558,22 @@ see `supabase/migrations/005_investor_update_requests.sql`
 
 `FormShell` (`components/axiskey-forms/FormShell.tsx`) gained a
 `"multiemail"` field kind -- like `"email"`, but renders as the typical
-chip/tag input: type an address, press Enter/Tab/comma (or blur the
-field) to commit it as a removable pill, keep typing for more. First
-used on `ira-funding-request`'s `ccEmail` field (per explicit request:
-"QUe sea la tipica que pones uno y se selecciona y ahí mismo puedes
-type more than one").
+chip/tag input: type an address, press Enter/Tab/Space/comma (or blur
+the field) to commit it as a removable pill, keep typing for more.
+First used on `ira-funding-request`'s `ccEmail` field (per explicit
+request: "QUe sea la tipica que pones uno y se selecciona y ahí mismo
+puedes type more than one").
+
+**Space commits, it never types** (added Oct 2026, per explicit
+follow-up: "Acá si typeas space debería ingresar el mail. no debe
+dejarte poner espacio. Space es como enter básicamente."): the
+`onKeyDown` handler always calls `e.preventDefault()` on `" "` before
+checking whether to commit, unlike Enter/Tab/comma (which only
+`preventDefault()` when there's something to commit, so Tab still
+tabs to the next field on an empty draft). An email can never contain
+a space anyway, so there's no case where letting it through would be
+correct -- confirmed live that a space attempted mid-string (not just
+trailing) is silently dropped rather than typed.
 
 - **Storage stays a single string** -- `values[field.name]` holds a
   comma-separated list (`"a@x.com, b@y.com"`), same `Record<string,

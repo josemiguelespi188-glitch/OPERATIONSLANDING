@@ -48,11 +48,11 @@ const fields: FieldConfig[] = [
     placeholder: "10234",
   },
   {
-    kind: "email",
+    kind: "multiemail",
     name: "ccEmail",
     label: "What is your email so you can be CC'd on this request?",
     required: true,
-    helper: "Add your email so you can track this request.",
+    helper: "Add your email so you can track this request. You can add more than one.",
     placeholder: "agent@axiskey.com",
     fullWidth: true,
   },

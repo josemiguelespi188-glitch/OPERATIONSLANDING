@@ -19,6 +19,21 @@ export type FieldConfig =
       fullWidth?: boolean;
     }
   | {
+      /** Like "email", but accepts any number of addresses as chips -- type
+       *  one, press Enter/Tab/comma (or blur) to commit it, keep typing for
+       *  more. Stored in `values` as a single comma-separated string, same
+       *  as every other field, so nothing downstream (notes, customFields,
+       *  requestorEmailFields) needs to know this field can hold more than
+       *  one address. */
+      kind: "multiemail";
+      name: string;
+      label: string;
+      required?: boolean;
+      helper?: string;
+      placeholder: string;
+      fullWidth?: boolean;
+    }
+  | {
       kind: "textarea";
       name: string;
       label: string;
@@ -122,6 +137,8 @@ type SubmitState = "idle" | "uploading" | "submitting" | "success" | "error";
 const inputClass =
   "w-full rounded-[6px] border border-axis-base/50 bg-white px-[12px] py-[12px] text-sm text-axis-core placeholder:text-axis-core/30 focus:outline-none focus:border-axis-core/60 focus:ring-2 focus:ring-axis-core/10";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function FormShell({
   slug,
   title,
@@ -137,6 +154,8 @@ export function FormShell({
   const [values, setValues] = useState<Record<string, string>>(initialValues ?? {});
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [multiFiles, setMultiFiles] = useState<Record<string, File[]>>({});
+  const [multiEmailDraft, setMultiEmailDraft] = useState<Record<string, string>>({});
+  const [multiEmailErrors, setMultiEmailErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<SubmitState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -167,6 +186,44 @@ export function FormShell({
       ...prev,
       [name]: (prev[name] ?? []).filter((_, i) => i !== index),
     }));
+  }
+
+  function parseEmails(raw: string): string[] {
+    return raw
+      .split(",")
+      .map((email) => email.trim())
+      .filter(Boolean);
+  }
+
+  function emailsFor(name: string): string[] {
+    return parseEmails(values[name] ?? "");
+  }
+
+  function commitEmailDraft(name: string) {
+    const draft = (multiEmailDraft[name] ?? "").trim();
+    if (!draft) return;
+    if (!EMAIL_RE.test(draft)) {
+      setMultiEmailErrors((prev) => ({ ...prev, [name]: `"${draft}" doesn't look like a valid email.` }));
+      return;
+    }
+    // Reads/writes through setValues' updater (not the `values` closure)
+    // so two commits firing back-to-back -- e.g. pasting several emails
+    // and hitting Enter after each before React re-renders in between --
+    // each see the other's result instead of one silently overwriting it.
+    setValues((prev) => {
+      const current = parseEmails(prev[name] ?? "");
+      if (current.some((email) => email.toLowerCase() === draft.toLowerCase())) return prev;
+      return { ...prev, [name]: [...current, draft].join(", ") };
+    });
+    setMultiEmailDraft((prev) => ({ ...prev, [name]: "" }));
+    setMultiEmailErrors((prev) => ({ ...prev, [name]: "" }));
+  }
+
+  function removeEmail(name: string, index: number) {
+    setValues((prev) => {
+      const next = parseEmails(prev[name] ?? "").filter((_, i) => i !== index);
+      return { ...prev, [name]: next.join(", ") };
+    });
   }
 
   async function uploadFieldFiles(): Promise<AttachmentInput[]> {
@@ -238,6 +295,15 @@ export function FormShell({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage("");
+
+    const missingMultiEmail = fields.find(
+      (f) => f.kind === "multiemail" && f.required && emailsFor(f.name).length === 0
+    );
+    if (missingMultiEmail) {
+      setState("error");
+      setErrorMessage(`${missingMultiEmail.label} is required.`);
+      return;
+    }
 
     try {
       setState("uploading");
@@ -344,6 +410,61 @@ export function FormShell({
                         onChange={(e) => setValue(field.name, e.target.value)}
                         className={inputClass}
                       />
+                    )}
+
+                    {field.kind === "multiemail" && (
+                      <div>
+                        <div
+                          className={`${inputClass} flex flex-wrap items-center gap-1.5 py-[8px]`}
+                        >
+                          {emailsFor(field.name).map((email, i) => (
+                            <span
+                              key={`${email}-${i}`}
+                              className="flex items-center gap-1 rounded-full bg-axis-light px-2.5 py-1 text-xs text-axis-core/80"
+                            >
+                              {email}
+                              <button
+                                type="button"
+                                onClick={() => removeEmail(field.name, i)}
+                                aria-label={`Remove ${email}`}
+                                className="text-axis-core/40 hover:text-axis-core"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                          <input
+                            type="email"
+                            value={multiEmailDraft[field.name] ?? ""}
+                            onChange={(e) => {
+                              setMultiEmailDraft((prev) => ({ ...prev, [field.name]: e.target.value }));
+                              if (multiEmailErrors[field.name]) {
+                                setMultiEmailErrors((prev) => ({ ...prev, [field.name]: "" }));
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+                                if ((multiEmailDraft[field.name] ?? "").trim()) {
+                                  e.preventDefault();
+                                  commitEmailDraft(field.name);
+                                }
+                              } else if (
+                                e.key === "Backspace" &&
+                                !(multiEmailDraft[field.name] ?? "") &&
+                                emailsFor(field.name).length > 0
+                              ) {
+                                removeEmail(field.name, emailsFor(field.name).length - 1);
+                              }
+                            }}
+                            onBlur={() => commitEmailDraft(field.name)}
+                            placeholder={emailsFor(field.name).length ? "Add another email" : field.placeholder}
+                            className="min-w-[140px] flex-1 border-none bg-transparent p-0 text-sm text-axis-core placeholder:text-axis-core/30 focus:outline-none focus:ring-0"
+                          />
+                        </div>
+                        {multiEmailErrors[field.name] && (
+                          <p className="mt-1 text-xs text-red-600">{multiEmailErrors[field.name]}</p>
+                        )}
+                      </div>
                     )}
 
                     {field.kind === "number" && (

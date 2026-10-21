@@ -59,6 +59,16 @@ const CONFIG_KIND_TO_DYNAMIC: Record<FieldConfig["kind"], DynamicFieldType> = {
   // section), so this mapping only exists to satisfy the Record's type;
   // it's never actually looked up for a multifile field in practice.
   multifile: "file_upload",
+  // Unlike multifile, a multiemail field (ira-funding-request's ccEmail)
+  // DOES flow through this bridge, since that form is a locked form the
+  // admin Form Builder edits. There's no dedicated DynamicFieldType for
+  // it, so it's represented as "email" in the admin's field list -- an
+  // admin can still edit its label/helper/required there like any other
+  // locked field, just can't change its type away from code (same as
+  // every other code-defined field; see applyOverride's comment).
+  // DYNAMIC_TO_CONFIG_KIND has no reverse entry for it, so the admin
+  // "Add question" picker can't create a new one.
+  multiemail: "email",
 };
 
 /** DynamicFieldType options the "Add question" picker offers when editing

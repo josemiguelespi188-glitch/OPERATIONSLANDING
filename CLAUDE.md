@@ -554,6 +554,62 @@ see `supabase/migrations/005_investor_update_requests.sql`
   ClickUp via the task description until a list/field IDs are
   provisioned and confirmed, same as any other newly added list.
 
+## Multi-email fields (Oct 2026)
+
+`FormShell` (`components/axiskey-forms/FormShell.tsx`) gained a
+`"multiemail"` field kind -- like `"email"`, but renders as the typical
+chip/tag input: type an address, press Enter/Tab/comma (or blur the
+field) to commit it as a removable pill, keep typing for more. First
+used on `ira-funding-request`'s `ccEmail` field (per explicit request:
+"QUe sea la tipica que pones uno y se selecciona y ahí mismo puedes
+type more than one").
+
+- **Storage stays a single string** -- `values[field.name]` holds a
+  comma-separated list (`"a@x.com, b@y.com"`), same `Record<string,
+  string>` every other field already uses. Nothing downstream
+  (`notesFields`, `customFields`, `requestorEmailFields`, the ClickUp
+  task description, `requests.requestor_email`) needed to change: a
+  joined string reads correctly as plain text everywhere it already
+  flows, and `ira-funding-request`'s `ccEmail` -> ClickUp mapping
+  (`715f4b75...`, see `CUSTOM_FIELD_MAP` in `lib/integrations/
+  clickup.ts`) is a ClickUp **text** field, not an email-typed one, so
+  a multi-value string isn't rejected there either.
+- **A real race condition was caught and fixed here** (found via an
+  actual Playwright-driven browser test of the chip interactions, not
+  just eyeballing a screenshot -- run several times, intermittently
+  reproduced): `commitEmailDraft`'s first version computed the new
+  email list from the `values` closure and called the single-field
+  `setValue` helper, so two commits firing before React re-rendered in
+  between (e.g. adding two addresses in quick succession) could each
+  read the same stale "before" list and the second `setValues` call
+  would silently clobber the first commit's email instead of adding to
+  it. Fixed by having both `commitEmailDraft` and `removeEmail` read
+  and write through `setValues`' own functional updater (computing the
+  current list from `prev[name]`, not the outer closure), which
+  guarantees each queued update sees the other's result regardless of
+  batching -- confirmed fixed by re-running the same test script
+  5 times back to back with zero drops, after it reproduced the drop
+  on a prior run.
+- Required-ness can't rely on the native HTML5 `required` attribute
+  the way every other field kind does (there's no single native input
+  whose value reflects "at least one chip exists"), so `FormShell`'s
+  `handleSubmit` does a manual check for any required `"multiemail"`
+  field with zero committed emails before proceeding, surfaced through
+  the same error banner every other submit failure uses.
+- `lib/dynamicForms/fieldConfigBridge.ts`'s `CONFIG_KIND_TO_DYNAMIC`
+  maps `multiemail -> "email"` **for display only** in the admin Form
+  Builder's field list -- unlike `"multifile"` (which never flows
+  through this bridge at all, since investor-update-request isn't a
+  locked form), `ira-funding-request` *is* a locked form, so its
+  `ccEmail` field's admin-editable row does need a real
+  `DynamicFieldType` to render as. An admin can still edit this
+  field's label/helper/required from `/admin/forms/[id]` like any
+  other locked field; its key/type stays code-owned either way (same
+  as every other locked field), so showing "Email" there instead of a
+  (non-existent) "Multi-email" type has no actual effect on behavior.
+  `DYNAMIC_TO_CONFIG_KIND` has no reverse entry for it, so the admin's
+  "Add question" picker still can't create a new one from scratch.
+
 ## Style
 
 No em dash (`—`) in any user-facing platform text — form labels,

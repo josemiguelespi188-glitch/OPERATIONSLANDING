@@ -670,6 +670,52 @@ valid, not just "Yes"). `options: ["Yes", "No"]`.
   required and always has a value. Add a real `customFields` entry
   once a field is provisioned and confirmed.
 
+### Custodian dropdown with a free-text "Other" (Oct 2026)
+
+`ira-funding-request`'s `custodian` field changed from plain free text
+to a new `"selectOrOther"` `FieldConfig` kind: a normal `<select>` of
+the custodians AxisKey actually works with, plus an "Other" choice
+that reveals a free-text input for anything not on the list. Per
+explicit request, listing the exact custodians and asking for this
+pattern ("necesito que acá salga un dropdown con los custodians que
+trabajamos y una opcion de other y poder typear"). Current list (code
+only, no DB-backed source of truth -- editing it means editing
+`lib/formSpecs/iraFundingRequest.ts`): Advanta Trust, American Estate &
+Trust, Charles Schwab, Directed Trust Company, Equity Trust Company,
+IRA Club, IRA Financial Trust, Madison Trust, Inspira Financial Trust,
+Rocket Dollar, STRATA, Entrust, UDirect IRA, Other.
+
+- **`values[name]` always holds the final answer, never the literal
+  word "Other"** -- same storage principle as `"multiemail"` above,
+  so `custodian` -> ClickUp mapping, `notesFields`, and the
+  `hasExistingCustodianAccount` dynamic label (which reads
+  `values.custodian` directly) all keep working unchanged whether the
+  investor picked a listed name or typed a custom one. A sentinel
+  (`OTHER_TOKEN = "__other__"`, module-level in `FormShell.tsx`) is
+  only ever used as the `<select>`'s own option value/display state --
+  it's never written into `values`.
+- **Whether the Other branch is showing is derived, not just tracked**
+  (`isOtherSelected()` in `FormShell.tsx`): explicit interaction (just
+  picked "Other", or just picked a real option) always wins once it
+  happens, but before that, a field whose stored value doesn't match
+  any listed option is treated as Other too -- so a prefilled custom
+  answer (e.g. from `initialValues`) opens showing its own text in the
+  free-text box instead of looking blank or losing data.
+- The free-text input gets the field's own `required`, so picking
+  "Other" and leaving it blank still blocks submission (confirmed
+  live: `validity.valueMissing` is `true` until something's typed) --
+  no manual JS validation needed, same reasoning as the Yes/No
+  `"select"` field above.
+- `fieldConfigBridge.ts`'s `CONFIG_KIND_TO_DYNAMIC` maps
+  `selectOrOther -> "dropdown"` **for display only** in the admin Form
+  Builder (same reasoning as `multiemail -> "email"` above -- this
+  field does flow through the bridge since `ira-funding-request` is a
+  locked form), and `toDynamicField()`'s `options` line now also
+  includes `"selectOrOther"` so the admin's field list actually shows
+  the real option set, not an empty list. The admin-only "dropdown"
+  representation has no "Other" escape hatch of its own -- that part
+  only exists in `FormShell`'s own render.
+
 ## Style
 
 No em dash (`—`) in any user-facing platform text — form labels,

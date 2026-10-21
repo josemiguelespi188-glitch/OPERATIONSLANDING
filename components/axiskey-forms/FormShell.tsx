@@ -61,6 +61,24 @@ export type FieldConfig =
       dynamicLabelFallback?: string;
     }
   | {
+      /** A "select" of common options plus an "Other" choice that reveals
+       *  a free-text input for anything not on the list. The field's
+       *  stored value (`values[name]`) is always the final answer --
+       *  whichever list option was picked, or whatever was typed after
+       *  choosing Other -- never the literal word "Other" itself, so
+       *  nothing downstream needs to know this field has a custom-entry
+       *  escape hatch. */
+      kind: "selectOrOther";
+      name: string;
+      label: string;
+      required?: boolean;
+      helper?: string;
+      placeholder: string;
+      options: string[];
+      otherPlaceholder?: string;
+      fullWidth?: boolean;
+    }
+  | {
       kind: "file";
       name: string;
       label: string;
@@ -155,6 +173,10 @@ const inputClass =
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Sentinel <option> value for "selectOrOther"'s Other choice -- never
+ *  written into `values`, which always holds the final answer text. */
+const OTHER_TOKEN = "__other__";
+
 export function FormShell({
   slug,
   title,
@@ -172,6 +194,7 @@ export function FormShell({
   const [multiFiles, setMultiFiles] = useState<Record<string, File[]>>({});
   const [multiEmailDraft, setMultiEmailDraft] = useState<Record<string, string>>({});
   const [multiEmailErrors, setMultiEmailErrors] = useState<Record<string, string>>({});
+  const [otherMode, setOtherMode] = useState<Record<string, boolean>>({});
   const [state, setState] = useState<SubmitState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -241,6 +264,18 @@ export function FormShell({
       return field.label.replace("{value}", liveValue || field.dynamicLabelFallback || "it");
     }
     return field.label;
+  }
+
+  /** Whether a "selectOrOther" field's Other branch is the active one.
+   *  Explicit otherMode (set by picking "Other", or picking a real
+   *  option) always wins; otherwise inferred from the stored value not
+   *  matching any listed option, so a prefilled/initialValues custom
+   *  answer still opens showing its own text instead of looking empty. */
+  function isOtherSelected(field: Extract<FieldConfig, { kind: "selectOrOther" }>): boolean {
+    const explicit = otherMode[field.name];
+    if (explicit !== undefined) return explicit;
+    const current = values[field.name] ?? "";
+    return !!current && !field.options.includes(current);
   }
 
   function removeEmail(name: string, index: number) {
@@ -580,6 +615,64 @@ export function FormShell({
                             strokeLinejoin="round"
                           />
                         </svg>
+                      </div>
+                    )}
+
+                    {field.kind === "selectOrOther" && (
+                      <div>
+                        <div className="relative">
+                          <select
+                            required={field.required}
+                            value={isOtherSelected(field) ? OTHER_TOKEN : values[field.name] ?? ""}
+                            onChange={(e) => {
+                              const picked = e.target.value;
+                              if (picked === OTHER_TOKEN) {
+                                setOtherMode((prev) => ({ ...prev, [field.name]: true }));
+                                setValue(field.name, "");
+                              } else {
+                                setOtherMode((prev) => ({ ...prev, [field.name]: false }));
+                                setValue(field.name, picked);
+                              }
+                            }}
+                            className={`${inputClass} appearance-none pr-9`}
+                          >
+                            <option value="" disabled hidden>
+                              {field.placeholder}
+                            </option>
+                            {field.options.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                            <option value={OTHER_TOKEN}>Other</option>
+                          </select>
+                          <svg
+                            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+                            width="12"
+                            height="8"
+                            viewBox="0 0 12 8"
+                            fill="none"
+                          >
+                            <path
+                              d="M1 1.5L6 6.5L11 1.5"
+                              stroke="#8A8178"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </div>
+                        {isOtherSelected(field) && (
+                          <input
+                            type="text"
+                            required={field.required}
+                            autoFocus
+                            placeholder={field.otherPlaceholder ?? "Enter a name"}
+                            value={values[field.name] ?? ""}
+                            onChange={(e) => setValue(field.name, e.target.value)}
+                            className={`${inputClass} mt-2`}
+                          />
+                        )}
                       </div>
                     )}
 

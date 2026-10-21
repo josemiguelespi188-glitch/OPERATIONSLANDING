@@ -69,6 +69,13 @@ const CONFIG_KIND_TO_DYNAMIC: Record<FieldConfig["kind"], DynamicFieldType> = {
   // DYNAMIC_TO_CONFIG_KIND has no reverse entry for it, so the admin
   // "Add question" picker can't create a new one.
   multiemail: "email",
+  // Same story as multiemail above: selectOrOther (ira-funding-request's
+  // custodian field) flows through this bridge since it's a locked
+  // form's own field, but has no dedicated DynamicFieldType either --
+  // represented as a plain "dropdown" in the admin's field list, options
+  // and all (see toDynamicField's options line below), just without the
+  // "Other" free-text escape hatch that only FormShell itself renders.
+  selectOrOther: "dropdown",
 };
 
 /** DynamicFieldType options the "Add question" picker offers when editing
@@ -91,7 +98,10 @@ function toDynamicField(field: FieldConfig, order: number): DynamicField {
     validationRules: "",
     displayOrder: order,
     columnSpan: field.fullWidth ? "full" : "half",
-    options: field.kind === "select" ? field.options.map((o) => ({ label: o, value: o })) : [],
+    options:
+      field.kind === "select" || field.kind === "selectOrOther"
+        ? field.options.map((o) => ({ label: o, value: o }))
+        : [],
   };
 }
 

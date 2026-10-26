@@ -626,10 +626,31 @@ see `supabase/migrations/005_investor_update_requests.sql`
 (`investor_update_requests`, `investor_update_files`,
 `investor_update_status_history`). Because of this:
 
-- It has no row in `request_types` (`supabase/seed.sql` doesn't touch
-  it) and isn't editable from the admin Form Builder — its field
-  structure lives only in `components/axiskey-forms/
-  InvestorUpdateRequestForm.tsx`.
+- **It now has a `request_types` row (Oct 2026, `sort_order = 11`,
+  `is_locked = true`)**, added purely so it shows up in the admin Form
+  Builder list with the Active/Inactive toggle (see "Locked-form
+  active/inactive toggle" below) — the user noticed it missing from
+  that list ("El investor update no me sale en el form generator") and
+  flagged it as an inconsistency once every other form got that
+  toggle. It's still **not** wired into `FORM_SPECS` (no entry exists
+  for this slug there, deliberately) or the generic field-override
+  machinery — its field structure lives only in `components/axiskey-
+  forms/InvestorUpdateRequestForm.tsx`, same as before. Clicking "Edit
+  copy" on it in the Form Builder shows `RequestTypeEditor`'s own
+  existing "locked but has no known code spec, can't be edited here"
+  guard rather than a broken editor — no new code was needed for that
+  block, it already existed for exactly this case. The row's
+  `description` column is also not read by the public page (which has
+  its own hardcoded copy) -- editing it in the admin has no live
+  effect; only `is_active` does anything.
+- `app/forms/investor-update-request/page.tsx` went from a plain
+  static component to an async server component
+  (`export const dynamic = "force-dynamic"`) that checks this new
+  row's `is_active` directly (a small inline query, not
+  `loadFormOverrides()` -- that helper also fetches `request_fields`/
+  options this type doesn't use) and calls `notFound()` if false, same
+  pattern as every other locked form page. Fails open to visible on
+  any lookup error or missing row.
 - It's excluded from the "Requests by Type" bar list in
   `AdminOverview.tsx` (it would always show 0 there, since it never
   lands in `requests`) — it gets its own "Investor Update Requests"

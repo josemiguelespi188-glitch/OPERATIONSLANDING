@@ -19,7 +19,17 @@ insert into request_types (slug, name, description, sort_order, is_locked) value
   ('account-maintenance-request', 'Account Maintenance Request', 'An account maintenance request covers corrections or adjustments to an investor''s account or order, such as data entry errors, allocation corrections, or status fixes. It''s for changes outside a standard information update; the client or Capital Raiser completes this form to initiate the correction.', 7, true),
   ('document-request', 'Investor Documentation Request', 'Use this request to ask an investor for outstanding or updated KYC and due diligence documentation needed to complete or maintain their account. The client or Capital Raiser completes this form to initiate the request.', 8, true),
   ('axiskey-report-request', 'Request an AxisKey Report', 'This request generates a report from AxisKey covering investors, orders, or overall account activity. Reports aren''t limited to one investor: they can be pulled at the client, offering, or platform-wide level.', 9, true),
-  ('investment-change-name-request', 'Investment Change Name Request', 'An Investment Change Name Request updates the name registered on an existing investment order, for example correcting a legal name, reflecting a marriage or divorce, or updating from an individual to an entity or trust name, without changing the investment itself. The amount, terms, and underlying order remain exactly the same; only the name on file is updated in AxisKey''s internal system and portal.', 10, true)
+  ('investment-change-name-request', 'Investment Change Name Request', 'An Investment Change Name Request updates the name registered on an existing investment order, for example correcting a legal name, reflecting a marriage or divorce, or updating from an individual to an entity or trust name, without changing the investment itself. The amount, terms, and underlying order remain exactly the same; only the name on file is updated in AxisKey''s internal system and portal.', 10, true),
+  -- Listed here purely so it shows up in the admin Form Builder with the
+  -- Active/Inactive toggle (see CLAUDE.md's "Locked-form active/inactive
+  -- toggle" section) -- its field structure and ClickUp sync are NOT
+  -- driven by this row or by FORM_SPECS (no entry exists for this slug
+  -- there on purpose), so "Edit copy" is deliberately blocked by
+  -- RequestTypeEditor's own "locked but has no known code spec" guard.
+  -- This `description` column is also not read by the public page (it
+  -- has its own hardcoded copy in InvestorUpdateRequestForm.tsx), so
+  -- editing it here has no live effect -- only `is_active` does.
+  ('investor-update-request', 'Investor Update Request', 'Request the creation of an investor update for your offering. Share recent developments, upload supporting materials, and our team will prepare a professional update for your investors.', 11, true)
 on conflict (slug) do update set
   name = excluded.name,
   description = excluded.description,

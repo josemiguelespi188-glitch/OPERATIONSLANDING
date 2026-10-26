@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { FormShell } from "@/components/axiskey-forms/FormShell";
 import { iraFundingRequestSpec } from "@/lib/formSpecs/iraFundingRequest";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 
 export default async function IraFundingRequestPage() {
   const overrides = await loadFormOverrides("ira-funding-request");
+  if (!overrides.isActive) notFound();
   const { fields, submissionMapping } = mergePublicFields(iraFundingRequestSpec, overrides.fields);
 
   return (

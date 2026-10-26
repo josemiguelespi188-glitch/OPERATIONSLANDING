@@ -69,9 +69,9 @@ export function FormBuilderList() {
           </h1>
           <p className="mt-1.5 max-w-xl text-sm text-axis-core/60">
             Manage request types and their fields. Locked (code-driven) types let you edit
-            question copy and add new questions, and changes apply to the live form immediately.
-            Non-locked types are still a work in progress: saved here, but not yet rendered on
-            the live site.
+            question copy and add new questions, and toggle whether the public page is live, with
+            changes applying immediately. Non-locked types are still a work in progress: saved
+            here, but not yet rendered on the live site.
           </p>
         </div>
         <Link
@@ -104,7 +104,7 @@ export function FormBuilderList() {
               <div className="flex items-center gap-2">
                 <p className="truncate text-sm font-semibold text-axis-core">{type.name}</p>
                 {type.isLocked && <Badge tone="locked">Locked · code-driven</Badge>}
-                {!type.isLocked && type.usesDynamicForm && (
+                {(!type.isLocked ? type.usesDynamicForm : true) && (
                   <Badge tone={type.isActive ? "active" : "inactive"}>
                     {type.isActive ? "Active" : "Inactive"}
                   </Badge>
@@ -117,12 +117,22 @@ export function FormBuilderList() {
 
             <div className="flex shrink-0 items-center gap-2">
               {type.isLocked ? (
-                <Link
-                  href={`/admin/forms/${type.id}`}
-                  className="rounded-[6px] border border-axis-base/50 px-3 py-1.5 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core"
-                >
-                  Edit copy
-                </Link>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => toggleActive(type)}
+                    disabled={busyId === type.id}
+                    className="rounded-[6px] border border-axis-base/50 px-3 py-1.5 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core disabled:opacity-50"
+                  >
+                    {type.isActive ? "Deactivate" : "Activate"}
+                  </button>
+                  <Link
+                    href={`/admin/forms/${type.id}`}
+                    className="rounded-[6px] border border-axis-base/50 px-3 py-1.5 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core"
+                  >
+                    Edit copy
+                  </Link>
+                </>
               ) : (
                 <>
                   <button

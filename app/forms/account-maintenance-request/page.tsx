@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { FormShell } from "@/components/axiskey-forms/FormShell";
 import { accountMaintenanceRequestSpec } from "@/lib/formSpecs/accountMaintenanceRequest";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 
 export default async function AccountMaintenanceRequestPage() {
   const overrides = await loadFormOverrides("account-maintenance-request");
+  if (!overrides.isActive) notFound();
   const { fields, submissionMapping } = mergePublicFields(accountMaintenanceRequestSpec, overrides.fields);
 
   return (

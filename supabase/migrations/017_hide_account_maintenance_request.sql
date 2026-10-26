@@ -1,0 +1,12 @@
+-- Account Maintenance Request and Investor Information Update cover the
+-- same ground -- per explicit instruction, consolidate to a single public
+-- form (Investor Information Update) and hide Account Maintenance Request
+-- from the homepage via the new locked-type is_active toggle (see
+-- CLAUDE.md's "Account Maintenance Request / Investor Information Update
+-- consolidation" section). The code/page for Account Maintenance Request
+-- stays intact in case it's reactivated later -- this only flips the flag.
+--
+-- seed.sql's upsert deliberately never touches is_active (so re-running
+-- it can't clobber an admin's toggle), so this one-time data migration is
+-- the only way to flip an already-seeded row's active state from the repo.
+update request_types set is_active = false where slug = 'account-maintenance-request';

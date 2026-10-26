@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { SideLetterRequestForm } from "@/components/axiskey-forms/SideLetterRequestForm";
 import { sideLetterRequestSpec } from "@/lib/formSpecs/sideLetterRequest";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 
 export default async function SideLetterRequestPage() {
   const overrides = await loadFormOverrides("side-letter-request");
+  if (!overrides.isActive) notFound();
   const { fields, submissionMapping } = mergePublicFields(sideLetterRequestSpec, overrides.fields);
 
   return (

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { FormShell } from "@/components/axiskey-forms/FormShell";
 import { investmentChangeNameRequestSpec } from "@/lib/formSpecs/investmentChangeNameRequest";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
 
 export default async function InvestmentChangeNameRequestPage() {
   const overrides = await loadFormOverrides("investment-change-name-request");
+  if (!overrides.isActive) notFound();
   const { fields, submissionMapping } = mergePublicFields(investmentChangeNameRequestSpec, overrides.fields);
 
   return (

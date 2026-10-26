@@ -6,9 +6,15 @@ export interface FormOverrides {
    *  when set from the admin Form Builder. */
   description: string | null;
   fields: DynamicField[];
+  /** Whether this request type's public page should render at all —
+   *  toggled from the admin Form Builder (see request_types.is_active).
+   *  Defaults to true (visible) when the lookup fails or the row is
+   *  somehow missing, so a Supabase hiccup never accidentally hides a
+   *  live form. */
+  isActive: boolean;
 }
 
-const EMPTY: FormOverrides = { description: null, fields: [] };
+const EMPTY: FormOverrides = { description: null, fields: [], isActive: true };
 
 /**
  * Loads any admin-authored overrides for a locked (code-driven) form's
@@ -26,10 +32,12 @@ export async function loadFormOverrides(slug: string): Promise<FormOverrides> {
 
     const { data: type } = await supabase
       .from("request_types")
-      .select("id, description")
+      .select("id, description, is_active")
       .eq("slug", slug)
       .maybeSingle();
     if (!type) return EMPTY;
+
+    const isActive = type.is_active !== false;
 
     const { data: fields } = await supabase
       .from("request_fields")
@@ -38,7 +46,7 @@ export async function loadFormOverrides(slug: string): Promise<FormOverrides> {
       .order("display_order", { ascending: true });
 
     if (!fields || fields.length === 0) {
-      return { description: type.description || null, fields: [] };
+      return { description: type.description || null, fields: [], isActive };
     }
 
     const fieldIds = fields.map((f) => f.id);
@@ -55,6 +63,7 @@ export async function loadFormOverrides(slug: string): Promise<FormOverrides> {
 
     return {
       description: type.description || null,
+      isActive,
       fields: fields.map((f) => ({
         fieldKey: f.field_key,
         fieldType: f.field_type,

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { FormShell } from "@/components/axiskey-forms/FormShell";
 import { investorInformationUpdateSpec } from "@/lib/formSpecs/investorInformationUpdate";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 
 export default async function InvestorInformationUpdatePage() {
   const overrides = await loadFormOverrides("investor-information-update");
+  if (!overrides.isActive) notFound();
   const { fields, submissionMapping } = mergePublicFields(investorInformationUpdateSpec, overrides.fields);
 
   return (

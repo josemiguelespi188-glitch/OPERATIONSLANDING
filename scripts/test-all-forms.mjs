@@ -53,6 +53,21 @@ const FORMS = [
     file: true,
   },
   {
+    slug: "investment-change-name-request",
+    select: "Legal Name Correction",
+    fields: [
+      { placeholder: "Michael Dawson", value: "Test- Michael Dawson 2" },
+      { placeholder: "sarah.dawson@email.com", value: "test.investor@axiskey.com" },
+      { placeholder: "Meridian Property Holdings", value: "TEST Offering" },
+      { placeholder: "10234", value: "TEST-0001" },
+      { placeholder: "Michael R. Dawson", value: "Test- Michael R. Dawson" },
+      { placeholder: "agent@axiskey.com", value: "test.requester@axiskey.com" },
+    ],
+    // "Investor Name" and "Current Name" share the placeholder
+    // "Michael Dawson" on this form, same as title-transfer-request.
+    file: true,
+  },
+  {
     slug: "redemption-request",
     fields: [
       { placeholder: "Michael Dawson", value: "Test- Michael Dawson 2" },

@@ -507,6 +507,49 @@ as the rest of `/api/admin/*`) aggregates that table for the "Investor
 Experience Rating" card on `/admin` (average rating, 1-5 histogram,
 recent comments, an 8-week trend) — see `AdminOverview.tsx`.
 
+## Investment Change Name Request
+
+`app/forms/investment-change-name-request` (`lib/formSpecs/
+investmentChangeNameRequest.ts`) is a 10th locked request type, built
+directly off `title-transfer-request`'s structure and field set (per
+explicit instruction: "créame... una forma parecido al de title
+transfer, cambia lo que sea necesario en frasing") -- phrasing was
+reworded throughout to frame it as correcting/updating the name on an
+existing order (legal name correction, marriage/divorce, individual ->
+entity/trust) rather than transferring the order to a different
+investor, but the field shape is otherwise identical (type-of-change
+dropdown, investor name/email, offering name, order number,
+current/new name, requester email, optional supporting-document
+upload).
+
+- Added to `request_types` in `seed.sql` at `sort_order = 10`
+  (appended after `axiskey-report-request` rather than inserted in
+  position 2 next to `title-transfer-request`, to avoid renumbering
+  every other row's `sort_order`) -- **needs the seed re-run in the
+  Supabase SQL editor**.
+- `components/RequestCard.tsx`'s `DEDICATED_FORM_SLUGS` set had to get
+  the new slug too, or the homepage card would silently fall back to
+  the generic `RequestModal` instead of linking to the real page --
+  easy to miss since nothing errors, the card just opens the wrong UI.
+- **No ClickUp list exists for this slug yet.** Unlike every other
+  type, `scripts/clickup/provision-forms.mjs`'s `EXISTING_LISTS` only
+  fills in custom fields on a list that already exists -- it cannot
+  create one. Until a list is created (Investor Relations space, Axis
+  Operations Hub folder) and its ID is added to `CLICKUP_LIST_ID_MAP`
+  on Vercel, submissions save to Supabase fine but ClickUp sync fails
+  (shown as "failed", retryable from the Admin panel, same as any
+  slug missing from that map -- see the ClickUp workspace layout
+  section above). No `CUSTOM_FIELD_MAP`/`ATTACHMENT_FIELD_MAP` entries
+  exist yet either, so once the list exists, its field IDs need
+  confirming (via `scripts/clickup/audit-fields.mjs` or by creating
+  them with `provision-forms.mjs`) before wiring those maps in
+  `lib/integrations/clickup.ts`.
+- `typeOfChange`'s options (Legal Name Correction, Marriage or Divorce
+  Name Change, Entity Name Change, Other) were picked to fit a
+  name-change framing, not confirmed against any ClickUp dropdown
+  field (none exists yet) -- treat them as a starting point, not a
+  confirmed spec.
+
 ## Investor Update Request
 
 `app/forms/investor-update-request` looks and behaves like every other

@@ -23,16 +23,25 @@ actually set (see below). `custom-request` was removed from the Hub
 | `account-maintenance-request` | Account Maintenance Request | `901114375429` |
 | `document-request` | Investor Documentation Request (renamed from "Document Request") | `901114375430` |
 | `axiskey-report-request` | Request an AxisKey Report | `901114375435` |
+| `investment-change-name-request` | Investment Change Name Request | `901115619854` |
 
 Full JSON for `CLICKUP_LIST_ID_MAP` (see `.env.example`):
 ```json
-{"title-transfer-request":"901114002885","redemption-request":"901114014583","ira-funding-request":"901112504693","refund-request":"901114418101","side-letter-request":"901114320630","investor-information-update":"901114375425","account-maintenance-request":"901114375429","document-request":"901114375430","axiskey-report-request":"901114375435"}
+{"title-transfer-request":"901114002885","redemption-request":"901114014583","ira-funding-request":"901112504693","refund-request":"901114418101","side-letter-request":"901114320630","investor-information-update":"901114375425","account-maintenance-request":"901114375429","document-request":"901114375430","axiskey-report-request":"901114375435","investment-change-name-request":"901115619854"}
 ```
 
 **This is an env var only — it is never committed to the repo.** It's set
 on Vercel. `refund-request` is new (Aug 2026) — confirm it's been added
 to the live Vercel value, since it was added to this table after the
-original 8 went live. The same "env var only" rule applies to
+original 8 went live. `investment-change-name-request` is new (Oct
+2026) — **the user created this list and gave its ID, but no custom
+fields have been provisioned on it yet**; `CUSTOM_FIELD_MAP`/
+`ATTACHMENT_FIELD_MAP` in `lib/integrations/clickup.ts` have no entry
+for this slug, so submissions land in ClickUp with only the task
+description populated until `scripts/clickup/provision-forms.mjs` is
+run (its `FIELD_PLAN` already has an entry for this list, built from
+title-transfer-request's field set) and its output is pasted back to
+wire those maps. The same "env var only" rule applies to
 `CLICKUP_API_TOKEN`.
 
 Per-list custom field IDs (`CUSTOM_FIELD_MAP` / `ATTACHMENT_FIELD_MAP` in
@@ -531,19 +540,18 @@ upload).
   the new slug too, or the homepage card would silently fall back to
   the generic `RequestModal` instead of linking to the real page --
   easy to miss since nothing errors, the card just opens the wrong UI.
-- **No ClickUp list exists for this slug yet.** Unlike every other
-  type, `scripts/clickup/provision-forms.mjs`'s `EXISTING_LISTS` only
-  fills in custom fields on a list that already exists -- it cannot
-  create one. Until a list is created (Investor Relations space, Axis
-  Operations Hub folder) and its ID is added to `CLICKUP_LIST_ID_MAP`
-  on Vercel, submissions save to Supabase fine but ClickUp sync fails
-  (shown as "failed", retryable from the Admin panel, same as any
-  slug missing from that map -- see the ClickUp workspace layout
-  section above). No `CUSTOM_FIELD_MAP`/`ATTACHMENT_FIELD_MAP` entries
-  exist yet either, so once the list exists, its field IDs need
-  confirming (via `scripts/clickup/audit-fields.mjs` or by creating
-  them with `provision-forms.mjs`) before wiring those maps in
-  `lib/integrations/clickup.ts`.
+- **The ClickUp list now exists (`901115619854`, user-created, Oct
+  2026) and is in `CLICKUP_LIST_ID_MAP`** -- see the ClickUp workspace
+  layout section above. **No custom fields are provisioned on it yet
+  though**, so submissions reach ClickUp but only the task description
+  is populated (no `CUSTOM_FIELD_MAP`/`ATTACHMENT_FIELD_MAP` entries
+  exist for this slug in `lib/integrations/clickup.ts`).
+  `scripts/clickup/provision-forms.mjs`'s `FIELD_PLAN` already has an
+  entry for this list (Type of Change dropdown, Current/New Account
+  Name, Offering Name, Order Number, Investor Email, Client/Capital
+  Raiser Email, plus the attachment field) -- run it from a machine
+  with real internet access and paste its output back to wire those
+  maps.
 - `typeOfChange`'s options (Legal Name Correction, Marriage or Divorce
   Name Change, Entity Name Change, Other) were picked to fit a
   name-change framing, not confirmed against any ClickUp dropdown

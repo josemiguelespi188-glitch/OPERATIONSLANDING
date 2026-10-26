@@ -8,7 +8,8 @@ export type RequestTypeSlug =
   | "account-maintenance-request"
   | "document-request"
   | "axiskey-report-request"
-  | "investor-update-request";
+  | "investor-update-request"
+  | "investment-change-name-request";
 
 export interface RequestTypeConfig {
   slug: RequestTypeSlug;
@@ -82,6 +83,12 @@ export const REQUEST_TYPES: RequestTypeConfig[] = [
     slug: "axiskey-report-request",
     name: "Request an AxisKey Report",
     description: "Request a report on investors, orders, or account activity.",
+    buttonLabel: "Open Request",
+  },
+  {
+    slug: "investment-change-name-request",
+    name: "Investment Change Name Request",
+    description: "Request a name change on an existing investment order.",
     buttonLabel: "Open Request",
   },
   // Deliberately NOT backed by a request_types row (see supabase/seed.sql)

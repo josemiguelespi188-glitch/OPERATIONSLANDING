@@ -1,6 +1,7 @@
 import type { FormSpec } from "@/lib/dynamicForms/fieldConfigBridge";
 import type { RequestTypeSlug } from "@/lib/requestTypes";
 import { titleTransferRequestSpec } from "./titleTransferRequest";
+import { investmentChangeNameRequestSpec } from "./investmentChangeNameRequest";
 import { redemptionRequestSpec } from "./redemptionRequest";
 import { iraFundingRequestSpec } from "./iraFundingRequest";
 import { refundRequestSpec } from "./refundRequest";
@@ -19,6 +20,7 @@ import { axiskeyReportRequestSpec } from "./axiskeyReportRequest";
  */
 export const FORM_SPECS: Partial<Record<RequestTypeSlug, FormSpec>> = {
   "title-transfer-request": titleTransferRequestSpec,
+  "investment-change-name-request": investmentChangeNameRequestSpec,
   "redemption-request": redemptionRequestSpec,
   "ira-funding-request": iraFundingRequestSpec,
   "refund-request": refundRequestSpec,

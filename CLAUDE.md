@@ -550,6 +550,60 @@ upload).
   field (none exists yet) -- treat them as a starting point, not a
   confirmed spec.
 
+## Locked-form active/inactive toggle (Oct 2026)
+
+Locked (code-driven) request types used to have no way to be hidden —
+`request_types.is_active` existed and was already toggleable for
+non-locked types from the Form Builder, but `PATCH
+/api/admin/request-types/[id]` explicitly rejected `isActive` for any
+locked row, and the public homepage (`app/page.tsx`) rendered the
+static `REQUEST_TYPES` array with no server fetch at all, so the DB
+column had no effect on a locked form even if it had been set.
+
+Built per explicit instruction, triggered by `account-maintenance-request`
+and `investor-information-update` covering the same ground
+("son lo mismo... Hagamos solo una lista para los dos... Debe en el
+admin section haber un toggle para activar y desactivar estos forms"):
+
+- `PATCH /api/admin/request-types/[id]` now accepts `isActive` for
+  locked rows too (alongside the existing `description` override) —
+  see the updated comment in that file for why only those two fields
+  are writable there.
+- `lib/formSpecs/loadOverrides.ts`'s `FormOverrides` gained an
+  `isActive` field (default `true` on any failure/missing row, so a
+  Supabase hiccup never accidentally hides a live form). **Every one
+  of the 10 locked `app/forms/<slug>/page.tsx` pages now calls
+  `notFound()` when `overrides.isActive` is `false`** — hiding a form
+  isn't just cosmetic (removed from the homepage grid); its direct
+  URL also 404s, so it can't keep silently accepting submissions
+  nobody is watching. Add this same two-line check
+  (`if (!overrides.isActive) notFound();` right after the
+  `loadFormOverrides()` call) to any future locked form page.
+- `app/page.tsx` is now a server component (`export const dynamic =
+  "force-dynamic"`) that fetches every `slug` with `is_active = false`
+  from `request_types` and passes it down to the new
+  `components/HomePageClient.tsx` (the original client-side modal/grid
+  logic, extracted unchanged), which filters `REQUEST_TYPES` before
+  rendering. Same fail-open default as `loadOverrides.ts` — a fetch
+  error returns an empty inactive-slugs list, so every card still
+  shows rather than the whole homepage silently going blank.
+- `components/admin/formbuilder/FormBuilderList.tsx` now shows the
+  Active/Inactive badge and an Activate/Deactivate button for locked
+  rows too (previously only non-locked rows got either) — sits
+  alongside "Edit copy", using the exact same `toggleActive()` handler
+  non-locked rows already used (no new code path, just no longer
+  gated on `!type.isLocked`).
+- `supabase/migrations/017_hide_account_maintenance_request.sql` sets
+  `is_active = false` on the `account-maintenance-request` row as a
+  one-time data migration — **needs to be run in the Supabase SQL
+  editor**. A plain re-run of `seed.sql` would NOT do this: its
+  `on conflict` upsert deliberately never touches `is_active`, so an
+  admin's toggle (or this migration's) can't be clobbered by a reseed.
+  `account-maintenance-request`'s code/page/ClickUp mapping are all
+  left completely intact — this is purely a visibility flag, not a
+  deletion, so flipping it back on later is a one-click Form Builder
+  action, no deploy needed.
+
 ## Investor Update Request
 
 `app/forms/investor-update-request` looks and behaves like every other

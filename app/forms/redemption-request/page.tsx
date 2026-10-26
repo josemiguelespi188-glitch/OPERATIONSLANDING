@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { FormShell } from "@/components/axiskey-forms/FormShell";
 import { redemptionRequestSpec } from "@/lib/formSpecs/redemptionRequest";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 
 export default async function RedemptionRequestPage() {
   const overrides = await loadFormOverrides("redemption-request");
+  if (!overrides.isActive) notFound();
   const { fields, submissionMapping } = mergePublicFields(redemptionRequestSpec, overrides.fields);
 
   return (

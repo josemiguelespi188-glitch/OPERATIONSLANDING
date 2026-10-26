@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { FormShell } from "@/components/axiskey-forms/FormShell";
 import { titleTransferRequestSpec } from "@/lib/formSpecs/titleTransferRequest";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
 
 export default async function TitleTransferRequestPage() {
   const overrides = await loadFormOverrides("title-transfer-request");
+  if (!overrides.isActive) notFound();
   const { fields, submissionMapping } = mergePublicFields(titleTransferRequestSpec, overrides.fields);
 
   return (

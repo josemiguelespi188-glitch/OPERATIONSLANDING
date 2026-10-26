@@ -98,15 +98,19 @@ export async function PATCH(
   const update: Record<string, unknown> = {};
 
   if (existing.is_locked) {
-    // Locked types are code-driven pages — only their intro copy
-    // (`description`, which the public page shows in place of its coded
-    // descriptionParagraphs once set) can be overridden here. Name, button
-    // label, icon, sort order, and active state all come from the
-    // hardcoded page/home-grid and aren't read from this table.
+    // Locked types are code-driven pages — name, button label, icon, and
+    // sort order all come from the hardcoded page/home-grid and aren't
+    // read from this table. Two things ARE read from here: `description`
+    // (shown in place of the coded descriptionParagraphs once set) and
+    // `is_active` (each locked page calls notFound() when its row's
+    // is_active is false — see loadFormOverrides.ts and CLAUDE.md's
+    // "Investment Change Name Request" section for why this exists:
+    // consolidating near-duplicate locked forms without deleting code).
     if (typeof body.description === "string") update.description = body.description.trim();
+    if (typeof body.isActive === "boolean") update.is_active = body.isActive;
     if (Object.keys(update).length === 0) {
       return NextResponse.json(
-        { error: "This request type is locked. Only its description can be edited here." },
+        { error: "This request type is locked. Only its description and active state can be edited here." },
         { status: 400 }
       );
     }

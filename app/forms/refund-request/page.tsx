@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { FormShell } from "@/components/axiskey-forms/FormShell";
 import { refundRequestSpec } from "@/lib/formSpecs/refundRequest";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 
 export default async function RefundRequestPage() {
   const overrides = await loadFormOverrides("refund-request");
+  if (!overrides.isActive) notFound();
   const { fields, submissionMapping } = mergePublicFields(refundRequestSpec, overrides.fields);
 
   return (

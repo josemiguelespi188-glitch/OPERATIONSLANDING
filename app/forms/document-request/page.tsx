@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { FormShell } from "@/components/axiskey-forms/FormShell";
 import { documentRequestSpec } from "@/lib/formSpecs/documentRequest";
 import { loadFormOverrides } from "@/lib/formSpecs/loadOverrides";
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 
 export default async function DocumentRequestPage() {
   const overrides = await loadFormOverrides("document-request");
+  if (!overrides.isActive) notFound();
   const { fields, submissionMapping } = mergePublicFields(documentRequestSpec, overrides.fields);
 
   return (

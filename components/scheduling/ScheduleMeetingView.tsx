@@ -54,7 +54,7 @@ export function ScheduleMeetingView({ token, invalid }: ScheduleMeetingViewProps
 
   if (invalid) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-axis-light px-6 py-12">
+      <main className="flex h-[100dvh] items-center justify-center overflow-hidden bg-axis-light px-6">
         <div className="w-full max-w-md rounded-card border border-axis-base/30 bg-white p-8 text-center shadow-card">
           <div className="mb-6 flex justify-center">
             <Logo />
@@ -71,24 +71,30 @@ export function ScheduleMeetingView({ token, invalid }: ScheduleMeetingViewProps
     );
   }
 
+  // Fixed to the viewport height with no outer scroll (the Calendly
+  // widget fills whatever vertical space is left and scrolls
+  // internally on its own, same as the fixed-height split used on
+  // /communications-review/[token]) -- per explicit feedback that the
+  // page previously required scrolling past the header to reach the
+  // calendar.
   return (
-    <main className="min-h-screen bg-axis-light px-6 py-12">
-      <div className="mx-auto max-w-[760px]">
-        <div className="mb-8 flex justify-center">
+    <main className="flex h-[100dvh] flex-col overflow-hidden bg-axis-light px-6 py-5">
+      <div className="mx-auto flex w-full max-w-[760px] flex-1 flex-col overflow-hidden">
+        <div className="mb-3 flex shrink-0 justify-center">
           <Logo />
         </div>
 
-        <h1 className="text-center font-head text-[26px] font-medium leading-tight tracking-tight text-axis-core">
+        <h1 className="shrink-0 text-center font-head text-xl font-medium leading-tight tracking-tight text-axis-core sm:text-[26px]">
           Schedule a call with AxisKey
         </h1>
-        <p className="mx-auto mt-2 max-w-[520px] text-center text-sm leading-relaxed text-axis-core/55">
+        <p className="mx-auto mt-1 max-w-[520px] shrink-0 text-center text-xs leading-relaxed text-axis-core/55 sm:text-sm">
           Pick a time that works for you below and we will send a calendar invite with the
           meeting details.
         </p>
 
         {justBooked ? (
-          <div className="mt-8 rounded-card bg-white p-10 text-center shadow-card">
-            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-axis-signal text-2xl font-bold text-axis-core">
+          <div className="mt-4 flex flex-1 flex-col items-center justify-center rounded-card bg-white p-10 text-center shadow-card">
+            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-axis-signal text-2xl font-bold text-axis-core">
               &#10003;
             </div>
             <p className="font-head text-lg font-medium text-axis-core">You&rsquo;re all set.</p>
@@ -97,11 +103,11 @@ export function ScheduleMeetingView({ token, invalid }: ScheduleMeetingViewProps
             </p>
           </div>
         ) : (
-          <div className="mt-8 overflow-hidden rounded-card bg-white shadow-card">
+          <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-card bg-white shadow-card">
             <div
-              className="calendly-inline-widget"
+              className="calendly-inline-widget h-full w-full"
               data-url={CALENDLY_URL}
-              style={{ minWidth: "320px", height: "700px" }}
+              style={{ minWidth: "320px", height: "100%" }}
             />
           </div>
         )}

@@ -76,6 +76,11 @@ export function AdminOverview() {
   const [investorUpdates, setInvestorUpdates] = useState<InvestorUpdateStats | null>(null);
   const [investorUpdatesError, setInvestorUpdatesError] = useState("");
 
+  const [scheduleLink, setScheduleLink] = useState("");
+  const [scheduleLinkCopied, setScheduleLinkCopied] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [scheduleLinkError, setScheduleLinkError] = useState("");
+
   const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
   const fetchStats = useCallback(async () => {
@@ -134,6 +139,31 @@ export function AdminOverview() {
     fetchFeedback();
     fetchInvestorUpdates();
   }, [fetchStats, fetchFeedback, fetchInvestorUpdates]);
+
+  async function handleGenerateScheduleLink() {
+    setGeneratingLink(true);
+    setScheduleLinkError("");
+    setScheduleLinkCopied(false);
+    try {
+      const res = await fetch("/api/admin/schedule-links", { method: "POST", headers: authHeaders });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Could not generate a link.");
+      setScheduleLink(body.url);
+    } catch (err) {
+      setScheduleLinkError(err instanceof Error ? err.message : "Could not generate a link.");
+    } finally {
+      setGeneratingLink(false);
+    }
+  }
+
+  async function handleCopyScheduleLink() {
+    try {
+      await navigator.clipboard.writeText(scheduleLink);
+      setScheduleLinkCopied(true);
+    } catch {
+      setScheduleLinkCopied(false);
+    }
+  }
 
   async function handleRetry(id: string) {
     setRetryingId(id);
@@ -371,6 +401,51 @@ export function AdminOverview() {
             </div>
           </div>
         )}
+
+        <div className="mt-8">
+          <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
+            Schedule a Call
+          </h3>
+          <p className="mt-1 text-sm text-axis-core/55">
+            Generate a one-time booking link to share with a client. It stops working the moment
+            they book a call through it.
+          </p>
+
+          <div className="mt-3 rounded-card border border-axis-base/30 bg-white p-4">
+            <button
+              type="button"
+              onClick={handleGenerateScheduleLink}
+              disabled={generatingLink}
+              className="rounded-[8px] bg-axis-core px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-axis-signal hover:text-axis-core disabled:opacity-50"
+            >
+              {generatingLink ? "Generating..." : "Generate one-time link"}
+            </button>
+
+            {scheduleLinkError && (
+              <p className="mt-3 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
+                {scheduleLinkError}
+              </p>
+            )}
+
+            {scheduleLink && (
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={scheduleLink}
+                  className="flex-1 truncate rounded-[6px] border border-axis-base/40 bg-axis-light px-3 py-2 text-sm text-axis-core/80"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyScheduleLink}
+                  className="shrink-0 rounded-[6px] border border-axis-base/50 px-3 py-2 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core"
+                >
+                  {scheduleLinkCopied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

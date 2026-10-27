@@ -516,6 +516,58 @@ as the rest of `/api/admin/*`) aggregates that table for the "Investor
 Experience Rating" card on `/admin` (average rating, 1-5 histogram,
 recent comments, an 8-week trend) — see `AdminOverview.tsx`.
 
+## Schedule a Call (Calendly booking links)
+
+Two standalone, unauthenticated public pages share the same
+`ScheduleMeetingView` component and the Calendly inline widget embed
+code the user provided (the actual Calendly scheduling page URL,
+`https://calendly.com/d/dtv6-nwt-297/support-call`, is hardcoded as
+`CALENDLY_URL` in `components/scheduling/ScheduleMeetingView.tsx` — not
+an env var, since it's a public link, not a secret):
+
+- **`/schedule-a-call`** (no token) — the plain evergreen link. Always
+  shows the Calendly widget, unlimited uses, exactly as first built.
+- **`/schedule-a-call/[token]`** (Oct 2026) — a one-time link. A token
+  is minted by clicking "Generate one-time link" in the "Schedule a
+  Call" section on `/admin` (`AdminOverview.tsx` -> `POST
+  /api/admin/schedule-links`, which just inserts a row into the new
+  `schedule_links` table — `supabase/migrations/018_schedule_links.sql`,
+  RLS enabled with no policies, service-role only, same strictness as
+  `order_tracking_links`). The admin copies the returned URL and sends
+  it to one person.
+
+**There is no `CALENDLY_API_TOKEN` anywhere in this codebase, and
+there's no Calendly webhook subscription either** — explicitly declined
+by the user ("no puede ser con lo que te pasé?") in favor of using only
+the public embed snippet they'd already given. Calendly's own
+single-use scheduling links (`max_event_count: 1` via their REST API)
+would have been the server-verified way to do this, but that needs a
+Personal Access Token the user didn't want to set up. Instead, "used" is
+detected **client-side**: Calendly's embedded `widget.js` already posts
+a `calendly.event_scheduled` window message the instant a booking
+completes inside the iframe, regardless of any API/auth.
+`ScheduleMeetingView.tsx` listens for that message (checking
+`event.origin` ends in `calendly.com`), then calls `POST
+/api/schedule-links/[token]/consume` (public — the token is the
+credential, same trust model as `/api/order-tracking/[token]`) to set
+`used_at`, and swaps the widget out for a thank-you card in the same
+tab so a reload of that same session can't rebook either. **This is a
+best-effort signal, not a server-verified booking confirmation** — someone
+who disabled JS or blocked the request before it reached this app's API
+could in theory dodge it. Fine for the intended use (sharing a link with
+one client), but don't present a `used_at` timestamp as proof a meeting
+was actually booked.
+
+`app/schedule-a-call/[token]/page.tsx`'s validity check
+(`isLinkValid()`) deliberately **fails closed** — a missing row or a
+Supabase lookup error both render "This scheduling link is no longer
+valid" — the opposite of every fail-open toggle default elsewhere in
+this codebase (`loadOverrides.ts`, the homepage inactive-slugs fetch,
+etc.). Those toggles gate visibility of something that's fine to leave
+visible on an infra hiccup; this one exists specifically to guarantee a
+link stops working, so erring toward "looks used" is the safer failure
+mode here, not "stays bookable forever."
+
 ## Investment Change Name Request
 
 `app/forms/investment-change-name-request` (`lib/formSpecs/

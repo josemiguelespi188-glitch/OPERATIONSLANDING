@@ -85,7 +85,7 @@ export function ScheduleMeetingView({ token, invalid }: ScheduleMeetingViewProps
         </div>
 
         <h1 className="shrink-0 text-center font-head text-xl font-medium leading-tight tracking-tight text-axis-core sm:text-[26px]">
-          Schedule a call with AxisKey
+          Schedule a call with AxisKey Support
         </h1>
         <p className="mx-auto mt-1 max-w-[520px] shrink-0 text-center text-xs leading-relaxed text-axis-core/55 sm:text-sm">
           Pick a time that works for you below and we will send a calendar invite with the

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { REQUEST_TYPES } from "@/lib/requestTypes";
 import type { ClickUpSyncStatus, RequestStatus } from "@/lib/types";
+import type { StatsRange } from "@/lib/utils/dateRange";
 import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
 import { useAdminAuth } from "./AdminAuthContext";
 
@@ -63,10 +64,29 @@ const SYNC_LABEL: Record<ClickUpSyncStatus, string> = {
   failed: "Failed",
 };
 
+const RANGE_OPTIONS: { value: StatsRange; label: string }[] = [
+  { value: "30d", label: "Last 30 Days" },
+  { value: "all", label: "All Time" },
+];
+
+/** Every collapsible section below, keyed for open/closed state + the
+ * "jump here and expand" behavior the failed-sync alert uses. */
+type SectionKey =
+  | "recent"
+  | "syncHealth"
+  | "byType"
+  | "feedback"
+  | "investorUpdates"
+  | "schedule"
+  | "notes";
+
 export function AdminOverview() {
   const { session } = useAdminAuth();
+  const [range, setRange] = useState<StatsRange>("30d");
+
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
@@ -81,43 +101,77 @@ export function AdminOverview() {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [scheduleLinkError, setScheduleLinkError] = useState("");
 
+  // Progressive disclosure: everything but "Recent Requests" (the one
+  // admins check most often, alongside any failed-sync alert) starts
+  // collapsed so the page opens short instead of one long scroll of
+  // every metric this app tracks.
+  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
+    recent: true,
+    syncHealth: false,
+    byType: false,
+    feedback: false,
+    investorUpdates: false,
+    schedule: false,
+    notes: false,
+  });
+  const recentRef = useRef<HTMLDivElement>(null);
+  const [scrollToRecentSignal, setScrollToRecentSignal] = useState(0);
+
+  function toggleSection(key: SectionKey) {
+    setOpenSections((s) => ({ ...s, [key]: !s[key] }));
+  }
+
+  function handleReviewFailedSyncs() {
+    setOpenSections((s) => ({ ...s, recent: true }));
+    setScrollToRecentSignal((n) => n + 1);
+  }
+
+  useEffect(() => {
+    if (scrollToRecentSignal === 0) return;
+    recentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [scrollToRecentSignal]);
+
   const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/stats", { headers: authHeaders });
+      const res = await fetch(`/api/admin/stats?range=${range}`, { headers: authHeaders });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         console.error("Failed to load admin stats:", res.status, body);
         throw new Error(`${body.error ?? "Failed to load admin stats."} (status ${res.status})`);
       }
       setStats(body);
+      setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load admin stats.");
     } finally {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.access_token]);
+  }, [session.access_token, range]);
 
   const fetchFeedback = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/investor-feedback", { headers: authHeaders });
+      const res = await fetch(`/api/admin/investor-feedback?range=${range}`, { headers: authHeaders });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         console.error("Failed to load investor feedback:", res.status, body);
         throw new Error(`${body.error ?? "Failed to load investor feedback."} (status ${res.status})`);
       }
       setFeedback(body);
+      setFeedbackError("");
     } catch (err) {
       setFeedbackError(err instanceof Error ? err.message : "Failed to load investor feedback.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.access_token]);
+  }, [session.access_token, range]);
 
   const fetchInvestorUpdates = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/investor-update-requests", { headers: authHeaders });
+      const res = await fetch(`/api/admin/investor-update-requests?range=${range}`, {
+        headers: authHeaders,
+      });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         console.error("Failed to load investor update requests:", res.status, body);
@@ -126,18 +180,20 @@ export function AdminOverview() {
         );
       }
       setInvestorUpdates(body);
+      setInvestorUpdatesError("");
     } catch (err) {
       setInvestorUpdatesError(
         err instanceof Error ? err.message : "Failed to load investor update requests."
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.access_token]);
+  }, [session.access_token, range]);
 
   useEffect(() => {
-    fetchStats();
-    fetchFeedback();
-    fetchInvestorUpdates();
+    setRefreshing(true);
+    Promise.all([fetchStats(), fetchFeedback(), fetchInvestorUpdates()]).finally(() =>
+      setRefreshing(false)
+    );
   }, [fetchStats, fetchFeedback, fetchInvestorUpdates]);
 
   async function handleGenerateScheduleLink() {
@@ -175,12 +231,23 @@ export function AdminOverview() {
     }
   }
 
+  const rangeLabel = range === "30d" ? "Last 30 Days" : "All Time";
+  const failedSyncs = stats?.bySyncStatus.failed ?? 0;
+
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">Internal</p>
-      <h1 className="mt-1 font-head text-2xl font-medium tracking-tight text-axis-core">
-        Admin Overview
-      </h1>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">Internal</p>
+          <h1 className="mt-1 font-head text-2xl font-medium tracking-tight text-axis-core">
+            Admin Overview
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          {refreshing && <span className="text-xs text-axis-core/40">Updating...</span>}
+          <RangeToggle value={range} onChange={setRange} />
+        </div>
+      </div>
 
       <div className="mt-8">
         {loading && <p className="text-sm text-axis-core/50">Loading...</p>}
@@ -190,63 +257,50 @@ export function AdminOverview() {
 
         {stats && (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-axis-core/40">
+              {rangeLabel}
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <KpiCard label="Total Requests" value={stats.total} tone="tan" />
               <KpiCard label="Submitted" value={stats.byStatus.submitted} />
               <KpiCard label="In Review" value={stats.byStatus.in_review} />
               <KpiCard label="Completed" value={stats.byStatus.completed} />
             </div>
 
-            <div className="mt-8">
-              <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
-                ClickUp Sync
-              </h3>
-              <div className="mt-3 grid grid-cols-3 gap-3">
-                <KpiCard label="Successful Syncs" value={stats.bySyncStatus.synced} accent />
-                <KpiCard label="Failed Syncs" value={stats.bySyncStatus.failed} />
-                <KpiCard label="Pending Sync" value={stats.bySyncStatus.pending} />
+            {/* Highest-priority item on the page: an actionable problem,
+                not just a number, so it sits above every passive metric
+                below it. */}
+            {failedSyncs > 0 && (
+              <div className="mt-6 flex flex-col gap-3 rounded-card border border-red-300 bg-red-50 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-red-700">
+                    {failedSyncs} request{failedSyncs === 1 ? "" : "s"} failed to sync to ClickUp
+                  </p>
+                  <p className="mt-0.5 text-xs text-red-700/80">
+                    These won&rsquo;t show up in ClickUp until retried.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleReviewFailedSyncs}
+                  className="shrink-0 rounded-[8px] bg-red-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-800"
+                >
+                  Review and retry
+                </button>
               </div>
-            </div>
+            )}
 
-            <div className="mt-8">
-              <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
-                Requests by Type
-              </h3>
-              <div className="mt-3 space-y-2">
-                {/* investor-update-request never lands in the generic
-                    `requests` table (its own dedicated tables — see the
-                    "Investor Update Requests" section below instead), so
-                    it's excluded here rather than showing a permanently
-                    empty 0% bar. */}
-                {REQUEST_TYPES.filter((type) => type.slug !== "investor-update-request").map((type) => {
-                  const count = stats.byType[type.slug] ?? 0;
-                  const pct = stats.total > 0 ? (count / stats.total) * 100 : 0;
-                  return (
-                    <div key={type.slug} className="flex items-center gap-3">
-                      <span className="w-40 shrink-0 text-sm text-axis-core/70">{type.name}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-axis-light">
-                        <div
-                          className="h-full rounded-full bg-axis-signal"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <span className="w-6 shrink-0 text-right text-sm font-semibold text-axis-core">
-                        {count}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
-                Recent Requests
-              </h3>
-              <div className="mt-3 overflow-hidden rounded-card border border-axis-base/30 bg-white">
+            <CollapsibleSection
+              title="Recent Requests"
+              summary={`${stats.recent.length} shown`}
+              open={openSections.recent}
+              onToggle={() => toggleSection("recent")}
+              sectionRef={recentRef}
+            >
+              <div className="overflow-hidden rounded-card border border-axis-base/30 bg-white">
                 {stats.recent.length === 0 && (
                   <p className="px-4 py-6 text-center text-sm text-axis-core/50">
-                    No requests yet.
+                    No requests {range === "30d" ? "in the last 30 days." : "yet."}
                   </p>
                 )}
                 {stats.recent.map((req, i) => (
@@ -299,25 +353,76 @@ export function AdminOverview() {
                   </div>
                 ))}
               </div>
-            </div>
+            </CollapsibleSection>
 
-            <ClickUpSyncNotice />
+            <CollapsibleSection
+              title="ClickUp Sync Health"
+              badge={failedSyncs}
+              badgeTone="alert"
+              summary={`${stats.bySyncStatus.synced} synced`}
+              open={openSections.syncHealth}
+              onToggle={() => toggleSection("syncHealth")}
+            >
+              <div className="grid grid-cols-3 gap-3">
+                <KpiCard label="Successful Syncs" value={stats.bySyncStatus.synced} accent />
+                <KpiCard label="Failed Syncs" value={stats.bySyncStatus.failed} />
+                <KpiCard label="Pending Sync" value={stats.bySyncStatus.pending} />
+              </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              title="Requests by Type"
+              summary={`${stats.total} total`}
+              open={openSections.byType}
+              onToggle={() => toggleSection("byType")}
+            >
+              <div className="space-y-2">
+                {/* investor-update-request never lands in the generic
+                    `requests` table (its own dedicated tables — see the
+                    "Investor Update Requests" section below instead), so
+                    it's excluded here rather than showing a permanently
+                    empty 0% bar. */}
+                {REQUEST_TYPES.filter((type) => type.slug !== "investor-update-request").map((type) => {
+                  const count = stats.byType[type.slug] ?? 0;
+                  const pct = stats.total > 0 ? (count / stats.total) * 100 : 0;
+                  return (
+                    <div key={type.slug} className="flex items-center gap-3">
+                      <span className="w-40 shrink-0 text-sm text-axis-core/70">{type.name}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-axis-light">
+                        <div
+                          className="h-full rounded-full bg-axis-signal"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="w-6 shrink-0 text-right text-sm font-semibold text-axis-core">
+                        {count}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CollapsibleSection>
           </>
         )}
 
         {feedbackError && (
-          <p className="mt-8 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
             {feedbackError}
           </p>
         )}
 
         {feedback && (
-          <div className="mt-8">
-            <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
-              Investor Experience Rating
-            </h3>
-
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <CollapsibleSection
+            title="Investor Experience Rating"
+            summary={
+              feedback.total > 0
+                ? `${Math.round(feedback.averageRating * 10) / 10}★ · ${feedback.total} rating${feedback.total === 1 ? "" : "s"}`
+                : "No ratings yet"
+            }
+            open={openSections.feedback}
+            onToggle={() => toggleSection("feedback")}
+          >
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <KpiCard
                 label="Average Rating"
                 value={feedback.total > 0 ? Math.round(feedback.averageRating * 10) / 10 : 0}
@@ -375,21 +480,23 @@ export function AdminOverview() {
                 ))}
               </div>
             </div>
-          </div>
+          </CollapsibleSection>
         )}
 
         {investorUpdatesError && (
-          <p className="mt-8 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
             {investorUpdatesError}
           </p>
         )}
 
         {investorUpdates && (
-          <div className="mt-8">
-            <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
-              Investor Update Requests
-            </h3>
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <CollapsibleSection
+            title="Investor Update Requests"
+            summary={`${investorUpdates.total} total · ${investorUpdates.byStatus.submitted} pending`}
+            open={openSections.investorUpdates}
+            onToggle={() => toggleSection("investorUpdates")}
+          >
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               <KpiCard label="Investor Update Requests" value={investorUpdates.total} tone="tan" />
               <KpiCard label="Pending Investor Updates" value={investorUpdates.byStatus.submitted} />
               <KpiCard label="Updates In Progress" value={investorUpdates.byStatus.in_progress} />
@@ -399,19 +506,20 @@ export function AdminOverview() {
               />
               <KpiCard label="Completed Updates" value={investorUpdates.byStatus.completed} accent />
             </div>
-          </div>
+          </CollapsibleSection>
         )}
 
-        <div className="mt-8">
-          <h3 className="font-head text-sm font-medium tracking-tight text-axis-core">
-            Schedule a Call
-          </h3>
-          <p className="mt-1 text-sm text-axis-core/55">
+        <CollapsibleSection
+          title="Schedule a Call"
+          open={openSections.schedule}
+          onToggle={() => toggleSection("schedule")}
+        >
+          <p className="text-sm text-axis-core/55">
             Generate a one-time booking link to share with a client. It stops working the moment
             they book a call through it.
           </p>
 
-          <div className="mt-3 rounded-card border border-axis-base/30 bg-white p-4">
+          <div className="mt-3">
             <button
               type="button"
               onClick={handleGenerateScheduleLink}
@@ -445,9 +553,125 @@ export function AdminOverview() {
               </div>
             )}
           </div>
-        </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="About ClickUp Sync"
+          open={openSections.notes}
+          onToggle={() => toggleSection("notes")}
+        >
+          <ClickUpSyncNotice />
+        </CollapsibleSection>
       </div>
     </div>
+  );
+}
+
+function RangeToggle({
+  value,
+  onChange,
+}: {
+  value: StatsRange;
+  onChange: (range: StatsRange) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-full border border-axis-base/40 bg-white p-0.5">
+      {RANGE_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+            value === opt.value
+              ? "bg-axis-core text-white"
+              : "text-axis-core/60 hover:text-axis-core"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Shared accordion shell for every secondary section on this page. Fully
+ * controlled (open/onToggle owned by the parent) rather than managing its
+ * own state, so the failed-sync alert can force "Recent Requests" open
+ * and scroll to it from outside. `summary` stays visible even while
+ * collapsed (hidden on narrow screens to avoid crowding the header) so
+ * the single most useful number in a section doesn't require expanding
+ * it first.
+ */
+function CollapsibleSection({
+  title,
+  summary,
+  badge,
+  badgeTone = "neutral",
+  open,
+  onToggle,
+  children,
+  sectionRef,
+}: {
+  title: string;
+  summary?: string;
+  badge?: number;
+  badgeTone?: "alert" | "neutral";
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  sectionRef?: React.RefObject<HTMLDivElement>;
+}) {
+  return (
+    <div
+      ref={sectionRef}
+      className="mt-4 overflow-hidden rounded-card border border-axis-base/30 bg-white"
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-axis-light/60"
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="font-head text-sm font-medium tracking-tight text-axis-core">
+            {title}
+          </span>
+          {typeof badge === "number" && badge > 0 && (
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                badgeTone === "alert" ? "bg-red-100 text-red-700" : "bg-axis-base/50 text-axis-core"
+              }`}
+            >
+              {badge}
+            </span>
+          )}
+        </span>
+        <span className="flex shrink-0 items-center gap-3">
+          {summary && <span className="hidden text-xs text-axis-core/50 sm:inline">{summary}</span>}
+          <ChevronDownIcon
+            className={`h-4 w-4 shrink-0 text-axis-core/40 transition-transform duration-150 ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </span>
+      </button>
+      {open && <div className="border-t border-axis-base/20 px-4 py-4">{children}</div>}
+    </div>
+  );
+}
+
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <path
+        d="M5 7.5 10 12.5 15 7.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

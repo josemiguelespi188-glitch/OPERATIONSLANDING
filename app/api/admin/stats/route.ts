@@ -3,6 +3,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/supabase/adminAuth";
 import { REQUEST_TYPES } from "@/lib/requestTypes";
 import type { ClickUpSyncStatus, RequestStatus } from "@/lib/types";
+import { parseStatsRange, statsRangeCutoffISO } from "@/lib/utils/dateRange";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,18 @@ export async function GET(request: Request) {
     );
   }
 
-  const { data: requests, error } = await supabase
+  const range = parseStatsRange(new URL(request.url).searchParams.get("range"));
+  const cutoff = statsRangeCutoffISO(range);
+
+  let query = supabase
     .from("requests")
     .select(
       "id, request_type_slug, requestor_name, investor_name, deal_name, status, clickup_task_id, clickup_sync_status, clickup_sync_error, clickup_status_text, created_at"
     )
     .order("created_at", { ascending: false });
+  if (cutoff) query = query.gte("created_at", cutoff);
+
+  const { data: requests, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -62,6 +69,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
+    range,
     total: rows.length,
     byStatus,
     bySyncStatus,

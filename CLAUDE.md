@@ -610,6 +610,43 @@ upload).
   field (none exists yet) -- treat them as a starting point, not a
   confirmed spec.
 
+## Transfer Agreement Request
+
+`app/forms/transfer-agreement-request` (`lib/formSpecs/
+transferAgreementRequest.ts`) is an 11th locked request type, built
+directly off `redemption-request`'s structure per explicit instruction
+("Hazle parecido al redemption solo que hay un buyer") -- same overall
+shape (investor name/email, order number, offering name, account name
+on file, amount, notes, requester email, optional supporting-document
+upload), minus `redemption-request`'s Full/Partial dropdown and
+issuer-approved checkbox (not asked for, and a transfer agreement
+isn't the same concept as a redemption), plus one new required field
+this type exists for: `buyerName` ("Who is the buyer receiving the
+investment?").
+
+- Added to `request_types` in `seed.sql` at `sort_order = 12`
+  (appended after `investor-update-request` rather than renumbering
+  any earlier row) -- **needs the seed re-run in the Supabase SQL
+  editor**.
+- `components/RequestCard.tsx`'s `DEDICATED_FORM_SLUGS` set includes
+  this slug -- same reasoning as every other locked form, otherwise
+  the homepage card would silently open the generic `RequestModal`
+  instead of the real page.
+- **No ClickUp list exists for this slug yet** -- unlike
+  `investment-change-name-request` (built with its List ID already in
+  hand), the user said they'd provide the ClickUp list separately
+  after the form itself was built. `CLICKUP_LIST_ID_MAP` has no entry
+  for `transfer-agreement-request`, and `CUSTOM_FIELD_MAP`/
+  `ATTACHMENT_FIELD_MAP` in `lib/integrations/clickup.ts` have no
+  entries for it either, so submissions will fail to sync (marked
+  "failed", retryable from the admin) until the List ID is added to
+  that env var on Vercel. Once it's provided, also add a `FIELD_PLAN`
+  entry to `scripts/clickup/provision-forms.mjs` (Buyer Name,
+  Investor Account Name, Offering Name, Order Number, Transfer Amount,
+  Investor Email, Client/Capital Raiser Email, plus the attachment
+  field) and run it to get real field IDs to wire into
+  `CUSTOM_FIELD_MAP`.
+
 ## Locked-form active/inactive toggle (Oct 2026)
 
 Locked (code-driven) request types used to have no way to be hidden —

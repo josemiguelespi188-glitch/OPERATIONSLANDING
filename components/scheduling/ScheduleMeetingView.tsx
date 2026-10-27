@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 import Script from "next/script";
 import { Logo } from "@/components/Logo";
 
+// primary_color is axis-base (#CEC1A9) rather than axis-signal (#E3F464) --
+// the lime green barely shows against Calendly's own light gray background
+// (confirmed from a live screenshot: selected date/times were nearly
+// invisible), so the brand's tan token is used here instead.
 const CALENDLY_URL =
-  "https://calendly.com/d/dtv6-nwt-297/support-call?hide_gdpr_banner=1&background_color=f2f2f2&text_color=201c1a&primary_color=e3f464";
+  "https://calendly.com/d/dtv6-nwt-297/support-call?hide_gdpr_banner=1&background_color=f2f2f2&text_color=201c1a&primary_color=cec1a9";
 
 interface ScheduleMeetingViewProps {
   /** Present only on the one-time route (/schedule-a-call/[token]). */

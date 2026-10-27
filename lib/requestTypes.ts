@@ -9,7 +9,8 @@ export type RequestTypeSlug =
   | "document-request"
   | "axiskey-report-request"
   | "investor-update-request"
-  | "investment-change-name-request";
+  | "investment-change-name-request"
+  | "transfer-agreement-request";
 
 export interface RequestTypeConfig {
   slug: RequestTypeSlug;
@@ -105,6 +106,12 @@ export const REQUEST_TYPES: RequestTypeConfig[] = [
       "Request the creation of an investor update for your offering. Share recent developments, upload supporting materials, and our team will prepare a professional update for your investors.",
     buttonLabel: "Open Request",
     icon: "megaphone",
+  },
+  {
+    slug: "transfer-agreement-request",
+    name: "Transfer Agreement Request",
+    description: "Request a transfer agreement moving an investment order to a new buyer.",
+    buttonLabel: "Open Request",
   },
 ];
 

@@ -26,6 +26,7 @@ const DEDICATED_FORM_SLUGS = new Set<RequestTypeSlug>([
   "axiskey-report-request",
   "investor-update-request",
   "investment-change-name-request",
+  "transfer-agreement-request",
 ]);
 
 export function RequestCard({ type, onOpen }: RequestCardProps) {

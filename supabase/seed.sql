@@ -29,7 +29,8 @@ insert into request_types (slug, name, description, sort_order, is_locked) value
   -- This `description` column is also not read by the public page (it
   -- has its own hardcoded copy in InvestorUpdateRequestForm.tsx), so
   -- editing it here has no live effect -- only `is_active` does.
-  ('investor-update-request', 'Investor Update Request', 'Request the creation of an investor update for your offering. Share recent developments, upload supporting materials, and our team will prepare a professional update for your investors.', 11, true)
+  ('investor-update-request', 'Investor Update Request', 'Request the creation of an investor update for your offering. Share recent developments, upload supporting materials, and our team will prepare a professional update for your investors.', 11, true),
+  ('transfer-agreement-request', 'Transfer Agreement Request', 'A Transfer Agreement moves all or part of an investor''s existing investment order to a new buyer, formalizing the change of ownership. The investment itself stays the same; only the owner of record changes. The investor or authorized signatory must complete this form to initiate the transfer, including the buyer''s details.', 12, true)
 on conflict (slug) do update set
   name = excluded.name,
   description = excluded.description,

@@ -262,7 +262,8 @@ export async function generatePdf(
     if (!page || !field) continue;
 
     if (field.type === "text") {
-      const value = values.text[field.id]?.trim() ? values.text[field.id] : field.defaultValue;
+      const source = field.fixedValue !== undefined ? field.fixedValue : values.text[field.id];
+      const value = source?.trim() ? source : field.defaultValue;
       if (!value?.trim()) continue;
       const fontName = standardFontFor(box);
       let font = fonts.get(fontName);

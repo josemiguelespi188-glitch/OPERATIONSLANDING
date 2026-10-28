@@ -1802,3 +1802,105 @@ is exactly what the still-open Excel logo-import bug above can produce:
   unconfirmed without the user's real .xlsx) -- it makes this codebase
   tolerate whatever that bug (or any other source of a bad image file)
   hands it, without hanging or shipping an unopenable PDF.
+
+## Generate Document (per-request-type ClickUp-sourced PDFs, Oct 2026)
+
+A "Generate Document" button next to Deactivate/Edit copy on every
+**locked** row in `/admin/forms` (`FormBuilderList.tsx`) opens
+`/admin/forms/[id]/document`. Unlike the PDF Generator tool above (a
+freeform list of admin-named templates, values typed in or imported from
+Excel), this is **exactly one document mapping per request type**, and
+every field's value is **pulled live from ClickUp by Order Number**, never
+typed in. Built as an explicit pilot on `redemption-request` first (per
+explicit instruction) -- the feature is fully generic and the button
+shows on every locked type, but it only actually works where that type's
+Order Number and other fields are already confirmed in `CUSTOM_FIELD_MAP`
+(see the ClickUp workspace layout section above); an unconfirmed type
+shows a clear "nothing to map yet" state instead of guessing.
+
+**Why this needed new code instead of just reusing PDF Generator
+wholesale**: the box-placement engine (upload a PDF, draw text boxes,
+style them, `generatePdf()`) is identical and genuinely reused --
+`lib/documentGenerator/types.ts`'s `DocumentField` is a `PdfField` plus
+one extra property (`customFieldKey`), so a `DocumentTemplateConfig`
+satisfies `PdfTemplateConfig` structurally and
+`components/admin/pdfgenerator/MappingEditor.tsx` and
+`lib/pdfGenerator/generate.ts`'s `generatePdf()` are both used
+**completely unmodified** -- zero changes to the existing PDF Generator
+feature, zero added risk to it. What's new is *where a field's value
+comes from*: not a name the admin types, but one of this request type's
+already-wired ClickUp custom fields, picked from a list
+(`ClickUpFieldPicker.tsx`, backed by `GET
+/api/admin/request-types/[id]/clickup-fields` ->
+`lib/documentGenerator/clickupFields.ts`'s `getKnownClickUpFields()`,
+cross-referencing a FormSpec's `submissionMapping.customFields` against
+`CUSTOM_FIELD_MAP` -- a key with no confirmed ClickUp field is left out
+of the picker entirely, same "never guess an unconfirmed field" rule
+this codebase applies everywhere else it touches ClickUp). If an admin
+instead uses MappingEditor's own generic "+Text"/"+Image" buttons, that
+field gets `customFieldKey: ""` (`DocumentTemplateWorkspace.tsx`'s
+`toDocumentConfig()`) and simply renders blank at generation time
+(`generatePdf()` already skips an empty value) -- not an error, just a
+field with nothing to pull.
+
+- **Storage**: `request_document_templates`
+  (`supabase/migrations/019_request_document_templates.sql`, RLS
+  enabled, no policies -- service-role only, same strictness as
+  `pdf_templates`), one row per `request_type_id` (unique FK), plus a
+  private `request-document-templates` bucket. Same signed-upload/
+  signed-download URL pattern as `pdf_templates` -- the browser never
+  touches the bucket with its own key.
+- **The mapping is permanent, independent of any one generation** --
+  exactly as asked ("el mapping del documento ya va a quedar guardado
+  para siempre"): uploading the base PDF and placing fields happens once
+  on `/admin/forms/[id]/document`'s "1. Mapping" tab; "2. Generate" never
+  writes back to this row, it only reads the saved mapping plus whatever
+  a live ClickUp lookup returns.
+- **The actual search-and-fill flow**
+  (`lib/documentGenerator/resolveFromClickUp.ts`'s
+  `resolveDocumentValuesFromClickUp()`, called from `POST
+  /api/admin/request-types/[id]/document-template/generate`): resolves
+  the request type's ClickUp List ID (`CLICKUP_LIST_ID_MAP`) and its
+  confirmed Order Number field id, then calls a new
+  `findTaskByCustomFieldValue()` in `lib/integrations/clickup.ts`.
+  **This could not reuse the existing `findTaskIdByName()`** (Order
+  Tracking's by-order-number lookup): that one matches ClickUp's task
+  **name**, which is correct for the Payment Received Orders list (its
+  tasks are literally named after the order number) but wrong here --
+  every Operations Hub request list names its tasks after the
+  **investor** (`buildTaskName()` in `clickup.ts`), and Order Number
+  only ever lives in a custom field. `findTaskByCustomFieldValue()`
+  instead uses ClickUp's server-side `custom_fields` task filter
+  (`GET /list/{listId}/task?custom_fields=[{"field_id":...,"operator":
+  "=","value":...}]`). Once the matching task is found, its full custom
+  field values come from the already-existing `fetchClickUpTask()`
+  (same live, uncached read Order Tracking uses) -- so "Generate" always
+  reflects whatever the ops team has since reviewed and edited directly
+  in ClickUp, never the investor's original submission.
+- **Dropdown fields decode correctly without a hand-maintained lookup
+  table** (per explicit choice to include dropdowns from day one): a
+  ClickUp dropdown custom field's stored value on a task is the
+  selected option's numeric `orderindex`, not its name or UUID (same
+  caveat `lib/orderTracking.ts` already documented and worked around
+  with a static `ACCOUNT_TYPE_BY_INDEX` table). Rather than adding
+  another static table that can silently drift the moment someone
+  reorders options in ClickUp, a new `fetchListCustomFields()` in
+  `clickup.ts` (ClickUp's "Get Accessible Custom Fields") is called
+  **live, once per Generate click** -- only when at least one mapped
+  field is actually a dropdown -- and `orderindex` is matched against
+  that field's current live option list. Checkbox fields decode to
+  "Yes"/"No"; number fields pull the FormSpec's own field `kind` (is it
+  `"currency"`?) to decide whether to prefix `$` and add thousand
+  separators, purely for display -- no new data is stored anywhere for
+  this, it's read fresh from the FormSpec every time.
+- `getListIdForSlug()` and `getCustomFieldTargets()` are thin new
+  exports off `clickup.ts`'s existing private `getListIdMap()` and
+  `CUSTOM_FIELD_MAP` -- added so this feature (and anything else later)
+  can read them without duplicating either map.
+- This sandbox cannot reach `clickup.com` (see "Network access from a
+  Claude Code" above), so the live search-and-resolve flow was built
+  from the same confirmed `CUSTOM_FIELD_MAP`/`fetchClickUpTask()`
+  behavior already verified elsewhere in this codebase, not tested
+  against a real ClickUp list from here -- **test the full Redemption
+  Request pilot against a real order number once deployed** before
+  relying on it or extending the pilot to other request types.

@@ -18,18 +18,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const supabase = getSupabaseServerClient();
   const { data: rows, error } = await supabase
     .from("request_type_clickup_field_map")
-    .select("field_key, clickup_field_id, kind, option_map, connected_at")
+    .select("field_key, clickup_field_id, clickup_field_name, kind, option_map, connected_at")
     .eq("request_type_id", id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const map: Record<
     string,
-    { clickupFieldId: string; kind: string; optionMap: Record<string, string>; connectedAt: string }
+    {
+      clickupFieldId: string;
+      clickupFieldName: string;
+      kind: string;
+      optionMap: Record<string, string>;
+      connectedAt: string;
+    }
   > = {};
   for (const row of rows ?? []) {
     map[row.field_key] = {
       clickupFieldId: row.clickup_field_id,
+      clickupFieldName: row.clickup_field_name ?? "",
       kind: row.kind,
       optionMap: (row.option_map as Record<string, string>) ?? {},
       connectedAt: row.connected_at,

@@ -88,6 +88,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       request_type_id: id,
       field_key: fieldKey,
       clickup_field_id: clickupFieldId,
+      clickup_field_name: liveField.name as string,
       kind,
       option_map: optionMap,
       connected_at: new Date().toISOString(),

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { REQUEST_TYPES } from "@/lib/requestTypes";
 import type { ClickUpSyncStatus, RequestStatus } from "@/lib/types";
 import type { StatsRange } from "@/lib/utils/dateRange";
-import { ClickUpSyncNotice } from "@/components/ClickUpSyncNotice";
 import { useAdminAuth } from "./AdminAuthContext";
 
 interface AdminStats {
@@ -69,16 +68,16 @@ const RANGE_OPTIONS: { value: StatsRange; label: string }[] = [
   { value: "all", label: "All Time" },
 ];
 
-/** Every collapsible section below, keyed for open/closed state + the
- * "jump here and expand" behavior the failed-sync alert uses. */
-type SectionKey =
-  | "recent"
-  | "syncHealth"
-  | "byType"
-  | "feedback"
-  | "investorUpdates"
-  | "schedule"
-  | "notes";
+/**
+ * Every collapsible secondary section, keyed for open/closed state + the
+ * "jump here and expand" behavior the failed-sync alert uses. "Schedule
+ * a Call" and "Recent Requests" are no longer in this set (Oct 2026
+ * redesign) -- Schedule a Call is now a permanent banner at the very top
+ * of the page, and Recent Requests is always rendered in full, since
+ * both were explicitly called out as important info that has to stay
+ * visible rather than live behind a collapsed accordion.
+ */
+type SectionKey = "syncHealth" | "byType" | "feedback" | "investorUpdates";
 
 export function AdminOverview() {
   const { session } = useAdminAuth();
@@ -100,19 +99,17 @@ export function AdminOverview() {
   const [scheduleLinkCopied, setScheduleLinkCopied] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [scheduleLinkError, setScheduleLinkError] = useState("");
+  const [scheduleLinkModalOpen, setScheduleLinkModalOpen] = useState(false);
 
-  // Progressive disclosure: everything but "Recent Requests" (the one
-  // admins check most often, alongside any failed-sync alert) starts
-  // collapsed so the page opens short instead of one long scroll of
-  // every metric this app tracks.
+  // Progressive disclosure only applies to the lower-priority metric
+  // sections now -- everything the admin needs at a glance (KPIs, the
+  // failed-sync alert, Recent Requests, Schedule a Call) renders in full
+  // further up the page, unconditionally.
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
-    recent: true,
     syncHealth: false,
     byType: false,
     feedback: false,
     investorUpdates: false,
-    schedule: false,
-    notes: false,
   });
   const recentRef = useRef<HTMLDivElement>(null);
   const [scrollToRecentSignal, setScrollToRecentSignal] = useState(0);
@@ -122,7 +119,6 @@ export function AdminOverview() {
   }
 
   function handleReviewFailedSyncs() {
-    setOpenSections((s) => ({ ...s, recent: true }));
     setScrollToRecentSignal((n) => n + 1);
   }
 
@@ -205,6 +201,7 @@ export function AdminOverview() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Could not generate a link.");
       setScheduleLink(body.url);
+      setScheduleLinkModalOpen(true);
     } catch (err) {
       setScheduleLinkError(err instanceof Error ? err.message : "Could not generate a link.");
     } finally {
@@ -249,6 +246,32 @@ export function AdminOverview() {
         </div>
       </div>
 
+      {/* Permanently pinned at the top of the page, never collapsible --
+          per explicit instruction, this button has to always be visible
+          without scrolling past other sections first. */}
+      <div className="mt-6 flex flex-col gap-4 rounded-card bg-axis-core px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Schedule a Call</p>
+          <p className="mt-1 text-sm text-white/80">
+            Generate a one-time booking link to share with a client. It stops working the moment
+            they book a call through it.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleGenerateScheduleLink}
+          disabled={generatingLink}
+          className="shrink-0 rounded-[8px] bg-axis-signal px-5 py-2.5 text-sm font-semibold text-axis-core transition-colors hover:bg-white disabled:opacity-50"
+        >
+          {generatingLink ? "Generating..." : "Generate one-time link"}
+        </button>
+      </div>
+      {scheduleLinkError && (
+        <p className="mt-3 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
+          {scheduleLinkError}
+        </p>
+      )}
+
       <div className="mt-8">
         {loading && <p className="text-sm text-axis-core/50">Loading...</p>}
         {error && (
@@ -290,14 +313,18 @@ export function AdminOverview() {
               </div>
             )}
 
-            <CollapsibleSection
-              title="Recent Requests"
-              summary={`${stats.recent.length} shown`}
-              open={openSections.recent}
-              onToggle={() => toggleSection("recent")}
-              sectionRef={recentRef}
-            >
-              <div className="overflow-hidden rounded-card border border-axis-base/30 bg-white">
+            {/* Always rendered in full -- the single section an admin
+                checks most often, so it no longer lives behind a
+                collapsed toggle the way every other section below still
+                does. */}
+            <div ref={recentRef} className="mt-8">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-head text-sm font-medium tracking-tight text-axis-core">
+                  Recent Requests
+                </h2>
+                <span className="text-xs text-axis-core/50">{stats.recent.length} shown</span>
+              </div>
+              <div className="mt-3 overflow-hidden rounded-card border border-axis-base/30 bg-white">
                 {stats.recent.length === 0 && (
                   <p className="px-4 py-6 text-center text-sm text-axis-core/50">
                     No requests {range === "30d" ? "in the last 30 days." : "yet."}
@@ -353,7 +380,11 @@ export function AdminOverview() {
                   </div>
                 ))}
               </div>
-            </CollapsibleSection>
+            </div>
+
+            <p className="mt-10 text-xs font-semibold uppercase tracking-wide text-axis-core/40">
+              More metrics
+            </p>
 
             <CollapsibleSection
               title="ClickUp Sync Health"
@@ -508,61 +539,48 @@ export function AdminOverview() {
             </div>
           </CollapsibleSection>
         )}
-
-        <CollapsibleSection
-          title="Schedule a Call"
-          open={openSections.schedule}
-          onToggle={() => toggleSection("schedule")}
-        >
-          <p className="text-sm text-axis-core/55">
-            Generate a one-time booking link to share with a client. It stops working the moment
-            they book a call through it.
-          </p>
-
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={handleGenerateScheduleLink}
-              disabled={generatingLink}
-              className="rounded-[8px] bg-axis-core px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-axis-signal hover:text-axis-core disabled:opacity-50"
-            >
-              {generatingLink ? "Generating..." : "Generate one-time link"}
-            </button>
-
-            {scheduleLinkError && (
-              <p className="mt-3 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
-                {scheduleLinkError}
-              </p>
-            )}
-
-            {scheduleLink && (
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={scheduleLink}
-                  className="flex-1 truncate rounded-[6px] border border-axis-base/40 bg-axis-light px-3 py-2 text-sm text-axis-core/80"
-                />
-                <button
-                  type="button"
-                  onClick={handleCopyScheduleLink}
-                  className="shrink-0 rounded-[6px] border border-axis-base/50 px-3 py-2 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core"
-                >
-                  {scheduleLinkCopied ? "Copied!" : "Copy"}
-                </button>
-              </div>
-            )}
-          </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="About ClickUp Sync"
-          open={openSections.notes}
-          onToggle={() => toggleSection("notes")}
-        >
-          <ClickUpSyncNotice />
-        </CollapsibleSection>
       </div>
+
+      {scheduleLinkModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-axis-core/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setScheduleLinkModalOpen(false);
+          }}
+        >
+          <div className="w-full max-w-md rounded-card bg-white p-5 shadow-modal">
+            <p className="text-sm font-semibold text-axis-core">One-time scheduling link</p>
+            <p className="mt-1 text-xs text-axis-core/55">
+              Share this with one client. It stops working the moment they book a call through it.
+            </p>
+            <div className="mt-4 flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={scheduleLink}
+                onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 truncate rounded-[6px] border border-axis-base/40 bg-axis-light px-3 py-2 text-sm text-axis-core/80"
+              />
+              <button
+                type="button"
+                onClick={handleCopyScheduleLink}
+                className="shrink-0 rounded-[6px] border border-axis-base/50 px-3 py-2 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core"
+              >
+                {scheduleLinkCopied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setScheduleLinkModalOpen(false)}
+                className="rounded-[8px] px-4 py-2 text-sm font-medium text-axis-core/60 transition-colors hover:bg-axis-signal/25 hover:text-axis-core"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -595,13 +613,11 @@ function RangeToggle({
 }
 
 /**
- * Shared accordion shell for every secondary section on this page. Fully
- * controlled (open/onToggle owned by the parent) rather than managing its
- * own state, so the failed-sync alert can force "Recent Requests" open
- * and scroll to it from outside. `summary` stays visible even while
- * collapsed (hidden on narrow screens to avoid crowding the header) so
- * the single most useful number in a section doesn't require expanding
- * it first.
+ * Shared accordion shell for every secondary (lower-priority) metric
+ * section below "More metrics". Fully controlled (open/onToggle owned by
+ * the parent). `summary` stays visible even while collapsed (hidden on
+ * narrow screens to avoid crowding the header) so the single most useful
+ * number in a section doesn't require expanding it first.
  */
 function CollapsibleSection({
   title,
@@ -611,7 +627,6 @@ function CollapsibleSection({
   open,
   onToggle,
   children,
-  sectionRef,
 }: {
   title: string;
   summary?: string;
@@ -620,13 +635,9 @@ function CollapsibleSection({
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
-  sectionRef?: React.RefObject<HTMLDivElement>;
 }) {
   return (
-    <div
-      ref={sectionRef}
-      className="mt-4 overflow-hidden rounded-card border border-axis-base/30 bg-white"
-    >
+    <div className="mt-4 overflow-hidden rounded-card border border-axis-base/30 bg-white">
       <button
         type="button"
         onClick={onToggle}

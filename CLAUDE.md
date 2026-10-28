@@ -2188,3 +2188,46 @@ button -- **always a live read, nothing here is ever cached or stored**.
   mirror for this first pass, per the user's own "ya te digo qué otras
   funciones más adelante" (more features to come later, described
   separately when they're ready to spec them).
+
+## Admin Overview redesign (`/admin`, Oct 2026)
+
+`AdminOverview.tsx` was reworked a second time, per explicit feedback on
+the first pass (an earlier priority-ordered, fully-collapsible layout
+with a Last 30 Days/All Time toggle, never documented here) -- "no me
+gusta como quedo. haz una nueva propuesta," plus three concrete asks:
+important info has to actually show (not live behind a click), the
+Schedule a Call button has to always be visible at the top, and
+generating a link should pop up a dialog instead of revealing it inline.
+
+- **"About ClickUp Sync" removed entirely**, including the component it
+  rendered (`components/ClickUpSyncNotice.tsx`, deleted outright --
+  nothing else referenced it) -- the user said this static "sync
+  limitations" notice is no longer needed.
+- **Schedule a Call is now a permanent banner pinned right under the
+  page header**, not a collapsible section -- a dark `bg-axis-core` card
+  with the "Generate one-time link" button in `axis-signal`, always
+  rendered above every metric on the page (KPIs, the failed-sync alert,
+  Recent Requests), never inside the accordion system. This directly
+  satisfies "el boton para agendar meetings siempre tiene que verse
+  arriba."
+- **Generating a link now opens a popup** (a `fixed inset-0` modal
+  overlay, same pattern as `QuickCreateModal.tsx` --
+  `bg-axis-core/50` backdrop, click-outside-to-close, `shadow-modal`
+  panel) showing the link in a read-to-copy input plus a Copy button,
+  instead of the old inline reveal row under the button. Replaces,
+  rather than duplicates, the earlier inline UI.
+- **"Recent Requests" is no longer collapsible** -- it always renders in
+  full (same markup/behavior as before, just outside the
+  `CollapsibleSection` wrapper) immediately after the KPI grid and the
+  failed-sync alert, since this was explicitly called out as important
+  info that shouldn't require a click to see. The failed-sync alert's
+  "Review and retry" button still scrolls to it (`recentRef`), just
+  without needing to also force a section open first.
+- **Everything else stays a collapsible accordion under a new "More
+  metrics" label** -- ClickUp Sync Health, Requests by Type, Investor
+  Experience Rating, Investor Update Requests -- all closed by default,
+  same progressive-disclosure reasoning as before: these are real
+  metrics worth having, just not what an admin needs at a glance on
+  every visit. `SectionKey`/`openSections` was narrowed to only these
+  four keys now that Schedule a Call and Recent Requests no longer
+  belong to the collapsible system.

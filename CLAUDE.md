@@ -1904,3 +1904,71 @@ field with nothing to pull.
   against a real ClickUp list from here -- **test the full Redemption
   Request pilot against a real order number once deployed** before
   relying on it or extending the pilot to other request types.
+
+### Second pass: live ClickUp names, multiple mappings per type, tab order (Oct 2026)
+
+The pilot above was live-tested against a real Redemption Request task
+(confirmed working end to end) before three follow-up changes, all per
+explicit feedback from that first real use:
+
+- **The field picker now shows ClickUp's own live field names, not this
+  form's question wording.** `getKnownClickUpFields()`
+  (`lib/documentGenerator/clickupFields.ts`) is now `async` and calls
+  `fetchListCustomFields()` (the same "Get Accessible Custom Fields"
+  live call dropdown decoding already used) to read each mapped field's
+  current `.name` straight from ClickUp, falling back to the FormSpec's
+  own field label only if that live call fails or the field has since
+  vanished. The user offered an exported Excel of the Redemptions
+  Requests list's real column headers as a source of truth
+  ("Current Account Name", "Order Number", "Redemption Amount",
+  "Redemption type", "Investor Email", "Client/Capital Raiser Email",
+  "Issuer Approved Redemption", confirmed against this list's real
+  sample row, order number `4316815030` -- 10 digits, now the Order
+  Number field's example placeholder in `GenerateFromOrderNumber.tsx`)
+  -- cross-checked against every existing `CUSTOM_FIELD_MAP["redemption-
+  request"]` entry and all matched, confirming that map's accuracy.
+  Hardcoding those names from the Excel was deliberately rejected in
+  favor of the live call: a hardcoded snapshot is exactly the kind of
+  drift this file has flagged repeatedly elsewhere (a ClickUp field can
+  be renamed with zero warning anywhere in this codebase), while the
+  live call can never go stale.
+- **A request type can now hold any number of named document mappings**,
+  not just one -- per explicit example, "pueden haber tres tipos de
+  Redemption Request documents que utilizamos." Migration
+  `020_request_document_templates_multi.sql` adds a `name` column to
+  `request_document_templates` and drops its one-per-`request_type_id`
+  unique constraint (replaced with a plain index). The one mapping
+  already created and tested during the pilot became `name = 'Default'`
+  automatically (the column's own default value, applied to the
+  existing row when the column was added).
+- **API routes moved from singular to plural + per-mapping**:
+  `/api/admin/request-types/[id]/document-template*` (one implicit
+  mapping) was replaced outright with
+  `/api/admin/request-types/[id]/document-templates` (list + create) and
+  `.../document-templates/[templateId]` (get/patch/delete) and
+  `.../document-templates/[templateId]/generate` -- the same shape
+  `/api/admin/pdf-templates` already uses, just nested under a request
+  type. The old singular route files were deleted, not deprecated.
+- **The admin UI split into three pieces** instead of one workspace
+  component: `DocumentTemplateWorkspace.tsx` (top-level: loads the list
+  of mappings, owns the two tabs), `GenerateTab.tsx` (new -- a `<select>`
+  of this type's mapping names, lazily loading the chosen one's bytes/
+  config before rendering `GenerateFromOrderNumber.tsx`, which now takes
+  an explicit `templateId` instead of assuming one implicit mapping),
+  and `DocumentMappingManager.tsx` (new -- the list-create-edit-delete
+  UI for mappings, replacing the old single-mapping upload form; editing
+  one still shows `ClickUpFieldPicker` + the unmodified `MappingEditor`
+  inline, exactly as the pilot did, just reachable per-mapping now
+  instead of being the type's only mapping).
+- **Tab order swapped: "1. Generate" now comes before "2. Mapping"** --
+  per explicit feedback that Generate is the button's actual point day
+  to day, Mapping is setup work done rarely. `DocumentTemplateWorkspace`
+  defaults `tab` to `"generate"` (was `"mapping"`).
+- Still untested against a real ClickUp list from this sandbox for this
+  second pass specifically (same standing limitation as the first pilot
+  -- `clickup.com` stays unreachable here) -- the live-name fetch and
+  the per-mapping generate route reuse the exact same verified
+  `fetchListCustomFields()`/`fetchClickUpTask()`/
+  `findTaskByCustomFieldValue()` calls the already-confirmed pilot used,
+  just re-wired for a `templateId`-scoped mapping instead of an implicit
+  one, so re-confirm live once deployed before trusting it blindly.

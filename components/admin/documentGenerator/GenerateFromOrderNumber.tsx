@@ -7,24 +7,25 @@ import { resolveFileName } from "@/lib/pdfGenerator/types";
 import type { DocumentTemplateConfig } from "@/lib/documentGenerator/types";
 
 /**
- * The "2. Generate" tab: search this request type's ClickUp list by
- * Order Number, pull that task's current (reviewed) data, and fill the
- * saved mapping with it. Generation itself reuses generatePdf() from the
- * PDF Generator tool unchanged -- the only new work here is resolving
- * field VALUES from ClickUp instead of a manually typed/imported row.
+ * The "1. Generate" tab's content, once a specific mapping is selected:
+ * search this request type's ClickUp list by Order Number, pull that
+ * task's current (reviewed) data, and fill the selected mapping with it.
+ * Generation itself reuses generatePdf() from the PDF Generator tool
+ * unchanged -- the only new work here is resolving field VALUES from
+ * ClickUp instead of a manually typed/imported row.
  */
 export function GenerateFromOrderNumber({
   requestTypeId,
-  requestTypeName,
+  templateId,
+  mappingName,
   templateBytes,
   config,
-  unsaved,
 }: {
   requestTypeId: string;
-  requestTypeName: string;
+  templateId: string;
+  mappingName: string;
   templateBytes: Uint8Array;
   config: DocumentTemplateConfig;
-  unsaved: boolean;
 }) {
   const adminFetch = useAdminFetch();
   const [orderNumber, setOrderNumber] = useState("");
@@ -39,10 +40,10 @@ export function GenerateFromOrderNumber({
     setBusy(true);
     setError("");
     try {
-      const res = await adminFetch(`/api/admin/request-types/${requestTypeId}/document-template/generate`, {
-        method: "POST",
-        body: JSON.stringify({ orderNumber }),
-      });
+      const res = await adminFetch(
+        `/api/admin/request-types/${requestTypeId}/document-templates/${templateId}/generate`,
+        { method: "POST", body: JSON.stringify({ orderNumber }) }
+      );
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Could not generate the document.");
 
@@ -52,7 +53,7 @@ export function GenerateFromOrderNumber({
         config,
         "",
         (field) => values[field.id] ?? "",
-        `${requestTypeName} ${orderNumber}`.trim()
+        `${mappingName} ${orderNumber}`.trim()
       );
       downloadBytes(bytes, `${fileName}.pdf`, "application/pdf");
       setLastGeneratedFor(orderNumber);
@@ -66,19 +67,14 @@ export function GenerateFromOrderNumber({
   if (!hasFields) {
     return (
       <p className="rounded-[8px] border border-axis-base/30 bg-axis-light px-3 py-2 text-sm text-axis-core/60">
-        Add and place at least one field in the Mapping tab before generating a document.
+        This mapping has no fields placed yet -- add and place at least one in the Mapping tab
+        before generating a document from it.
       </p>
     );
   }
 
   return (
     <div className="max-w-md">
-      {unsaved && (
-        <p className="mb-4 rounded-[8px] bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          You have unsaved mapping changes -- generating now uses the saved version, not your
-          edits. Save the mapping first if you want this generation to reflect them.
-        </p>
-      )}
       <form onSubmit={handleGenerate} className="flex items-end gap-2">
         <label className="block flex-1">
           <span className="text-xs font-medium text-axis-core/70">Order number</span>
@@ -86,7 +82,7 @@ export function GenerateFromOrderNumber({
             type="text"
             value={orderNumber}
             onChange={(e) => setOrderNumber(e.target.value)}
-            placeholder="10234"
+            placeholder="4316815030"
             required
             className="mt-1 w-full rounded-[8px] border border-axis-base/50 px-3 py-2 text-sm outline-none focus:border-axis-core"
           />

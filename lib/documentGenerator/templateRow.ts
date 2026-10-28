@@ -7,6 +7,7 @@ export const DOCUMENT_TEMPLATE_BUCKET = "request-document-templates";
 export interface DocumentTemplateRow {
   id: string;
   request_type_id: string;
+  name: string;
   file_path: string | null;
   file_name: string | null;
   page_count: number | null;
@@ -19,6 +20,7 @@ export function toDocumentTemplateSummary(row: DocumentTemplateRow): DocumentTem
   return {
     id: row.id,
     requestTypeId: row.request_type_id,
+    name: row.name,
     fileName: row.file_name,
     pageCount: row.page_count,
     mapping: sanitizeDocumentConfig(row.mapping),

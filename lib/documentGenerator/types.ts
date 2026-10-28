@@ -1,8 +1,10 @@
 /**
  * Shared types for "Generate Document" (admin Form Builder -> a request
- * type's "Generate Document" button). One document mapping per request
- * type, reusing the exact box-placement engine the PDF Generator tool
- * already has (lib/pdfGenerator/types.ts + generatePdf()) -- the only
+ * type's "Generate Document" button). A request type can hold any number
+ * of named document mappings (e.g. several different Redemption Request
+ * document variants) -- reusing the exact box-placement engine the PDF
+ * Generator tool already has (lib/pdfGenerator/types.ts + generatePdf())
+ * -- the only
  * real difference is where a field's VALUE comes from: not typed in by
  * an admin, but pulled live from that request type's ClickUp list by
  * Order Number at generation time (see
@@ -32,6 +34,7 @@ export interface DocumentTemplateConfig extends Omit<PdfTemplateConfig, "fields"
 export interface DocumentTemplateSummary {
   id: string;
   requestTypeId: string;
+  name: string;
   fileName: string | null;
   pageCount: number | null;
   mapping: DocumentTemplateConfig;

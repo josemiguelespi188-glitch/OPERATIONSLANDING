@@ -8,17 +8,20 @@ export const dynamic = "force-dynamic";
 
 /**
  * Looks up this request type's ClickUp list for a task matching the
- * given Order Number and resolves every mapped document field's current
- * value off it. Returns the resolved values only -- the browser still
- * does the actual PDF fill (generatePdf(), reused unchanged from the PDF
- * Generator tool) with its own copy of the saved mapping + template
- * bytes, so this route never handles the PDF itself.
+ * given Order Number and resolves every field of ONE specific document
+ * mapping (a request type can have several) off it. Returns the
+ * resolved values only -- the browser still does the actual PDF fill
+ * (generatePdf(), reused unchanged from the PDF Generator tool) with its
+ * own copy of this mapping's config + template bytes.
  */
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string; templateId: string }> }
+) {
   const admin = await requireAdmin(request);
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await params;
+  const { id, templateId } = await params;
   const body = await request.json().catch(() => ({}));
   const orderNumber = typeof body.orderNumber === "string" ? body.orderNumber : "";
 
@@ -29,10 +32,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: templateRow } = await supabase
     .from("request_document_templates")
     .select("mapping")
+    .eq("id", templateId)
     .eq("request_type_id", id)
     .maybeSingle();
   if (!templateRow) {
-    return NextResponse.json({ error: "No document template exists yet for this request type." }, { status: 404 });
+    return NextResponse.json({ error: "Document mapping not found." }, { status: 404 });
   }
 
   const mapping = sanitizeDocumentConfig(templateRow.mapping);

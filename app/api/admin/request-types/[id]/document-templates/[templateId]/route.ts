@@ -6,39 +6,21 @@ import { DOCUMENT_TEMPLATE_BUCKET, toDocumentTemplateSummary } from "@/lib/docum
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ id: string }> };
+type Params = { params: Promise<{ id: string; templateId: string }> };
 
-/**
- * `id` here is the request_types row id, not the document template's own
- * id -- there's at most one document template per request type, so every
- * route in this folder is addressed by the request type instead of a
- * separate template id the admin UI would have to track.
- */
 export async function GET(request: Request, { params }: Params) {
   const admin = await requireAdmin(request);
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await params;
+  const { id, templateId } = await params;
   const supabase = getSupabaseServerClient();
-
-  const { data: requestType, error: requestTypeError } = await supabase
-    .from("request_types")
-    .select("id, slug, name")
-    .eq("id", id)
-    .maybeSingle();
-  if (requestTypeError || !requestType) {
-    return NextResponse.json({ error: "Request type not found." }, { status: 404 });
-  }
-
-  const { data: row } = await supabase
+  const { data: row, error } = await supabase
     .from("request_document_templates")
     .select("*")
+    .eq("id", templateId)
     .eq("request_type_id", id)
     .maybeSingle();
-
-  if (!row) {
-    return NextResponse.json({ requestType, template: null });
-  }
+  if (error || !row) return NextResponse.json({ error: "Document mapping not found." }, { status: 404 });
 
   let fileUrl: string | null = null;
   if (row.file_path) {
@@ -46,17 +28,22 @@ export async function GET(request: Request, { params }: Params) {
     fileUrl = data?.signedUrl ?? null;
   }
 
-  return NextResponse.json({ requestType, template: { ...toDocumentTemplateSummary(row), fileUrl } });
+  return NextResponse.json({ ...toDocumentTemplateSummary(row), fileUrl });
 }
 
 export async function PATCH(request: Request, { params }: Params) {
   const admin = await requireAdmin(request);
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await params;
+  const { id, templateId } = await params;
   const body = await request.json().catch(() => ({}));
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
+  if (typeof body.name === "string") {
+    const name = body.name.trim().slice(0, 200);
+    if (!name) return NextResponse.json({ error: "Mapping name is required." }, { status: 400 });
+    update.name = name;
+  }
   if (body.mapping !== undefined) update.mapping = sanitizeDocumentConfig(body.mapping);
   if (typeof body.pageCount === "number" && Number.isInteger(body.pageCount) && body.pageCount > 0) {
     update.page_count = body.pageCount;
@@ -66,16 +53,33 @@ export async function PATCH(request: Request, { params }: Params) {
   const { data: row, error } = await supabase
     .from("request_document_templates")
     .update(update)
+    .eq("id", templateId)
     .eq("request_type_id", id)
     .select("*")
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!row) {
-    return NextResponse.json(
-      { error: "No document template exists yet for this request type. Upload a PDF first." },
-      { status: 404 }
-    );
-  }
+  if (!row) return NextResponse.json({ error: "Document mapping not found." }, { status: 404 });
 
   return NextResponse.json(toDocumentTemplateSummary(row));
+}
+
+export async function DELETE(request: Request, { params }: Params) {
+  const admin = await requireAdmin(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id, templateId } = await params;
+  const supabase = getSupabaseServerClient();
+  const { data: row } = await supabase
+    .from("request_document_templates")
+    .select("file_path")
+    .eq("id", templateId)
+    .eq("request_type_id", id)
+    .maybeSingle();
+  if (!row) return NextResponse.json({ error: "Document mapping not found." }, { status: 404 });
+
+  if (row.file_path) await supabase.storage.from(DOCUMENT_TEMPLATE_BUCKET).remove([row.file_path]);
+  const { error } = await supabase.from("request_document_templates").delete().eq("id", templateId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
 }

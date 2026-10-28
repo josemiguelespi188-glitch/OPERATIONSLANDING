@@ -15,5 +15,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { data: requestType } = await supabase.from("request_types").select("slug").eq("id", id).maybeSingle();
   if (!requestType) return NextResponse.json({ error: "Request type not found." }, { status: 404 });
 
-  return NextResponse.json({ fields: getKnownClickUpFields(requestType.slug) });
+  return NextResponse.json({ fields: await getKnownClickUpFields(requestType.slug) });
 }

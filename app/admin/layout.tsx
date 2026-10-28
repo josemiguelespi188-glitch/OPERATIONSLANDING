@@ -74,7 +74,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         ? "sa-review"
         : pathname?.startsWith("/admin/communications")
           ? "communications"
-          : "overview";
+          : pathname?.startsWith("/admin/orders")
+            ? "orders"
+            : "overview";
   const initial = session.user.email?.[0]?.toUpperCase() ?? "A";
 
   return (

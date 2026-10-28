@@ -1,10 +1,16 @@
-import { FileIcon, GridIcon, LayersIcon, MegaphoneIcon } from "./icons";
+import { FileIcon, GridIcon, LayersIcon, MegaphoneIcon, TableIcon } from "./icons";
 import type { SidebarNavItem } from "./Sidebar";
 
 // The public site (home + each request form) is a single screen with no
 // sidebar — see PageShell usage only in app/admin/layout.tsx now.
 
-export type AdminNavKey = "overview" | "forms" | "pdf-generator" | "sa-review" | "communications";
+export type AdminNavKey =
+  | "overview"
+  | "forms"
+  | "pdf-generator"
+  | "sa-review"
+  | "communications"
+  | "orders";
 
 export function getAdminNavItems(active: AdminNavKey): SidebarNavItem[] {
   return [
@@ -18,5 +24,6 @@ export function getAdminNavItems(active: AdminNavKey): SidebarNavItem[] {
       icon: MegaphoneIcon,
       active: active === "communications",
     },
+    { label: "AxisKey Orders", href: "/admin/orders", icon: TableIcon, active: active === "orders" },
   ];
 }

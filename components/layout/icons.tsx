@@ -70,6 +70,15 @@ export function LogoutIcon({ className }: IconProps) {
   );
 }
 
+export function TableIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <rect x="2.5" y="3.5" width="15" height="13" rx="1.3" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2.5 8h15M7.5 3.5v13" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 export function MegaphoneIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className}>

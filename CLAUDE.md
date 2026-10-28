@@ -2231,3 +2231,51 @@ generating a link should pop up a dialog instead of revealing it inline.
   every visit. `SectionKey`/`openSections` was narrowed to only these
   four keys now that Schedule a Call and Recent Requests no longer
   belong to the collapsible system.
+
+### Second redesign pass: no more collapsing anywhere, compact row, paginated Recent Requests (Oct 2026)
+
+Direct follow-up feedback on the pass above, same day: the user liked
+the direction overall, but explicitly rejected the remaining
+`CollapsibleSection`/`openSections` accordion system entirely --
+"no me gusta que le hagas como cerrándose... todo que esté abierto
+solamente menos información y más como apretado" (don't collapse
+anything, show it all, just make each piece show less and sit tighter).
+`CollapsibleSection`/`ChevronDownIcon`/`SectionKey`/`openSections` were
+deleted outright -- nothing on this page toggles open/closed anymore.
+
+- **ClickUp Sync Health, Investor Experience Rating, and Requests by
+  Type now share one compact 3-column row** (`grid lg:grid-cols-3`)
+  instead of three full-width stacked sections -- per explicit
+  complaint that stacking them wasted "mucho espacio de izquierda a
+  derecha." Each is a small `CompactCard`: Sync Health shows 3 tight
+  `MiniStat` lines (Synced/Failed/Pending, Failed in red when > 0)
+  instead of 3 big `KpiCard`s; Investor Experience Rating shows just
+  the average-rating number + star + rating count (the histogram and
+  Recent Comments list from the first pass were dropped entirely, not
+  hidden behind anything -- "menos información" was explicit); Requests
+  by Type drops its progress-bar visualization for a tight name/count
+  list.
+- **Requests by Type now only lists currently-active request types**
+  (per explicit instruction: "pondría solamente los request types que
+  están activos... si es que no está activo... no le pondría ahí") --
+  `GET /api/admin/stats` (`app/api/admin/stats/route.ts`) now also
+  queries `request_types` for `is_active = true` and returns
+  `activeSlugs: string[]` (fails open to every slug on a lookup error,
+  same default as every other active/inactive check in this codebase),
+  and `AdminOverview.tsx` filters `REQUEST_TYPES` against it before
+  rendering that card. The whole card shows "No requests yet" instead
+  of an empty list when `stats.total === 0`, matching "si es que
+  obviamente no hay... no le pondría."
+- **Recent Requests now shows 4 at a time with Prev/Next pagination**
+  (`RECENT_PAGE_SIZE = 4`, client-side pagination over the list `GET
+  /api/admin/stats` returns) instead of one long list -- per explicit
+  instruction, after going back and forth on the exact number ("los
+  últimos tres"... "diez"... settling twice on "solamente los últimos
+  cuatro"). The API's own `recent` slice was bumped from 10 to 40 rows
+  so paging actually has real further pages to show instead of running
+  out after 2-3 clicks. `recentPage` resets to 0 on a range switch and
+  when "Review and retry" jumps to this section, so a failed sync (
+  almost always among the most recent requests) is reliably on the
+  first page the admin lands on.
+- **Investor Update Requests** is now a plain always-visible card (same
+  KPI grid as before), just no longer wrapped in an accordion.

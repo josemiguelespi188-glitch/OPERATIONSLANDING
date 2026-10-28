@@ -2392,6 +2392,35 @@ exact one instead) rather than guessing which field was meant.
 both, and a successful name-based connect writes the resolved real id
 back into the input so it reads correctly on next open.
 
+### Connection status visible on the field card itself, not just inside the panel (Oct 2026)
+
+Immediate follow-up: the green/red connected indicator only lived
+inside `FieldEditorPanel.tsx` (opened per field), but the admin wanted
+to see at a glance, from the field grid on `/admin/forms/[id]` itself,
+which questions are connected and to what -- without opening each one.
+
+- **New column** `request_type_clickup_field_map.clickup_field_name`
+  (`supabase/migrations/024_clickup_field_map_name.sql`) -- the connect
+  route already resolves the live field's name on every successful
+  connect (needed it anyway to support name-based lookup above), so it
+  now also persists it, instead of the grid needing its own live
+  ClickUp call just to render. Backfills the redemption-request pilot's
+  9 rows seeded by migration 023 with their already-confirmed names
+  from `CUSTOM_FIELD_MAP` -- **needs this migration run in the Supabase
+  SQL editor, after migration 023**.
+  `GET .../clickup-field-map` and `ClickUpFieldMapEntry` (the shared
+  type in `RequestTypeEditor.tsx`) both gained `clickupFieldName`.
+- **`FieldRow.tsx`** (the read-only card in the field grid, previously
+  only showing a "Code" badge for a locked field) now also renders a
+  small green `✓ <ClickUp field name>` or red `✕ Not connected` pill
+  right next to it, for every code-managed field -- `RequestTypeEditor`
+  passes each field's own `clickupMap[field.fieldKey]` entry down as
+  `clickupEntry`. A field with no connection falls back to
+  `CUSTOM_FIELD_MAP` at sync time same as always; this pill only
+  reflects whether an **admin-made** connection exists, it does not (and
+  can't, without a live ClickUp call on every grid render) reflect
+  `CUSTOM_FIELD_MAP`'s own hardcoded coverage.
+
 ## Support Inquiry (`/support-inquiry`, Oct 2026)
 
 An internal-only tool, not an investor-facing request type -- an

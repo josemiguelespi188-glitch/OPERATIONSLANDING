@@ -2,6 +2,7 @@
 
 import { FIELD_TYPE_META } from "@/lib/dynamicForms/fieldTypeMeta";
 import type { DynamicField } from "@/lib/dynamicForms/types";
+import type { ClickUpFieldMapEntry } from "./RequestTypeEditor";
 
 const previewInputClass =
   "w-full rounded-[8px] border border-axis-base/40 bg-axis-light/40 px-3.5 py-2.5 text-sm text-axis-core/40";
@@ -15,6 +16,10 @@ interface FieldRowProps {
   /** True for a locked form's code-defined field — its order always comes
    *  from the code, so reordering here would be a dead interaction. */
   isCodeManaged?: boolean;
+  /** This field's admin-connected ClickUp field, if any (only meaningful
+   *  when isCodeManaged) -- shown as a check/X badge right on the card,
+   *  so an admin can see what's connected without opening each field. */
+  clickupEntry?: ClickUpFieldMapEntry;
 }
 
 /**
@@ -22,7 +27,7 @@ interface FieldRowProps {
  * anywhere on the card opens the FieldEditorPanel — this never edits state
  * directly (that's the panel's job), it only renders + reorders.
  */
-export function FieldRow({ field, index, total, onOpen, onMove, isCodeManaged }: FieldRowProps) {
+export function FieldRow({ field, index, total, onOpen, onMove, isCodeManaged, clickupEntry }: FieldRowProps) {
   return (
     <div
       className={`group relative rounded-[8px] border border-axis-base/30 bg-white p-4 transition-colors hover:border-axis-core/40 ${
@@ -64,9 +69,26 @@ export function FieldRow({ field, index, total, onOpen, onMove, isCodeManaged }:
       </div>
 
       {isCodeManaged && (
-        <span className="absolute left-2.5 top-2.5 rounded-full bg-axis-light px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-axis-core/50">
-          Code
-        </span>
+        <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
+          <span className="rounded-full bg-axis-light px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-axis-core/50">
+            Code
+          </span>
+          {clickupEntry ? (
+            <span
+              title={`Connected to ClickUp: ${clickupEntry.clickupFieldName || clickupEntry.clickupFieldId}`}
+              className="flex max-w-[150px] items-center gap-1 truncate rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700"
+            >
+              ✓ {clickupEntry.clickupFieldName || "Connected"}
+            </span>
+          ) : (
+            <span
+              title="Not connected to a ClickUp field (falls back to CUSTOM_FIELD_MAP, if any)"
+              className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700"
+            >
+              ✕ Not connected
+            </span>
+          )}
+        </div>
       )}
 
       <button type="button" onClick={onOpen} className={`block w-full text-left ${isCodeManaged ? "mt-5" : ""}`}>

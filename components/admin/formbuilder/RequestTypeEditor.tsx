@@ -23,6 +23,7 @@ type EditableField = DynamicField & { isCodeManaged: boolean };
 
 export interface ClickUpFieldMapEntry {
   clickupFieldId: string;
+  clickupFieldName: string;
   kind: string;
   optionMap: Record<string, string>;
   connectedAt: string;
@@ -320,6 +321,7 @@ export function RequestTypeEditor({ id }: { id: string }) {
               index={index}
               total={fields.length}
               isCodeManaged={field.isCodeManaged}
+              clickupEntry={field.isCodeManaged ? clickupMap[field.fieldKey] : undefined}
               onOpen={() => {
                 setOpenIndex(index);
                 setOpenIsNew(false);

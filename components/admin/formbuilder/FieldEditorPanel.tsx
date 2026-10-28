@@ -426,6 +426,7 @@ function ClickUpConnectionEditor({
       if (body.clickupFieldId) setIdInput(body.clickupFieldId);
       onConnected?.({
         clickupFieldId: body.clickupFieldId ?? idInput.trim(),
+        clickupFieldName: body.liveFieldName ?? "",
         kind: body.kind,
         optionMap: optionMap ?? {},
         connectedAt: new Date().toISOString(),

@@ -29,6 +29,14 @@ export async function loadClickUpFieldMapOverrides(
 
   const overrides: Record<string, ClickUpFieldTarget[]> = {};
   for (const row of rows ?? []) {
+    // A "task_name" row isn't a real custom field -- it just records
+    // that this question's answer becomes the ClickUp task's own name,
+    // which buildTaskName() (lib/integrations/clickup.ts) already
+    // derives independently via the FormSpec's own
+    // submissionMapping.investorNameField. Including it here would try
+    // to write a custom field with the sentinel id, which doesn't
+    // exist on any real ClickUp list.
+    if (row.kind === "task_name") continue;
     const target: ClickUpFieldTarget =
       row.kind === "dropdown"
         ? { id: row.clickup_field_id, kind: "dropdown", options: (row.option_map as Record<string, string>) ?? {} }

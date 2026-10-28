@@ -2448,6 +2448,76 @@ until Connect was clicked again -- the rewritten version reads
 `entry.clickupFieldName` (persisted data) directly instead, so it's
 correct on first open.
 
+### Marking a question as "this becomes the ClickUp task's name" (Oct 2026)
+
+Live testing on the Redemption Request pilot surfaced a gap: the
+question whose answer becomes the task's own name (e.g.
+`investorName`, "Who is the investor requesting the redemption?")
+showed as `✕ Not connected` and failed every Connect attempt, even
+though it was already correctly wired -- `buildTaskName()`
+(`lib/integrations/clickup.ts`) builds every ClickUp task's name from
+`payload.investorName`/`payload.requestorName` directly (set per
+FormSpec via `submissionMapping.investorNameField`), independently of
+`request_type_clickup_field_map`/`CUSTOM_FIELD_MAP` entirely. A task's
+own name was never a custom field, so Connect's live field-name/id
+lookup could never find one named "Task Name" -- there's nothing to
+find. Per the user's own request ("sería bueno poner un botón para
+poder seleccionarlo como task name"), fixed with a dedicated path
+instead of making the admin guess at a nonexistent field name:
+
+- `supabase/migrations/025_clickup_field_map_task_name.sql` widens
+  `request_type_clickup_field_map`'s `kind` check constraint to also
+  allow `'task_name'` -- **needs this migration run in the Supabase
+  SQL editor, after migration 024**.
+- `POST .../clickup-field-map/connect` gained a second, simpler input
+  shape: `{fieldKey, markAsTaskName: true}` skips the live ClickUp
+  lookup entirely (there's nothing to look up) and upserts a row with
+  a sentinel `clickup_field_id = "task_name"`, `clickup_field_name =
+  "Task Name"`, `kind = "task_name"`.
+- `lib/services/clickupFieldMapOverrides.ts`'s `loadClickUpFieldMapOverrides()`
+  now skips any `kind === "task_name"` row when building the
+  `fieldMapOverrides` that get merged into `CUSTOM_FIELD_MAP` at sync
+  time -- including it would try to write a custom field update with
+  the sentinel id, which doesn't exist on any real ClickUp list. This
+  marking changes nothing about how the task actually gets named;
+  `buildTaskName()` already handles that correctly and independently --
+  this is purely a record so the admin UI stops showing a false
+  "Not connected".
+- `FieldEditorPanel.tsx`'s `ClickUpConnectionEditor` gained a second
+  button below the name/id input, "Mark as the ClickUp task's name
+  instead" -- no typing required, just a direct call with
+  `markAsTaskName: true`. Once set, it reads "✓ This is the ClickUp
+  task's name" (tinted green) and the usual "Code: ..." line is
+  replaced with a one-line explanation that this question's answer
+  becomes the task's title rather than a custom field value. Typing a
+  real field name and clicking the original Connect button still works
+  afterward and overwrites the task-name marking, same upsert as any
+  other reconnect.
+- Not yet tested against a real ClickUp list from this sandbox
+  (`clickup.com` stays unreachable here) -- **confirm live on
+  Redemption Request once deployed**: mark `investorName` as the task
+  name, confirm it shows green/"Task Name" instead of red, and confirm
+  a real test submission still names the ClickUp task correctly (it
+  should -- this change doesn't touch `buildTaskName()` at all).
+
+### Field grid caption shows the ClickUp connection name, not the raw internal key (Oct 2026)
+
+Immediate follow-up, same screenshot: the small caption under each
+field preview on `/admin/forms/[id]` (e.g. "Short Text · investorName")
+showed the field's internal camelCase code key, which read as just as
+cryptic as the UUID bug fixed in the pass above. Per explicit
+instruction ("debería salir el nombre del ClickUp field connection...
+literalmente cuál es el nombre"), `FieldRow.tsx`'s `FieldPreviewBody`
+now takes the field's `clickupEntry` (already available in
+`RequestTypeEditor.tsx`, already passed into the top-of-card pill) and
+prefers `clickupEntry.clickupFieldName` (e.g. "Investor Email", "Task
+Name" -- the exact same human-readable name shown in the ClickUp field
+connection box) over `field.fieldKey`, falling back to `field.fieldKey`
+only when there's no connection (or the field isn't code-managed at
+all, which never has a `clickupEntry`). Purely a display change -- the
+underlying `field.fieldKey` is unchanged and still what every
+submission/ClickUp-sync code path actually uses.
+
 ## Support Inquiry (`/support-inquiry`, Oct 2026)
 
 An internal-only tool, not an investor-facing request type -- an

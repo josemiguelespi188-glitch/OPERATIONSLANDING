@@ -92,13 +92,13 @@ export function FieldRow({ field, index, total, onOpen, onMove, isCodeManaged, c
       )}
 
       <button type="button" onClick={onOpen} className={`block w-full text-left ${isCodeManaged ? "mt-5" : ""}`}>
-        <FieldPreviewBody field={field} />
+        <FieldPreviewBody field={field} clickupEntry={clickupEntry} />
       </button>
     </div>
   );
 }
 
-function FieldPreviewBody({ field }: { field: DynamicField }) {
+function FieldPreviewBody({ field, clickupEntry }: { field: DynamicField; clickupEntry?: ClickUpFieldMapEntry }) {
   const meta = FIELD_TYPE_META[field.fieldType];
   const label = field.label || "Untitled field";
 
@@ -134,7 +134,8 @@ function FieldPreviewBody({ field }: { field: DynamicField }) {
 
       <p className="mt-2 text-[11px] text-axis-core/35">
         {meta.label}
-        {field.fieldKey && ` · ${field.fieldKey}`}
+        {(clickupEntry?.clickupFieldName || field.fieldKey) &&
+          ` · ${clickupEntry?.clickupFieldName || field.fieldKey}`}
       </p>
     </div>
   );

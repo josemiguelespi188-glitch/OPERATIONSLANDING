@@ -447,6 +447,37 @@ function ClickUpConnectionEditor({
     setSavingOptions(false);
   }
 
+  async function handleMarkAsTaskName() {
+    if (!requestTypeId) return;
+    setConnecting(true);
+    setError("");
+    try {
+      const res = await adminFetch(`/api/admin/request-types/${requestTypeId}/clickup-field-map/connect`, {
+        method: "POST",
+        body: JSON.stringify({ fieldKey, markAsTaskName: true }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        setError(body.error ?? "Could not mark this as the task name.");
+        return;
+      }
+      setIdInput("Task Name");
+      onConnected?.({
+        clickupFieldId: body.clickupFieldId,
+        clickupFieldName: "Task Name",
+        kind: "task_name",
+        optionMap: {},
+        connectedAt: new Date().toISOString(),
+      });
+    } catch {
+      setError("Could not mark this as the task name.");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  const isTaskName = entry?.kind === "task_name";
+
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
@@ -459,7 +490,9 @@ function ClickUpConnectionEditor({
       <p className="mt-1 text-xs text-axis-core/40">
         Type the ClickUp custom field&rsquo;s exact name (e.g. &ldquo;Order Number&rdquo;), then Connect. If
         the name matches more than one field on this list, you&rsquo;ll be asked for the id instead.
-        Overrides CUSTOM_FIELD_MAP for just this question.
+        Overrides CUSTOM_FIELD_MAP for just this question. If this is instead the question whose answer
+        becomes the ClickUp task&rsquo;s own title, use the button below rather than typing a field name
+        here -- a task&rsquo;s name isn&rsquo;t a custom field, so Connect can never find it.
       </p>
       <div className="mt-2 flex items-center gap-2">
         <input
@@ -477,10 +510,28 @@ function ClickUpConnectionEditor({
           {connecting ? "..." : "Connect"}
         </button>
       </div>
+      <button
+        type="button"
+        onClick={handleMarkAsTaskName}
+        disabled={connecting || !requestTypeId}
+        className={`mt-2 w-full rounded-[8px] border px-3.5 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
+          isTaskName
+            ? "border-green-300 bg-green-50 text-green-700"
+            : "border-axis-base/50 text-axis-core/70 hover:border-axis-core hover:text-axis-core"
+        }`}
+      >
+        {isTaskName ? "✓ This is the ClickUp task’s name" : "Mark as the ClickUp task’s name instead"}
+      </button>
       {error && <p className="mt-1.5 text-xs text-red-700">{error}</p>}
-      {entry && !error && (
+      {entry && !error && !isTaskName && (
         <p className="mt-1.5 font-mono text-[11px] text-axis-core/40">
           Code: {entry.clickupFieldId} ({entry.kind})
+        </p>
+      )}
+      {isTaskName && (
+        <p className="mt-1.5 text-[11px] text-axis-core/40">
+          This question&rsquo;s answer is used as the ClickUp task&rsquo;s own title, not written to a
+          custom field.
         </p>
       )}
 

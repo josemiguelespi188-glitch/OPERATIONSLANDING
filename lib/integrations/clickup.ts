@@ -41,7 +41,7 @@ function getListIdMap(): Record<string, string> {
  * "dropdown" translates our form's option text into the option's ClickUp
  * UUID; "checkbox" maps our "Yes"/"" convention to a boolean.
  */
-type ClickUpFieldTarget =
+export type ClickUpFieldTarget =
   | { id: string; kind: "text" }
   | { id: string; kind: "number" }
   | { id: string; kind: "checkbox" }
@@ -753,4 +753,85 @@ export async function findTaskIdByName(
     }
   }
   return null;
+}
+
+/**
+ * Exposes CLICKUP_LIST_ID_MAP's lookup for callers outside this module
+ * (the "Generate Document" feature needs the list id for an arbitrary
+ * request type slug the same way syncRequestToClickUp does internally).
+ */
+export function getListIdForSlug(slug: string): string | null {
+  return getListIdMap()[slug] ?? null;
+}
+
+/**
+ * Exposes CUSTOM_FIELD_MAP's per-slug targets for callers outside this
+ * module -- "Generate Document"'s field picker needs to know which of a
+ * request type's internal field keys already resolve to a confirmed
+ * ClickUp custom field (and that field's id/kind/dropdown options),
+ * without duplicating this map.
+ */
+export function getCustomFieldTargets(slug: string): Record<string, ClickUpFieldTarget[]> {
+  return CUSTOM_FIELD_MAP[slug] ?? {};
+}
+
+/**
+ * Finds the one task in a list whose custom field equals a given value,
+ * via ClickUp's server-side `custom_fields` task filter -- unlike
+ * findTaskIdByName (used by Order Tracking, where the order number IS
+ * the task name), the Operations Hub's own request lists name tasks
+ * after the investor, not the order number, so order number only ever
+ * lives in a custom field. Returns null on no match, an error, or a
+ * missing token -- never throws.
+ */
+export async function findTaskByCustomFieldValue(
+  listId: string,
+  fieldId: string,
+  value: string
+): Promise<string | null> {
+  const token = process.env.CLICKUP_API_TOKEN;
+  if (!token) return null;
+
+  try {
+    const filter = encodeURIComponent(JSON.stringify([{ field_id: fieldId, operator: "=", value }]));
+    const response = await fetch(
+      `${CLICKUP_API_BASE}/list/${listId}/task?include_closed=true&custom_fields=${filter}`,
+      { headers: { Authorization: token } }
+    );
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as { tasks?: { id: string }[] };
+    return data.tasks?.[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetches a list's full custom field definitions (ClickUp's "Get
+ * Accessible Custom Fields"), including each dropdown's live option
+ * list. Needed because a dropdown custom field's VALUE on a task is the
+ * option's numeric `orderindex`, not its name or UUID -- decoding it
+ * back to a display string requires looking that index up against the
+ * field's current option order, which this fetches fresh every time
+ * rather than hand-maintaining yet another static index->name table
+ * (exactly the kind of drift this codebase has been bitten by before
+ * with ClickUp fields -- see CLAUDE.md's ClickUp workspace layout
+ * section). Called once per "Generate Document" click, not a hot path.
+ */
+export async function fetchListCustomFields(listId: string): Promise<Record<string, unknown>[]> {
+  const token = process.env.CLICKUP_API_TOKEN;
+  if (!token) return [];
+
+  try {
+    const response = await fetch(`${CLICKUP_API_BASE}/list/${listId}/field`, {
+      headers: { Authorization: token },
+    });
+    if (!response.ok) return [];
+
+    const data = (await response.json()) as { fields?: Record<string, unknown>[] };
+    return data.fields ?? [];
+  } catch {
+    return [];
+  }
 }

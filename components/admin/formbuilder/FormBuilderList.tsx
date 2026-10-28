@@ -132,6 +132,12 @@ export function FormBuilderList() {
                   >
                     Edit copy
                   </Link>
+                  <Link
+                    href={`/admin/forms/${type.id}/document`}
+                    className="rounded-[6px] border border-axis-base/50 px-3 py-1.5 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core"
+                  >
+                    Generate Document
+                  </Link>
                 </>
               ) : (
                 <>

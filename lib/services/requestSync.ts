@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncRequestToClickUp } from "../integrations/clickup";
+import { loadClickUpFieldMapOverrides } from "./clickupFieldMapOverrides";
 import type { RequestPayload } from "../types";
 
 /**
@@ -13,7 +14,8 @@ export async function syncRequestAndPersist(
   requestId: string,
   payload: RequestPayload
 ): Promise<{ synced: boolean; taskId: string | null; error?: string; warnings?: string[] }> {
-  const result = await syncRequestToClickUp(payload);
+  const fieldMapOverrides = await loadClickUpFieldMapOverrides(supabase, payload.requestType);
+  const result = await syncRequestToClickUp(payload, fieldMapOverrides);
 
   // A synced task can still have best-effort warnings (an attachment that
   // didn't link to its field, a custom field ClickUp rejected) — surface

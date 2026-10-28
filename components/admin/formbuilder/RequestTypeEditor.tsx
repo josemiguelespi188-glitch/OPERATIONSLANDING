@@ -21,10 +21,22 @@ const inputClass =
 
 type EditableField = DynamicField & { isCodeManaged: boolean };
 
+export interface ClickUpFieldMapEntry {
+  clickupFieldId: string;
+  kind: string;
+  optionMap: Record<string, string>;
+  connectedAt: string;
+}
+
 export function RequestTypeEditor({ id }: { id: string }) {
   const adminFetch = useAdminFetch();
   const [detail, setDetail] = useState<RequestTypeDetail | null>(null);
   const [fields, setFields] = useState<EditableField[]>([]);
+  // Keyed by fieldKey -- which of this locked form's questions are
+  // currently connected to a real ClickUp field (see migration
+  // 023_request_type_clickup_field_map.sql). Only populated for a
+  // locked type; FieldEditorPanel reads/updates this via props.
+  const [clickupMap, setClickupMap] = useState<Record<string, ClickUpFieldMapEntry>>({});
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [openIsNew, setOpenIsNew] = useState(false);
   const [error, setError] = useState("");
@@ -63,6 +75,12 @@ export function RequestTypeEditor({ id }: { id: string }) {
       setDescription(body.description);
       setButtonLabel(body.buttonLabel);
       setIsActive(body.isActive);
+
+      if (body.isLocked) {
+        const mapRes = await adminFetch(`/api/admin/request-types/${id}/clickup-field-map`);
+        const mapBody = await mapRes.json().catch(() => ({}));
+        if (mapRes.ok) setClickupMap(mapBody.map ?? {});
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load.");
     }
@@ -320,6 +338,11 @@ export function RequestTypeEditor({ id }: { id: string }) {
             field={fields[openIndex]}
             isNew={openIsNew}
             isCodeManaged={fields[openIndex].isCodeManaged}
+            requestTypeId={id}
+            clickupMapEntry={clickupMap[fields[openIndex].fieldKey]}
+            onClickupConnected={(fieldKey, entry) =>
+              setClickupMap((prev) => ({ ...prev, [fieldKey]: entry }))
+            }
             onChange={(patch) => updateField(openIndex, patch)}
             onClose={() => {
               setOpenIndex(null);

@@ -354,7 +354,18 @@ function buildTaskDescription(payload: RequestPayload): string {
  * in Supabase instead of losing the request.
  */
 export async function syncRequestToClickUp(
-  payload: RequestPayload
+  payload: RequestPayload,
+  /**
+   * Per-field-key overrides from request_type_clickup_field_map (see
+   * lib/services/clickupFieldMapOverrides.ts), admin-connected from
+   * /admin/forms/[id]'s field editor. A key present here wins over
+   * CUSTOM_FIELD_MAP's hardcoded entry for that same key; a key with no
+   * override still falls back to CUSTOM_FIELD_MAP unchanged. Omitted
+   * entirely by every caller that doesn't have DB access to look this up
+   * (there are none today -- both real sync paths go through
+   * syncRequestAndPersist, which always loads it).
+   */
+  fieldMapOverrides?: Record<string, ClickUpFieldTarget[]>
 ): Promise<ClickUpSyncResult> {
   const token = process.env.CLICKUP_API_TOKEN;
   if (!token) {
@@ -386,17 +397,19 @@ export async function syncRequestToClickUp(
   // ClickUp allows at creation time (every custom field except
   // attachments, which can only be linked after the task/file both
   // exist) closes that race for every field except attachments.
-  const fieldTargets = CUSTOM_FIELD_MAP[payload.requestType];
+  // A key in fieldMapOverrides (an admin-connected field from
+  // request_type_clickup_field_map) wins over CUSTOM_FIELD_MAP's
+  // hardcoded entry for that same key; every other key still falls back
+  // to CUSTOM_FIELD_MAP unchanged.
+  const fieldTargets = { ...CUSTOM_FIELD_MAP[payload.requestType], ...fieldMapOverrides };
   const customFieldsPayload: { id: string; value: unknown }[] = [];
-  if (fieldTargets) {
-    for (const [key, targets] of Object.entries(fieldTargets)) {
-      const rawValue = payload.customFields[key];
-      if (!rawValue) continue;
-      for (const target of targets) {
-        const value = resolveFieldValue(target, rawValue);
-        if (value === null) continue;
-        customFieldsPayload.push({ id: target.id, value });
-      }
+  for (const [key, targets] of Object.entries(fieldTargets)) {
+    const rawValue = payload.customFields[key];
+    if (!rawValue) continue;
+    for (const target of targets) {
+      const value = resolveFieldValue(target, rawValue);
+      if (value === null) continue;
+      customFieldsPayload.push({ id: target.id, value });
     }
   }
 
@@ -773,6 +786,29 @@ export function getListIdForSlug(slug: string): string | null {
  */
 export function getCustomFieldTargets(slug: string): Record<string, ClickUpFieldTarget[]> {
   return CUSTOM_FIELD_MAP[slug] ?? {};
+}
+
+/**
+ * Maps a ClickUp custom field's own live `type` string to the "kind"
+ * resolveFieldValue() above actually knows how to write (text/number/
+ * checkbox/dropdown) -- used when an admin connects a form question to a
+ * live ClickUp field by id (see
+ * app/api/admin/request-types/[id]/clickup-field-map/connect/route.ts)
+ * instead of this being hand-picked in CUSTOM_FIELD_MAP. `currency`
+ * writes exactly like `number` (both just need a plain numeric value);
+ * every other live type (short_text, text, email, phone, url, date,
+ * labels, ...) falls back to `text`. ClickUp's `date` type isn't
+ * actually writable correctly via this path yet (resolveFieldValue has
+ * no real date handling) -- a known, accepted gap in this first pass,
+ * not a silent guess: connecting to a date field still "succeeds" (the
+ * field exists) but the raw string sent likely won't parse as a date on
+ * ClickUp's side.
+ */
+export function clickUpTypeToWriteKind(type: string | undefined): ClickUpFieldTarget["kind"] {
+  if (type === "drop_down") return "dropdown";
+  if (type === "checkbox") return "checkbox";
+  if (type === "number" || type === "currency") return "number";
+  return "text";
 }
 
 /**

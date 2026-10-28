@@ -2279,3 +2279,95 @@ deleted outright -- nothing on this page toggles open/closed anymore.
   first page the admin lands on.
 - **Investor Update Requests** is now a plain always-visible card (same
   KPI grid as before), just no longer wrapped in an accordion.
+
+## Admin-editable ClickUp field connections (`/admin/forms/[id]`, pilot on redemption-request, Oct 2026)
+
+Until now, which ClickUp custom field a locked form question's answer
+gets written to lived only in `CUSTOM_FIELD_MAP`/`ATTACHMENT_FIELD_MAP`
+(`lib/integrations/clickup.ts`) -- hardcoded in source, changeable only
+via a code change + deploy. The user asked (after looking at the Form
+Builder's field cards, which already show each locked field's internal
+code name, e.g. "typeOfTransfer") whether a field could instead be
+connected to a ClickUp field id directly from that UI, with a visible
+green check / red X for whether it's actually connected. Explicitly
+chose **typing the ClickUp field id by hand** over a live-fetched
+dropdown picker (the latter was offered and declined) -- confirmed via
+`AskUserQuestion` -- and to pilot this on **Redemption Request only**
+first, same scoping pattern as every other ClickUp-touching feature
+this session.
+
+- **New table** `request_type_clickup_field_map`
+  (`supabase/migrations/023_request_type_clickup_field_map.sql`, RLS
+  enabled, no policies -- service-role only, same strictness as every
+  other admin-only table): `(request_type_id, field_key)` unique,
+  storing `clickup_field_id`, `kind` (`text`/`number`/`checkbox`/
+  `dropdown` -- matches `ClickUpFieldTarget`'s kind union, not
+  ClickUp's own raw type string), and `option_map` (form option value ->
+  ClickUp dropdown option id, only meaningful when `kind = 'dropdown'`).
+  A row here **overrides** `CUSTOM_FIELD_MAP` for that one field key at
+  sync time; a field key with no row still falls back to
+  `CUSTOM_FIELD_MAP` unchanged, so nothing already working regresses
+  just because this table exists. **Seeded for redemption-request's 9
+  fields** from the exact ids already confirmed in
+  `CUSTOM_FIELD_MAP["redemption-request"]`, so the pilot opens already
+  "connected" instead of blank -- **needs this migration run in the
+  Supabase SQL editor, after migration 022**. Known, accepted gap:
+  `redemptionAmount` sends to two ClickUp fields in `CUSTOM_FIELD_MAP`
+  (both always carry the same value on real tasks); this table only
+  supports one target per field key, so only the primary id was seeded
+  -- this new system can't yet represent a field that fans out to more
+  than one ClickUp field.
+- **`lib/integrations/clickup.ts`**: `syncRequestToClickUp()` gained an
+  optional second parameter, `fieldMapOverrides` -- merged on top of
+  `CUSTOM_FIELD_MAP[payload.requestType]` (`{ ...CUSTOM_FIELD_MAP[slug],
+  ...fieldMapOverrides }`, so an override key wins, every other key
+  still comes from the hardcoded map). New export
+  `clickUpTypeToWriteKind(type)` maps a live ClickUp field's own `type`
+  string to the 4-way kind `resolveFieldValue()` actually knows how to
+  write (`currency` collapses into `number`; every other unhandled type,
+  including `date`, falls back to `text` -- connecting to a true date
+  field "succeeds" here but won't actually format correctly, a known gap
+  since `resolveFieldValue` has no real date case).
+- **`lib/services/clickupFieldMapOverrides.ts`** (new): loads this
+  request type's map rows and shapes them into `fieldMapOverrides`.
+  Called from `lib/services/requestSync.ts`'s `syncRequestAndPersist()`
+  (the one function both real sync paths -- new submission and the
+  admin's "Retry" button -- go through), so both pick this up
+  automatically with no other call-site changes.
+- **Two new admin API routes**: `GET
+  /api/admin/request-types/[id]/clickup-field-map` (the full map for
+  this request type, keyed by `field_key`) and `POST
+  .../clickup-field-map/connect` (body `{fieldKey, clickupFieldId,
+  optionMap?}`) -- the connect route always does a **live** lookup
+  (`fetchListCustomFields()`) against this request type's real ClickUp
+  list first; an id that doesn't exist there returns `{ok: false}`
+  (never saved) rather than being trusted blind, same "never guess an
+  unconfirmed ClickUp field" rule this file has flagged repeatedly
+  elsewhere. On success it derives `kind` live and, for a dropdown
+  field, also returns that field's live option list so the UI can offer
+  a per-option picker on a second call.
+- **UI**: `FieldEditorPanel.tsx` (the slide-over opened from a locked
+  field's card in `/admin/forms/[id]`) gained a new "ClickUp field
+  connection" section, only for `isCodeManaged` fields -- a plain text
+  input for the ClickUp field id (monospace, matches the existing
+  "Internal field name" input's style) plus a Connect button, with a
+  green "✓ Connected" / red "✕ Failed" indicator exactly as asked. For a
+  dropdown-type question (e.g. Redemption Type), a successful connect
+  reveals a per-option `<select>` (each populated with that field's real
+  live ClickUp options) to match the form's own option values to
+  ClickUp's option ids, plus its own "Save option mapping" button --
+  both buttons call the same connect endpoint, the second one just also
+  sends `optionMap`. `RequestTypeEditor.tsx` fetches the whole map once
+  on load and passes each field's own entry + a setter down into the
+  panel so the indicator state persists correctly as the admin moves
+  between fields without a re-fetch.
+- Not yet tested against a real ClickUp list from this sandbox
+  (`clickup.com` stays unreachable here, per the standing note above) --
+  **confirm live on Redemption Request once deployed**: that an already
+  -seeded field shows "Connected", that typing a real id for an
+  unconnected field and clicking Connect actually flips it green, that
+  a bad/typo'd id shows red, and that a real test submission on
+  Redemption Request actually lands in the fields this table points at
+  (not just the ones still coming from `CUSTOM_FIELD_MAP`). Extend to
+  the other 10 locked types only after this pilot is confirmed working
+  end to end, per the user's own explicit pilot-first scoping.

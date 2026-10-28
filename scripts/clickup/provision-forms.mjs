@@ -10,7 +10,8 @@
  * never wired to a real field despite those lists otherwise being fully
  * confirmed). Only IRA Funding and Account Maintenance need nothing.
  * Investment Change Name Request (Oct 2026) is a user-created list with
- * no fields provisioned yet.
+ * no fields provisioned yet. Transfer Agreement Request (Oct 2026) is
+ * likewise a user-provided list with no fields provisioned yet.
  * See CLAUDE.md for the full slug -> List ID table. This only fills in
  * each one's missing fields, never creates a List — every List already
  * exists.
@@ -96,6 +97,11 @@ const EXISTING_LISTS = {
   // FIELD_PLAN entry below, built from title-transfer-request's field
   // set since this form was built directly off that one.
   "investment-change-name-request": "901115619854",
+  // User-provided list (Oct 2026), no fields provisioned yet — see the
+  // FIELD_PLAN entry below, built from redemption-request's field set
+  // since this form was built directly off that one (plus buyerName,
+  // which redemption-request has no equivalent of).
+  "transfer-agreement-request": "901115630893",
 };
 
 // No lists left to create — kept as an empty map (rather than removing
@@ -242,6 +248,23 @@ const FIELD_PLAN = {
       { name: "Client/Capital Raiser Email", type: "email" },
     ],
     includeAttachment: true, // "supportingDocumentation" field on this form
+  },
+  "transfer-agreement-request": {
+    fields: [
+      { name: "Buyer Name", type: "text" },
+      // Investor Account Name, Offering Name, Order Number, and
+      // Client/Capital Raiser Email are shared fields on several other
+      // lists (see the comment above FIELD_PLAN) -- matched by name
+      // here, so if this list already has access to the shared field
+      // this reuses its id instead of creating a duplicate.
+      { name: "Investor Account Name", type: "text" },
+      { name: "Offering Name", type: "text" },
+      { name: "Order Number", type: "text" },
+      { name: "Transfer Amount", type: "currency" },
+      { name: "Investor Email", type: "email" },
+      { name: "Client/Capital Raiser Email", type: "email" },
+    ],
+    includeAttachment: true, // "transferAgreement" field on this form
   },
 };
 

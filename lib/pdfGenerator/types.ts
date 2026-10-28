@@ -87,12 +87,12 @@ export interface PdfTemplateDetail extends PdfTemplateSummary {
 export const PDF_FONT_FAMILIES: PdfFontFamily[] = ["Helvetica", "Times", "Courier"];
 
 export const BOX_DEFAULTS: Omit<PdfBox, "id" | "fieldId" | "page" | "x" | "y" | "width" | "height"> = {
-  align: "center",
+  align: "left",
   vAlign: "middle",
-  fontFamily: "Helvetica",
+  fontFamily: "Times",
   bold: true,
   italic: false,
-  fontSize: 24,
+  fontSize: 11,
   color: "#000000",
   autoShrink: true,
   multiline: false,

@@ -835,3 +835,59 @@ export async function fetchListCustomFields(listId: string): Promise<Record<stri
     return [];
   }
 }
+
+/**
+ * Fetches a list's own details (ClickUp's "Get List"), used for its
+ * `statuses` array -- each status's real display name, color, and
+ * `orderindex` in the order the list's own workflow defines, exactly
+ * what a List view in ClickUp groups and orders tasks by. Fetched live
+ * rather than hand-maintained, same reasoning as fetchListCustomFields()
+ * above: a status's name/order can change in ClickUp with zero warning
+ * anywhere in this codebase.
+ */
+export async function fetchListDetails(listId: string): Promise<Record<string, unknown> | null> {
+  const token = process.env.CLICKUP_API_TOKEN;
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${CLICKUP_API_BASE}/list/${listId}`, {
+      headers: { Authorization: token },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetches every task on a list, paginating ClickUp's 100-per-page
+ * default (same approach as findTaskIdByName, but collecting every page
+ * instead of early-exiting on a match). Used by the admin AxisKey Orders
+ * table, which needs the whole list, not one task -- capped at 50 pages
+ * (~5,000 tasks) as a sanity bound for an admin-triggered, occasional
+ * fetch, not a hot path.
+ */
+export async function fetchAllListTasks(listId: string): Promise<Record<string, unknown>[]> {
+  const token = process.env.CLICKUP_API_TOKEN;
+  if (!token) return [];
+
+  const tasks: Record<string, unknown>[] = [];
+  for (let page = 0; page < 50; page++) {
+    try {
+      const response = await fetch(
+        `${CLICKUP_API_BASE}/list/${listId}/task?page=${page}&include_closed=true`,
+        { headers: { Authorization: token } }
+      );
+      if (!response.ok) break;
+
+      const data = (await response.json()) as { tasks?: Record<string, unknown>[]; last_page?: boolean };
+      if (!data.tasks || data.tasks.length === 0) break;
+      tasks.push(...data.tasks);
+      if (data.last_page) break;
+    } catch {
+      break;
+    }
+  }
+  return tasks;
+}

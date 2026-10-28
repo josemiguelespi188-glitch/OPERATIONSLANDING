@@ -45,7 +45,7 @@ export const ORDER_TRACKING_FIELD_IDS = {
   kycIncomplete: "d7ff4d4b-6181-4457-a3df-2a9f4bd3c92f",
 } as const;
 
-const ACCOUNT_TYPE_BY_INDEX: Record<number, string> = {
+export const ACCOUNT_TYPE_BY_INDEX: Record<number, string> = {
   0: "Individual",
   1: "IRA or Similar Benefit Plan",
   2: "Corporations/Partnerships",
@@ -57,7 +57,7 @@ const ACCOUNT_TYPE_BY_INDEX: Record<number, string> = {
   8: "Non-Profit Entity",
 };
 
-const DEAL_TYPE_BY_INDEX: Record<number, string> = {
+export const DEAL_TYPE_BY_INDEX: Record<number, string> = {
   0: "506-B",
   1: "Info",
   2: "506C",
@@ -82,6 +82,9 @@ export interface ClickUpTaskRaw {
    *  seeing for the first time after payment was already received --
    *  see PAYMENT_BUFFER_MS below. */
   date_updated?: string;
+  /** Epoch-ms string. Used by the admin AxisKey Orders table's "Date
+   *  Created" column -- not read anywhere in the investor-facing view. */
+  date_created?: string;
 }
 
 export type OrderScenario =
@@ -148,20 +151,26 @@ export interface OrderTrackingView {
   nextStep: string;
 }
 
-function fieldValue(task: ClickUpTaskRaw, fieldId: string): unknown {
+/**
+ * Field-decoding primitives, exported so other ClickUp-task-reading
+ * features on this same list (e.g. the admin AxisKey Orders table) can
+ * reuse the exact same, already-confirmed decode logic instead of
+ * duplicating it.
+ */
+export function fieldValue(task: ClickUpTaskRaw, fieldId: string): unknown {
   return task.custom_fields?.find((field) => field.id === fieldId)?.value;
 }
 
-function isChecked(value: unknown): boolean {
+export function isChecked(value: unknown): boolean {
   return value === true || value === "true";
 }
 
-function textValue(value: unknown): string | null {
+export function textValue(value: unknown): string | null {
   if (typeof value !== "string" || value.trim() === "") return null;
   return value;
 }
 
-function numberValue(value: unknown): number | null {
+export function numberValue(value: unknown): number | null {
   if (typeof value === "number") return value;
   if (typeof value === "string" && value.trim() !== "") {
     const parsed = Number.parseFloat(value);
@@ -170,7 +179,7 @@ function numberValue(value: unknown): number | null {
   return null;
 }
 
-function dropdownIndex(value: unknown): number | null {
+export function dropdownIndex(value: unknown): number | null {
   if (typeof value === "number") return value;
   if (typeof value === "string" && value.trim() !== "") {
     const parsed = Number.parseInt(value, 10);

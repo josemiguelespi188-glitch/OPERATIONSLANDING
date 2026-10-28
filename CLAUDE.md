@@ -1972,3 +1972,72 @@ explicit feedback from that first real use:
   `findTaskByCustomFieldValue()` calls the already-confirmed pilot used,
   just re-wired for a `templateId`-scoped mapping instead of an implicit
   one, so re-confirm live once deployed before trusting it blindly.
+
+## AxisKey Orders (`/admin/orders`, Oct 2026)
+
+A new "AxisKey Orders" nav item in the admin sidebar, mirroring the
+same ClickUp list Order Tracking already reads from
+(`ORDER_TRACKING_LIST_ID = "901113961474"` in `lib/orderTracking.ts`) --
+**the user renamed this list in ClickUp from "Payment Received Orders"
+to "AxisKey Orders"** around the same time, to avoid confusion with this
+new admin page; the list id itself is unchanged, so nothing in Order
+Tracking needed updating. Per explicit instruction, this replicates
+ClickUp's own List view as closely as this codebase already understands
+the list's fields: grouped by native ClickUp status (same groups/order
+ClickUp's List view itself uses, e.g. "NEW PENDING ORDERS", "PENDING
+ORDERS - PAID"), refreshed on every page load and via its own "Refresh"
+button -- **always a live read, nothing here is ever cached or stored**.
+
+- `GET /api/admin/orders` (`requireAdmin`-gated) fetches the whole list
+  fresh on every call: `fetchListDetails()` (new export in
+  `lib/integrations/clickup.ts`, ClickUp's "Get List", for the
+  `statuses` array's live `orderindex` -- so groups sort exactly the way
+  ClickUp's own workflow currently orders them, not a hardcoded guess)
+  and `fetchAllListTasks()` (new export, paginates
+  `GET /list/{listId}/task` up to 50 pages/~5,000 tasks, unlike
+  `findTaskIdByName()`'s 10-page early-exit search -- this needs every
+  task, not one match).
+- **Row decoding deliberately reuses `lib/orderTracking.ts` instead of
+  re-deriving anything**: `lib/adminOrders.ts`'s `decodeOrderRow()`
+  reads straight off the already-confirmed `ORDER_TRACKING_FIELD_IDS`,
+  `ACCOUNT_TYPE_BY_INDEX`, `DEAL_TYPE_BY_INDEX`, and the small decode
+  helpers (`fieldValue`/`isChecked`/`textValue`/`numberValue`/
+  `dropdownIndex`) -- all newly exported from that file (were module-
+  private) specifically so this page can't drift out of sync with the
+  investor-facing page's own field mapping for the same list.
+- **Only the 15 fields `ORDER_TRACKING_FIELD_IDS` already confirms are
+  shown.** The user's own ClickUp view (and the Excel export shared in
+  chat) also has a few more columns on this list -- Issued Shares, New
+  Investor, Tracking Link, Accreditation Email Status -- whose field ids
+  were never confirmed anywhere in this codebase (Order Tracking's
+  investor-facing page never needed them). Rather than guess an id and
+  risk the exact silent-no-op mistake this file warns about repeatedly
+  elsewhere, they're left out of the table for now. Add them the same
+  way every other field here was confirmed (a real
+  `clickup_get_custom_fields` call, or an `audit-fields.mjs`-style
+  check from a machine with real ClickUp access) and extend
+  `AdminOrderRow`/`decodeOrderRow()`/`COLUMNS` in `AdminOrdersView.tsx`.
+- **Checkbox columns keep the list's own inverted meaning** ("checked =
+  problem/pending", already documented for this exact list in
+  `orderTracking.ts`) -- rendered as a small red "!" badge when true, an
+  empty outlined square when false, not a green check, so a glance at
+  the table reads as "what's wrong with this order" rather than
+  "what's done."
+- **Groups default collapsed**, each a header with the status name (CSS
+  uppercased, matching ClickUp's own all-caps group headers) and a
+  count, click to expand -- avoids rendering a 273-row table (a real
+  count seen in the user's screenshot) on page load. Each expanded
+  group's table scrolls horizontally (`min-w-[1400px]`, 17 columns) with
+  a sticky header row, mirroring how ClickUp's own wide list view works.
+- This sandbox cannot reach `clickup.com` (see "Network access from a
+  Claude Code" above), so this was built and verified structurally
+  (typecheck, build, a clean 200 with no Supabase/ClickUp configured)
+  but not exercised against the real live list from here -- **confirm
+  the grouping, counts, and column values against the real ClickUp view
+  once deployed**, especially that `fetchListDetails()`'s `statuses`
+  array actually orders groups the way the screenshot showed (new
+  pending orders before pending orders - paid, etc.).
+- No editing, filtering, or sorting controls yet -- purely a read-only
+  mirror for this first pass, per the user's own "ya te digo qué otras
+  funciones más adelante" (more features to come later, described
+  separately when they're ready to spec them).

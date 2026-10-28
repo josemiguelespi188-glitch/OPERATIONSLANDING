@@ -411,7 +411,7 @@ function ClickUpConnectionEditor({
     try {
       const res = await adminFetch(`/api/admin/request-types/${requestTypeId}/clickup-field-map/connect`, {
         method: "POST",
-        body: JSON.stringify({ fieldKey, clickupFieldId: idInput.trim(), optionMap }),
+        body: JSON.stringify({ fieldKey, clickupField: idInput.trim(), optionMap }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.ok) {
@@ -421,8 +421,11 @@ function ClickUpConnectionEditor({
       }
       setLiveFieldName(body.liveFieldName ?? "");
       if (body.liveOptions) setLiveOptions(body.liveOptions);
+      // The admin may have typed a name, not an id -- show the real
+      // resolved id back so the field reads correctly on next open.
+      if (body.clickupFieldId) setIdInput(body.clickupFieldId);
       onConnected?.({
-        clickupFieldId: idInput.trim(),
+        clickupFieldId: body.clickupFieldId ?? idInput.trim(),
         kind: body.kind,
         optionMap: optionMap ?? {},
         connectedAt: new Date().toISOString(),
@@ -450,14 +453,15 @@ function ClickUpConnectionEditor({
         {error && <span className="flex items-center gap-1 text-xs font-semibold text-red-700">✕ Failed</span>}
       </div>
       <p className="mt-1 text-xs text-axis-core/40">
-        Type the ClickUp custom field id this question&rsquo;s answer should be sent to, then Connect.
-        Overrides CUSTOM_FIELD_MAP for just this question.
+        Type the ClickUp custom field&rsquo;s exact name or id, then Connect. If the name matches more
+        than one field on this list, you&rsquo;ll be asked for the id instead. Overrides CUSTOM_FIELD_MAP
+        for just this question.
       </p>
       <div className="mt-2 flex items-center gap-2">
         <input
           value={idInput}
           onChange={(e) => setIdInput(e.target.value)}
-          placeholder="e.g. 70257f39-e3a9-4c45-88bf-e5c5677ccc03"
+          placeholder="e.g. Order Number"
           className={`${inputClass} font-mono text-xs`}
         />
         <button

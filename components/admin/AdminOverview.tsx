@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { REQUEST_TYPES } from "@/lib/requestTypes";
 import type { ClickUpSyncStatus, RequestStatus } from "@/lib/types";
 import type { StatsRange } from "@/lib/utils/dateRange";
@@ -249,24 +250,45 @@ export function AdminOverview() {
       </div>
 
       {/* Permanently pinned at the top of the page, never collapsible --
-          per explicit instruction, this button has to always be visible
-          without scrolling past other sections first. */}
-      <div className="mt-6 flex flex-col gap-4 rounded-card bg-axis-core px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Schedule a Call</p>
-          <p className="mt-1 text-sm text-white/80">
-            Generate a one-time booking link to share with a client. It stops working the moment
-            they book a call through it.
-          </p>
+          per explicit instruction, these actions have to always be
+          visible without scrolling past other sections first. Two
+          compact blocks side by side instead of one stretched full-width
+          -- a single action here left most of the bar empty. */}
+      <div className="mt-6 overflow-hidden rounded-card bg-axis-core text-white">
+        <div className="grid grid-cols-1 divide-y divide-white/10 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+          <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Schedule a Call</p>
+              <p className="mt-1 text-sm text-white/80">
+                Generate a one-time booking link to share with a client.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerateScheduleLink}
+              disabled={generatingLink}
+              className="shrink-0 rounded-[8px] bg-axis-signal px-5 py-2.5 text-sm font-semibold text-axis-core transition-colors hover:bg-white disabled:opacity-50"
+            >
+              {generatingLink ? "Generating..." : "Generate one-time link"}
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Support Inquiry</p>
+              <p className="mt-1 text-sm text-white/80">
+                Open the investor support inquiry form -- it emails IR directly.
+              </p>
+            </div>
+            <Link
+              href="/support-inquiry"
+              target="_blank"
+              className="shrink-0 rounded-[8px] bg-axis-signal px-5 py-2.5 text-center text-sm font-semibold text-axis-core transition-colors hover:bg-white"
+            >
+              Open form
+            </Link>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={handleGenerateScheduleLink}
-          disabled={generatingLink}
-          className="shrink-0 rounded-[8px] bg-axis-signal px-5 py-2.5 text-sm font-semibold text-axis-core transition-colors hover:bg-white disabled:opacity-50"
-        >
-          {generatingLink ? "Generating..." : "Generate one-time link"}
-        </button>
       </div>
       {scheduleLinkError && (
         <p className="mt-3 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">

@@ -28,6 +28,13 @@ export interface PdfField {
   sample: string;
   /** Used when a row leaves this field empty (text fields only). */
   defaultValue: string;
+  /**
+   * When set (including ""), this text field's value at generation time is
+   * always this exact text, regardless of the row's own data (manual entry,
+   * Excel import, or a ClickUp-resolved value) -- see generatePdf(). Text
+   * fields only; undefined means "not a fixed field" (the normal behavior).
+   */
+  fixedValue?: string;
 }
 
 export interface PdfBox {
@@ -218,6 +225,7 @@ export function sanitizeConfig(input: unknown): PdfTemplateConfig {
       type: f.type === "image" ? "image" : "text",
       sample: str(f.sample, "", 300),
       defaultValue: str(f.defaultValue, "", 300),
+      fixedValue: typeof f.fixedValue === "string" ? f.fixedValue.slice(0, 500) : undefined,
     });
   }
   const boxes: PdfBox[] = [];

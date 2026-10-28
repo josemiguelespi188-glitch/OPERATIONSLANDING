@@ -1973,6 +1973,107 @@ explicit feedback from that first real use:
   just re-wired for a `templateId`-scoped mapping instead of an implicit
   one, so re-confirm live once deployed before trusting it blindly.
 
+### Third pass: fixed text fields + full live ClickUp field catalog with pins (Oct 2026)
+
+Two more changes, both per explicit feedback on real screenshots of the
+Mapping tab's Fields panel and field picker:
+
+- **Fixed text fields, shared with the plain PDF Generator tool.**
+  `PdfField` (`lib/pdfGenerator/types.ts`) gained an optional
+  `fixedValue?: string` -- when set (including `""`), that text field's
+  value at generation time is always this exact text, regardless of the
+  row's own data (manual entry, Excel import, or a ClickUp-resolved
+  value). This is a single change in the one function both tools share,
+  `generatePdf()` (`lib/pdfGenerator/generate.ts`): it now prefers
+  `field.fixedValue` over `values.text[field.id]` when the field is
+  fixed, before falling back to `field.defaultValue` the same way it
+  always did. Because both the PDF Generator tool and Generate Document
+  call this exact function unmodified, this one change covers both --
+  `BulkGenerator.tsx` needed zero changes, since a fixed field's value
+  is injected regardless of what its row/Excel column holds. The admin
+  sets this from `MappingEditor.tsx`'s Fields panel: a "+ Fixed text
+  field" button creates a field already in fixed mode, or any existing
+  text field can be toggled into it with a checkbox ("Always use this
+  exact text (ignore row/ClickUp data)") next to its sample-value input
+  -- toggled on, that same input switches from "Sample value for
+  preview" to "Fixed text (always used)" and is visually tinted
+  (`axis-signal`) so a fixed field reads as different at a glance.
+  Toggling off clears `fixedValue` back to `undefined`, reverting to
+  normal per-row/per-task behavior.
+- **The ClickUp field picker now offers every field currently on the
+  list, not just this codebase's hand-curated `CUSTOM_FIELD_MAP`
+  entries** -- per explicit instruction ("absolutamente todo lo que
+  vayamos a mapear va a estar en ClickUp... tienen que estar acá para yo
+  poder mapearlo en el documento, aunque no los utilice"). `DocumentField`
+  (`lib/documentGenerator/types.ts`) replaced its old, always-required
+  `customFieldKey: string` (an internal FormSpec key) with an optional
+  `clickUpFieldId?: string` -- the real live ClickUp custom field id --
+  so a field is now valid with either a `clickUpFieldId` (ClickUp-
+  sourced) or a `fixedValue` (fixed-text), matching the same shared
+  `PdfField.fixedValue` from above. **This is a breaking change for any
+  mapping saved before this pass** -- the old `customFieldKey` is no
+  longer read at all, so a pre-existing mapping's ClickUp-sourced fields
+  (e.g. the "Test" mapping built during the pilot, with 2 fields) lose
+  their value source and need to be removed and re-added from the new
+  picker (a few seconds: delete the 2 old field rows, re-check them in
+  the picker). Not worth a migration shim for what the user themselves
+  called a test mapping while this feature was still being iterated on.
+  - `lib/documentGenerator/clickupFields.ts`'s `getAllClickUpFields(slug)`
+    replaced `getKnownClickUpFields()` -- it calls
+    `fetchListCustomFields()` directly and returns the FULL catalog
+    (id, live name, a `kind` derived straight from ClickUp's own live
+    field `type` string -- `drop_down`/`checkbox`/`currency`/`number`/
+    `date`, defaulting to `text`), with no cross-reference against
+    `CUSTOM_FIELD_MAP`/`FORM_SPECS` at all.
+  - `lib/documentGenerator/resolveFromClickUp.ts` was rewritten the same
+    way: it now always fetches `fetchListCustomFields()` (previously
+    only when a mapped field was a dropdown) and decodes every
+    ClickUp-sourced field purely from that live field's own `type` +
+    `type_config`, keyed by `clickUpFieldId` -- no more per-field
+    lookup through `FORM_SPECS`/`CUSTOM_FIELD_MAP` for decoding (that
+    map is still used for exactly one thing here: resolving the Order
+    Number field to search the task by, via
+    `getCustomFieldTargets(slug).orderNumber`, unchanged). A field with
+    no `clickUpFieldId` (a fixed-text field) is skipped in this
+    resolver entirely -- `generatePdf()` already has its fixed value
+    and never looks at the resolved values map for it.
+  - **"Pinned" fields, scoped per request type (not per mapping)** --
+    confirmed explicitly with the user via `AskUserQuestion` ("Por tipo
+    de request (Recomendado)"), so every document mapping a request
+    type has shares the same pinned set. New column
+    `request_types.pinned_clickup_fields` (jsonb array of ClickUp field
+    ids, migration `021_request_type_clickup_field_pins.sql`, default
+    `[]` -- **needs the migration run in the Supabase SQL editor**).
+    `GET /api/admin/request-types/[id]/clickup-fields` now returns
+    `{all, pinnedIds}` (the full live catalog plus the pinned subset)
+    instead of the old `{fields}`; a new `PATCH
+    /api/admin/request-types/[id]/clickup-field-pins` (body
+    `{fieldIds: string[]}`) replaces the full pinned set in one call --
+    the UI always sends the complete set after a toggle, not a diff,
+    same pattern as Communications' recipient selection.
+  - **`ClickUpFieldPicker.tsx` rewritten**: the main checklist now shows
+    only pinned fields not already in the mapping, plus a "+ Add fixed
+    text field" button (adds a field with `fixedValue: ""` directly,
+    same one the admin can also create from `MappingEditor.tsx`). A
+    "View More ClickUp Fields" toggle expands a scrollable, filterable
+    list of every field in the full live catalog, each with its own
+    Pinned checkbox (toggling calls the pins PATCH immediately,
+    optimistic update, reverts and shows an error if the save fails) --
+    pinning something there makes it appear in the main checklist right
+    away without closing the panel. A "Refresh" button next to the
+    panel title re-fetches `GET .../clickup-fields` on demand, so a
+    field just created directly in ClickUp (or renamed/retyped there)
+    shows up without a code change or redeploy.
+- Still untested against a real ClickUp list from this sandbox for this
+  third pass specifically (same standing limitation as every prior pass
+  -- `clickup.com` stays unreachable here) -- re-confirm live once
+  deployed: re-pick the Redemption Request pilot's 2 fields from the new
+  picker, confirm "View More ClickUp Fields" actually lists every field
+  on that list (including ones never in `CUSTOM_FIELD_MAP`), confirm
+  pinning/unpinning persists across a page reload, and confirm a fixed
+  text field's value shows up correctly in a generated PDF from both the
+  PDF Generator tool and Generate Document.
+
 ## AxisKey Orders (`/admin/orders`, Oct 2026)
 
 A new "AxisKey Orders" nav item in the admin sidebar, mirroring the

@@ -1,63 +1,55 @@
-import { FORM_SPECS } from "@/lib/formSpecs";
-import { fetchListCustomFields, getCustomFieldTargets, getListIdForSlug } from "@/lib/integrations/clickup";
+import { fetchListCustomFields, getListIdForSlug } from "@/lib/integrations/clickup";
 
 export interface KnownClickUpField {
-  /** Matches a FormSpec submissionMapping.customFields[].key, and becomes
-   *  a DocumentField's customFieldKey once added to a mapping. */
-  key: string;
+  /** The real ClickUp custom field id -- becomes a DocumentField's clickUpFieldId once added to a mapping. */
+  id: string;
+  /** ClickUp's own live field name, fetched fresh every call. */
   label: string;
-  kind: "text" | "number" | "checkbox" | "dropdown";
-  /** This form's own option labels, shown only as a hint in the field
-   *  picker -- the real decode at generation time reads ClickUp's live
-   *  option list instead (see resolveFromClickUp.ts), since the form's
-   *  option text and ClickUp's option names aren't guaranteed identical. */
+  kind: "text" | "number" | "currency" | "checkbox" | "dropdown" | "date";
+  /** This field's live dropdown options, shown only as a hint in the field picker. */
   options?: string[];
 }
 
+const CLICKUP_TYPE_TO_KIND: Record<string, KnownClickUpField["kind"]> = {
+  drop_down: "dropdown",
+  checkbox: "checkbox",
+  currency: "currency",
+  number: "number",
+  date: "date",
+};
+
 /**
- * Every field of this request type that's both part of its FormSpec AND
- * already confirmed to resolve to a real ClickUp custom field (has a
- * CUSTOM_FIELD_MAP entry) -- i.e. exactly the fields "Generate Document"
- * can actually pull live data for. A key present in `customFields` but
- * missing from CUSTOM_FIELD_MAP (not yet provisioned/confirmed in
- * ClickUp) is deliberately left out rather than offered and failing
- * later -- same "don't guess an unconfirmed field" rule this codebase
- * applies everywhere else it talks to ClickUp.
- *
- * `label` is ClickUp's own live field name (fetched fresh every call via
- * fetchListCustomFields(), the same "Get Accessible Custom Fields" call
- * resolveFromClickUp.ts uses to decode dropdowns) -- not this form's own
- * question wording, per explicit feedback that mapping is easier by the
- * name actually shown in ClickUp. Falls back to the FormSpec's own field
- * label only if the live call fails or that field has since vanished
- * from ClickUp, so the picker never shows a blank name.
+ * Every custom field currently active on this request type's ClickUp
+ * list -- the FULL live catalog, not just the ones already confirmed in
+ * this codebase's hand-curated CUSTOM_FIELD_MAP. Per explicit product
+ * decision (Oct 2026, second follow-up pass): "absolutamente todo lo que
+ * vayamos a mapear va a estar en ClickUp" -- any field that exists on the
+ * list has to be mappable here, whether or not this codebase's own
+ * submission-sync code already uses it. The admin's field picker is
+ * responsible for only *showing* the subset that's actually useful day
+ * to day (the pinned fields -- see the pinned_clickup_fields column on
+ * request_types and the "View More ClickUp Fields" panel), not this
+ * function -- this always returns everything.
  */
-export async function getKnownClickUpFields(slug: string): Promise<KnownClickUpField[]> {
-  const spec = FORM_SPECS[slug as keyof typeof FORM_SPECS];
-  if (!spec) return [];
-
-  const targets = getCustomFieldTargets(slug);
-  const fieldsByName = new Map(spec.fields.map((f) => [f.name, f]));
-  const entries = (spec.submissionMapping.customFields ?? []).filter((e) => targets[e.key]?.[0]);
-  if (entries.length === 0) return [];
-
+export async function getAllClickUpFields(slug: string): Promise<KnownClickUpField[]> {
   const listId = getListIdForSlug(slug);
-  const liveFields = listId ? await fetchListCustomFields(listId) : [];
-  const liveNameById = new Map(liveFields.map((f) => [f.id as string, f.name as string]));
+  if (!listId) return [];
 
-  return entries.map((entry) => {
-    const target = targets[entry.key][0];
-    const fieldConfig = fieldsByName.get(entry.field);
-    const options =
-      fieldConfig && (fieldConfig.kind === "select" || fieldConfig.kind === "selectOrOther")
-        ? fieldConfig.options
-        : undefined;
-
-    return {
-      key: entry.key,
-      label: liveNameById.get(target.id) ?? fieldConfig?.label ?? entry.key,
-      kind: target.kind,
-      options: target.kind === "dropdown" ? options : undefined,
-    };
-  });
+  const raw = await fetchListCustomFields(listId);
+  const fields: KnownClickUpField[] = [];
+  for (const f of raw) {
+    const id = f.id as string | undefined;
+    const name = f.name as string | undefined;
+    if (!id || !name) continue;
+    const type = f.type as string | undefined;
+    const kind = (type ? CLICKUP_TYPE_TO_KIND[type] : undefined) ?? "text";
+    const typeConfig = f.type_config as { options?: { name: string }[] } | undefined;
+    fields.push({
+      id,
+      label: name,
+      kind,
+      options: kind === "dropdown" ? typeConfig?.options?.map((o) => o.name) : undefined,
+    });
+  }
+  return fields;
 }

@@ -10,7 +10,6 @@ import { MappingEditor } from "@/components/admin/pdfgenerator/MappingEditor";
 import { ClickUpFieldPicker } from "./ClickUpFieldPicker";
 import {
   emptyDocumentConfig,
-  type DocumentField,
   type DocumentTemplateConfig,
   type DocumentTemplateDetail,
   type DocumentTemplateSummary,
@@ -18,17 +17,17 @@ import {
 
 /**
  * MappingEditor only knows about PdfTemplateConfig/PdfField -- it can add
- * a plain text/image field of its own (via its own "+Text"/"+Image"
- * buttons) that never had a customFieldKey. Coerced to "" here rather
- * than rejected: generatePdf() already skips a field with no resolved
- * value, so an admin-added ad-hoc field just renders blank at generation
- * time instead of crashing or losing the rest of the mapping.
+ * a plain text/image field of its own (via its own "+Text"/"+Image"/
+ * "+Fixed text" buttons) that was never picked from ClickUp. That's fine:
+ * DocumentField's only addition over PdfField is the optional
+ * clickUpFieldId, so a PdfTemplateConfig already satisfies
+ * DocumentTemplateConfig structurally -- an admin-added field with
+ * neither clickUpFieldId nor fixedValue just renders blank at generation
+ * time (generatePdf() skips an empty value) instead of crashing or
+ * losing the rest of the mapping.
  */
 function toDocumentConfig(next: PdfTemplateConfig): DocumentTemplateConfig {
-  return {
-    ...next,
-    fields: next.fields.map((f) => ({ ...f, customFieldKey: (f as Partial<DocumentField>).customFieldKey ?? "" })),
-  };
+  return next;
 }
 
 /**

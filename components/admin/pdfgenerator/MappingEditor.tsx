@@ -167,15 +167,16 @@ export function MappingEditor({
     setConfig({ fields: configRef.current.fields.map((f) => (f.id === id ? { ...f, ...patch } : f)) });
   }
 
-  function addField(type: PdfFieldType) {
+  function addField(type: PdfFieldType, fixed = false) {
     const count = config.fields.filter((f) => f.type === type).length;
-    const base = type === "text" ? "Text" : "Image";
+    const base = fixed ? "Fixed text" : type === "text" ? "Text" : "Image";
     const field: PdfField = {
       id: newId(),
       label: count ? `${base} ${count + 1}` : base,
       type,
       sample: type === "text" ? "Sample text" : "",
       defaultValue: "",
+      fixedValue: fixed ? "" : undefined,
     };
     setConfig({ fields: [...configRef.current.fields, field] });
     setActiveFieldId(field.id);
@@ -564,10 +565,19 @@ export function MappingEditor({
                   <div className="mt-2 flex items-center gap-2">
                     {field.type === "text" ? (
                       <input
-                        value={field.sample}
-                        onChange={(e) => updateField(field.id, { sample: e.target.value })}
-                        placeholder="Sample value for preview"
-                        className="min-w-0 flex-1 rounded-[6px] border border-axis-base/40 bg-white px-2 py-1 text-xs outline-none focus:border-axis-core"
+                        value={field.fixedValue !== undefined ? field.fixedValue : field.sample}
+                        onChange={(e) =>
+                          updateField(
+                            field.id,
+                            field.fixedValue !== undefined ? { fixedValue: e.target.value } : { sample: e.target.value }
+                          )
+                        }
+                        placeholder={field.fixedValue !== undefined ? "Fixed text (always used)" : "Sample value for preview"}
+                        className={`min-w-0 flex-1 rounded-[6px] border px-2 py-1 text-xs outline-none focus:border-axis-core ${
+                          field.fixedValue !== undefined
+                            ? "border-axis-signal bg-axis-signal/10"
+                            : "border-axis-base/40 bg-white"
+                        }`}
                       />
                     ) : (
                       <label className="min-w-0 flex-1 cursor-pointer truncate rounded-[6px] border border-dashed border-axis-base/60 bg-white px-2 py-1 text-xs text-axis-core/60 hover:border-axis-core/50">
@@ -595,7 +605,22 @@ export function MappingEditor({
                       + Place
                     </button>
                   </div>
-                  <p className="mt-1.5 text-[10px] text-axis-core/50">
+                  {field.type === "text" && (
+                    <label className="mt-1.5 flex items-center gap-1.5 text-[10px] text-axis-core/60">
+                      <input
+                        type="checkbox"
+                        checked={field.fixedValue !== undefined}
+                        onChange={(e) =>
+                          updateField(field.id, {
+                            fixedValue: e.target.checked ? field.sample || "" : undefined,
+                          })
+                        }
+                        className="accent-axis-core"
+                      />
+                      Always use this exact text (ignore row/ClickUp data)
+                    </label>
+                  )}
+                  <p className="mt-1 text-[10px] text-axis-core/50">
                     {count === 0 ? "Not placed yet" : `Placed ${count} time${count === 1 ? "" : "s"}`}
                   </p>
                 </li>
@@ -616,6 +641,13 @@ export function MappingEditor({
               className="rounded-[8px] bg-axis-signal px-3 py-2 text-xs font-semibold text-axis-core hover:bg-axis-signal/80"
             >
               + Image field
+            </button>
+            <button
+              type="button"
+              onClick={() => addField("text", true)}
+              className="col-span-2 rounded-[8px] border border-dashed border-axis-core/40 px-3 py-2 text-xs font-semibold text-axis-core hover:bg-axis-light/60"
+            >
+              + Fixed text field
             </button>
           </div>
         </Panel>

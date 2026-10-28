@@ -2371,3 +2371,77 @@ this session.
   (not just the ones still coming from `CUSTOM_FIELD_MAP`). Extend to
   the other 10 locked types only after this pilot is confirmed working
   end to end, per the user's own explicit pilot-first scoping.
+
+### Connect by live name, not just id (Oct 2026)
+
+Follow-up the same day: the admin pointed out a ClickUp field's own id
+is always unique even when its *name* sometimes isn't (this file
+already documents several lists with two fields sharing a name), and
+asked whether typing the field's name instead of its id could work. It
+does -- `POST .../clickup-field-map/connect`'s body field was renamed
+`clickupField` (from `clickupFieldId`) and now accepts either: it tries
+an exact id match against the live field list first, then falls back to
+a case-insensitive exact name match. Exactly one name match resolves
+and saves that field's real id (never the typed name itself -- the
+stored `clickup_field_id` column is always a real id, so
+`loadClickUpFieldMapOverrides()`/sync-time logic needed no change).
+Zero or multiple name matches both return `{ok: false}` with a clear
+error (duplicates list every conflicting id so the admin can paste the
+exact one instead) rather than guessing which field was meant.
+`FieldEditorPanel.tsx`'s input placeholder/helper text now mention
+both, and a successful name-based connect writes the resolved real id
+back into the input so it reads correctly on next open.
+
+## Support Inquiry (`/support-inquiry`, Oct 2026)
+
+An internal-only tool, not an investor-facing request type -- an
+AxisKey coworker fills this out on an investor's behalf (phone call,
+forwarded email, etc.) and submitting emails `ir@axiskey.com` directly,
+which is what creates a Zendesk ticket on AxisKey's side (an existing
+email-to-ticket automation on that inbox, entirely outside this app --
+this feature's only job is sending a well-formed email to it). Per
+explicit instruction: not on the public Operations Hub homepage grid
+(not for investors), and not a hidden page either -- reachable via a
+button, placed in the dark "Schedule a Call" banner at the top of
+`/admin` (`AdminOverview.tsx`, login-gated, so only staff already in
+the admin find it), opening a page that itself needs **no** admin login
+(so the link can be forwarded/shared directly, same convention as
+`/rate-your-experience` and `/schedule-a-call` -- no `PageShell`/
+`Sidebar`, no auth guard).
+
+- **That banner was also restructured into two compact side-by-side
+  blocks** (Schedule a Call | Support Inquiry) instead of one
+  stretched full-width action, per direct feedback that a single
+  action left most of the dark bar empty ("se pierde mucho espacio en
+  esa barra negra").
+- **No Supabase table at all** -- confirmed via `AskUserQuestion`-style
+  default (the user didn't explicitly re-confirm after dismissing the
+  question, but this matches the "v1" option offered and nothing since
+  has asked for a stored/admin-visible list): the email itself, and the
+  Zendesk ticket it creates, are the only record. Because of that,
+  `POST /api/support-inquiry` treats a failed send as a real submission
+  failure (unlike every other best-effort notification email in this
+  codebase) -- there's no fallback record if the email doesn't go out.
+- `lib/services/supportInquiry/sendSupportInquiryEmail.ts` sends via
+  the same Resend REST pattern as Communications'
+  `sendApprovalEmail.ts` -- **from and to `RESEND_FROM_EMAIL`
+  (`ir@axiskey.com`) on purpose**, a self-addressed email, since that's
+  what triggers the Zendesk automation; `reply_to` is set to the
+  investor's own email so a reply from Zendesk/IR reaches them directly.
+- **"Generate AI Explanation"** (`POST /api/support-inquiry/explain`):
+  takes whatever short/informal note the coworker typed plus the
+  subject line and asks Claude (`claude-sonnet-5-5`, same model pinned
+  for SA Review) to rewrite it into a clearer 2-4 sentence explanation,
+  replacing the detail textarea's contents -- explicitly instructed not
+  to invent specific facts not already stated. **This is the first
+  unauthenticated endpoint in this codebase that calls the Claude API**
+  (every other one, SA Review, is behind `requireAdmin`) -- input/output
+  are capped (1000/400 chars) to bound cost exposure, but there's no
+  rate limiting beyond that; acceptable for a link shared only with
+  coworkers, not something to link from anywhere actually public.
+- No ClickUp integration, no `request_types` row, no homepage card --
+  this is deliberately outside every one of this app's generic request-
+  type systems (`FORM_SPECS`, `CUSTOM_FIELD_MAP`, `request_types`), same
+  reasoning `investor-update-request` used for needing its own path
+  rather than being forced through machinery built for a different
+  shape of problem.

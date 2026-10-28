@@ -7,12 +7,18 @@ export const dynamic = "force-dynamic";
 
 /**
  * Connects one locked form field (by its internal fieldKey) to a real
- * ClickUp custom field, by id, typed in directly by the admin from
- * FieldEditorPanel.tsx. Always does a LIVE lookup against this request
- * type's ClickUp list first -- an id that doesn't exist on the list
- * returns `{ok: false}` (the admin sees a red X) rather than being
- * saved blind, same "never guess/trust an unconfirmed ClickUp field"
- * rule this codebase applies everywhere else it touches ClickUp.
+ * ClickUp custom field, typed in directly by the admin from
+ * FieldEditorPanel.tsx as either the field's id (a UUID) OR its exact
+ * live name (e.g. "Order Number") -- the admin explicitly chose typing
+ * over a live-fetched dropdown picker, but asked for name lookup too,
+ * since a field's id is always unique while its name sometimes isn't
+ * (this codebase has already documented duplicate field names on
+ * several lists -- see "ClickUp workspace layout" in CLAUDE.md). Always
+ * does a LIVE lookup against this request type's ClickUp list first --
+ * an id/name that doesn't resolve to exactly one field returns `{ok:
+ * false}` (the admin sees a red X) rather than being saved blind, same
+ * "never guess/trust an unconfirmed ClickUp field" rule this codebase
+ * applies everywhere else it touches ClickUp.
  *
  * A dropdown-kind field's `optionMap` is submitted on a second call once
  * the admin has matched each of the form's own options to one of this
@@ -27,12 +33,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const body = await request.json().catch(() => null);
   const fieldKey = typeof body?.fieldKey === "string" ? body.fieldKey.trim() : "";
-  const clickupFieldId = typeof body?.clickupFieldId === "string" ? body.clickupFieldId.trim() : "";
+  const clickupFieldInput = typeof body?.clickupField === "string" ? body.clickupField.trim() : "";
   const optionMap =
     body?.optionMap && typeof body.optionMap === "object" ? (body.optionMap as Record<string, string>) : {};
 
-  if (!fieldKey || !clickupFieldId) {
-    return NextResponse.json({ error: "fieldKey and clickupFieldId are required." }, { status: 400 });
+  if (!fieldKey || !clickupFieldInput) {
+    return NextResponse.json({ error: "fieldKey and clickupField are required." }, { status: 400 });
   }
 
   const supabase = getSupabaseServerClient();
@@ -45,13 +51,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const liveFields = await fetchListCustomFields(listId);
-  const liveField = liveFields.find((f) => f.id === clickupFieldId);
+  let liveField = liveFields.find((f) => f.id === clickupFieldInput);
+  if (!liveField) {
+    const nameMatches = liveFields.filter(
+      (f) => typeof f.name === "string" && f.name.toLowerCase() === clickupFieldInput.toLowerCase()
+    );
+    if (nameMatches.length === 1) {
+      liveField = nameMatches[0];
+    } else if (nameMatches.length > 1) {
+      return NextResponse.json({
+        ok: false,
+        error: `${nameMatches.length} fields are named "${clickupFieldInput}" on this list -- type the exact field id instead. IDs: ${nameMatches
+          .map((f) => f.id)
+          .join(", ")}`,
+      });
+    }
+  }
   if (!liveField) {
     return NextResponse.json({
       ok: false,
-      error: "No field with that id exists on this request type's live ClickUp list.",
+      error: `No field named or with id "${clickupFieldInput}" exists on this request type's live ClickUp list.`,
     });
   }
+  const clickupFieldId = liveField.id as string;
 
   const kind = clickUpTypeToWriteKind(liveField.type as string | undefined);
   const liveOptions =
@@ -77,6 +99,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json({
     ok: true,
     kind,
+    clickupFieldId,
     liveFieldName: liveField.name as string,
     liveOptions,
   });

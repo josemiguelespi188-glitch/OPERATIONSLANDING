@@ -2421,6 +2421,33 @@ which questions are connected and to what -- without opening each one.
   can't, without a live ClickUp call on every grid render) reflect
   `CUSTOM_FIELD_MAP`'s own hardcoded coverage.
 
+### Connect-by-name input no longer gets overwritten with the raw id (Oct 2026)
+
+Immediate follow-up, from a real screenshot: after a successful connect,
+`ClickUpConnectionEditor`'s own text input used to get overwritten with
+the raw resolved ClickUp field id (e.g. a UUID), which made it look just
+as cryptic as the read-only "Internal field name" input shown next to
+it in `FieldEditorPanel.tsx` -- defeating the whole point of the
+name-based connect flow above. Per the user's explicit, literal spec
+("quiero que se vea asi: Order Number / Connect -- una vez conectado
+abajo me pones el codigo ... y arriba a la derecha el check de
+connected. La idea es typear el nombre del field"): the input now
+always holds the human-readable ClickUp field **name** (what was typed,
+or the live name ClickUp resolved it to, normalizing casing) and is
+never overwritten with the id; the resolved id now renders as its own
+separate read-only "Code: `<id>` (`<kind>`)" line underneath, once
+connected. The ✓ Connected / ✕ Failed badge (top-right) was already
+correct and is unchanged. Purely a frontend display-logic fix --
+`entry.clickupFieldName`/`entry.clickupFieldId` (already returned by
+`GET .../clickup-field-map`) were enough; no new field, API, or
+migration was needed. Also fixed a related staleness bug in the same
+pass: the old info line read from an ephemeral `liveFieldName` state
+that reset to `""` every time a different field was opened, so
+reopening an already-connected field in a new session showed no name
+until Connect was clicked again -- the rewritten version reads
+`entry.clickupFieldName` (persisted data) directly instead, so it's
+correct on first open.
+
 ## Support Inquiry (`/support-inquiry`, Oct 2026)
 
 An internal-only tool, not an investor-facing request type -- an

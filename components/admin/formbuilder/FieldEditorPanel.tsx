@@ -384,20 +384,25 @@ function ClickUpConnectionEditor({
   onConnected?: (entry: ClickUpFieldMapEntry) => void;
 }) {
   const adminFetch = useAdminFetch();
-  const [idInput, setIdInput] = useState(entry?.clickupFieldId ?? "");
+  // Always the human-readable ClickUp field NAME -- never the raw id.
+  // Seeded from the already-connected field's live name (falls back to
+  // its id only for a legacy row saved before clickup_field_name
+  // existed). A successful connect writes ClickUp's own live name back
+  // here (normalizing whatever casing was typed), never the id -- the
+  // id is shown separately below, read-only, so the two never get
+  // confused with each other again.
+  const [idInput, setIdInput] = useState(entry?.clickupFieldName || entry?.clickupFieldId || "");
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
   const [liveOptions, setLiveOptions] = useState<{ id: string; name: string }[] | null>(null);
-  const [liveFieldName, setLiveFieldName] = useState("");
   const [optionMapDraft, setOptionMapDraft] = useState<Record<string, string>>(entry?.optionMap ?? {});
   const [savingOptions, setSavingOptions] = useState(false);
 
   // A different field was opened in the panel -- reset to its own state.
   useEffect(() => {
-    setIdInput(entry?.clickupFieldId ?? "");
+    setIdInput(entry?.clickupFieldName || entry?.clickupFieldId || "");
     setOptionMapDraft(entry?.optionMap ?? {});
     setLiveOptions(null);
-    setLiveFieldName("");
     setError("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldKey]);
@@ -419,14 +424,12 @@ function ClickUpConnectionEditor({
         setLiveOptions(null);
         return;
       }
-      setLiveFieldName(body.liveFieldName ?? "");
       if (body.liveOptions) setLiveOptions(body.liveOptions);
-      // The admin may have typed a name, not an id -- show the real
-      // resolved id back so the field reads correctly on next open.
-      if (body.clickupFieldId) setIdInput(body.clickupFieldId);
+      const resolvedName = body.liveFieldName || idInput.trim();
+      setIdInput(resolvedName);
       onConnected?.({
-        clickupFieldId: body.clickupFieldId ?? idInput.trim(),
-        clickupFieldName: body.liveFieldName ?? "",
+        clickupFieldId: body.clickupFieldId,
+        clickupFieldName: resolvedName,
         kind: body.kind,
         optionMap: optionMap ?? {},
         connectedAt: new Date().toISOString(),
@@ -454,16 +457,16 @@ function ClickUpConnectionEditor({
         {error && <span className="flex items-center gap-1 text-xs font-semibold text-red-700">✕ Failed</span>}
       </div>
       <p className="mt-1 text-xs text-axis-core/40">
-        Type the ClickUp custom field&rsquo;s exact name or id, then Connect. If the name matches more
-        than one field on this list, you&rsquo;ll be asked for the id instead. Overrides CUSTOM_FIELD_MAP
-        for just this question.
+        Type the ClickUp custom field&rsquo;s exact name (e.g. &ldquo;Order Number&rdquo;), then Connect. If
+        the name matches more than one field on this list, you&rsquo;ll be asked for the id instead.
+        Overrides CUSTOM_FIELD_MAP for just this question.
       </p>
       <div className="mt-2 flex items-center gap-2">
         <input
           value={idInput}
           onChange={(e) => setIdInput(e.target.value)}
           placeholder="e.g. Order Number"
-          className={`${inputClass} font-mono text-xs`}
+          className={inputClass}
         />
         <button
           type="button"
@@ -476,9 +479,8 @@ function ClickUpConnectionEditor({
       </div>
       {error && <p className="mt-1.5 text-xs text-red-700">{error}</p>}
       {entry && !error && (
-        <p className="mt-1.5 text-xs text-axis-core/50">
-          {liveFieldName ? `"${liveFieldName}" · ` : ""}
-          {entry.kind}
+        <p className="mt-1.5 font-mono text-[11px] text-axis-core/40">
+          Code: {entry.clickupFieldId} ({entry.kind})
         </p>
       )}
 

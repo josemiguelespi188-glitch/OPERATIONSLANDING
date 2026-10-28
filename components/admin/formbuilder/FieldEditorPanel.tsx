@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAdminFetch } from "@/components/admin/AdminAuthContext";
 import { FIELD_TYPE_META, FIELD_TYPE_OPTIONS } from "@/lib/dynamicForms/fieldTypeMeta";
 import type { DynamicField, DynamicFieldType } from "@/lib/dynamicForms/types";
+import type { ClickUpFieldMapEntry } from "./RequestTypeEditor";
 import { FieldTypeIcon } from "./FieldTypeIcon";
 
 const inputClass =
@@ -19,10 +21,26 @@ interface FieldEditorPanelProps {
    *  are fixed in code and can't be edited here — only copy and
    *  required-ness can. */
   isCodeManaged?: boolean;
+  /** This request type's id -- only needed to call the ClickUp-connect
+   *  endpoint below, only relevant when isCodeManaged. */
+  requestTypeId?: string;
+  /** This field's current connection, if any (request_type_clickup_field_map). */
+  clickupMapEntry?: ClickUpFieldMapEntry;
+  onClickupConnected?: (fieldKey: string, entry: ClickUpFieldMapEntry) => void;
 }
 
 /** ClickUp-style right-hand slide-over for configuring a single form field. */
-export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete, isCodeManaged }: FieldEditorPanelProps) {
+export function FieldEditorPanel({
+  field,
+  isNew,
+  onChange,
+  onClose,
+  onDelete,
+  isCodeManaged,
+  requestTypeId,
+  clickupMapEntry,
+  onClickupConnected,
+}: FieldEditorPanelProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const meta = FIELD_TYPE_META[field.fieldType];
 
@@ -145,9 +163,18 @@ export function FieldEditorPanel({ field, isNew, onChange, onClose, onDelete, is
                   </span>
                 ))}
               </div>
-              <span className="mt-1.5 block text-xs text-axis-core/40">
-                Mapped to specific ClickUp option values in code. Ask engineering to change these.
-              </span>
+            </div>
+          )}
+
+          {isCodeManaged && (
+            <div className="mt-5 border-t border-axis-base/20 pt-4">
+              <ClickUpConnectionEditor
+                requestTypeId={requestTypeId}
+                fieldKey={field.fieldKey}
+                formOptions={field.options}
+                entry={clickupMapEntry}
+                onConnected={(entry) => onClickupConnected?.(field.fieldKey, entry)}
+              />
             </div>
           )}
 
@@ -330,6 +357,156 @@ function OptionsEditor({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Lets an admin connect a locked field's answer to a real ClickUp custom
+ * field by id, overriding CUSTOM_FIELD_MAP for just this question (see
+ * migration 023_request_type_clickup_field_map.sql and
+ * app/api/admin/request-types/[id]/clickup-field-map/connect/route.ts).
+ * "Connect" always does a live lookup against the request type's real
+ * ClickUp list first -- a typo'd or stale id shows red/"Failed" rather
+ * than being saved unverified.
+ */
+function ClickUpConnectionEditor({
+  requestTypeId,
+  fieldKey,
+  formOptions,
+  entry,
+  onConnected,
+}: {
+  requestTypeId?: string;
+  fieldKey: string;
+  formOptions: DynamicField["options"];
+  entry?: ClickUpFieldMapEntry;
+  onConnected?: (entry: ClickUpFieldMapEntry) => void;
+}) {
+  const adminFetch = useAdminFetch();
+  const [idInput, setIdInput] = useState(entry?.clickupFieldId ?? "");
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+  const [liveOptions, setLiveOptions] = useState<{ id: string; name: string }[] | null>(null);
+  const [liveFieldName, setLiveFieldName] = useState("");
+  const [optionMapDraft, setOptionMapDraft] = useState<Record<string, string>>(entry?.optionMap ?? {});
+  const [savingOptions, setSavingOptions] = useState(false);
+
+  // A different field was opened in the panel -- reset to its own state.
+  useEffect(() => {
+    setIdInput(entry?.clickupFieldId ?? "");
+    setOptionMapDraft(entry?.optionMap ?? {});
+    setLiveOptions(null);
+    setLiveFieldName("");
+    setError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldKey]);
+
+  const isDropdown = formOptions.length > 0;
+
+  async function handleConnect(optionMap?: Record<string, string>) {
+    if (!requestTypeId || !idInput.trim()) return;
+    setConnecting(true);
+    setError("");
+    try {
+      const res = await adminFetch(`/api/admin/request-types/${requestTypeId}/clickup-field-map/connect`, {
+        method: "POST",
+        body: JSON.stringify({ fieldKey, clickupFieldId: idInput.trim(), optionMap }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        setError(body.error ?? "Could not connect this field.");
+        setLiveOptions(null);
+        return;
+      }
+      setLiveFieldName(body.liveFieldName ?? "");
+      if (body.liveOptions) setLiveOptions(body.liveOptions);
+      onConnected?.({
+        clickupFieldId: idInput.trim(),
+        kind: body.kind,
+        optionMap: optionMap ?? {},
+        connectedAt: new Date().toISOString(),
+      });
+    } catch {
+      setError("Could not connect this field.");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function handleSaveOptionMap() {
+    setSavingOptions(true);
+    await handleConnect(optionMapDraft);
+    setSavingOptions(false);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-axis-core/80">ClickUp field connection</span>
+        {entry && !error && (
+          <span className="flex items-center gap-1 text-xs font-semibold text-green-700">✓ Connected</span>
+        )}
+        {error && <span className="flex items-center gap-1 text-xs font-semibold text-red-700">✕ Failed</span>}
+      </div>
+      <p className="mt-1 text-xs text-axis-core/40">
+        Type the ClickUp custom field id this question&rsquo;s answer should be sent to, then Connect.
+        Overrides CUSTOM_FIELD_MAP for just this question.
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          value={idInput}
+          onChange={(e) => setIdInput(e.target.value)}
+          placeholder="e.g. 70257f39-e3a9-4c45-88bf-e5c5677ccc03"
+          className={`${inputClass} font-mono text-xs`}
+        />
+        <button
+          type="button"
+          onClick={() => handleConnect(isDropdown ? optionMapDraft : undefined)}
+          disabled={connecting || !idInput.trim() || !requestTypeId}
+          className="shrink-0 rounded-[8px] bg-axis-core px-3.5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-axis-core/90 disabled:opacity-50"
+        >
+          {connecting ? "..." : "Connect"}
+        </button>
+      </div>
+      {error && <p className="mt-1.5 text-xs text-red-700">{error}</p>}
+      {entry && !error && (
+        <p className="mt-1.5 text-xs text-axis-core/50">
+          {liveFieldName ? `"${liveFieldName}" · ` : ""}
+          {entry.kind}
+        </p>
+      )}
+
+      {isDropdown && liveOptions && (
+        <div className="mt-3 space-y-2 rounded-[8px] bg-axis-light/50 p-3">
+          <p className="text-xs font-semibold text-axis-core/70">Match each option to its ClickUp option</p>
+          {formOptions.map((opt) => (
+            <div key={opt.value} className="flex items-center gap-2">
+              <span className="w-28 shrink-0 truncate text-xs text-axis-core/70">{opt.label}</span>
+              <select
+                value={optionMapDraft[opt.value] ?? ""}
+                onChange={(e) => setOptionMapDraft((prev) => ({ ...prev, [opt.value]: e.target.value }))}
+                className={`${inputClass} py-1.5 text-xs`}
+              >
+                <option value="">Select ClickUp option...</option>
+                {liveOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={handleSaveOptionMap}
+            disabled={savingOptions}
+            className="rounded-[6px] border border-axis-base/50 px-3 py-1.5 text-xs font-semibold text-axis-core hover:border-axis-core disabled:opacity-50"
+          >
+            {savingOptions ? "Saving..." : "Save option mapping"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

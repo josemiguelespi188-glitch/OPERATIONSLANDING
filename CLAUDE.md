@@ -24,10 +24,11 @@ actually set (see below). `custom-request` was removed from the Hub
 | `document-request` | Investor Documentation Request (renamed from "Document Request") | `901114375430` |
 | `axiskey-report-request` | Request an AxisKey Report | `901114375435` |
 | `investment-change-name-request` | Investment Change Name Request | `901115619854` |
+| `transfer-agreement-request` | (list at ClickUp list id below) | `901115630893` |
 
 Full JSON for `CLICKUP_LIST_ID_MAP` (see `.env.example`):
 ```json
-{"title-transfer-request":"901114002885","redemption-request":"901114014583","ira-funding-request":"901112504693","refund-request":"901114418101","side-letter-request":"901114320630","investor-information-update":"901114375425","account-maintenance-request":"901114375429","document-request":"901114375430","axiskey-report-request":"901114375435","investment-change-name-request":"901115619854"}
+{"title-transfer-request":"901114002885","redemption-request":"901114014583","ira-funding-request":"901112504693","refund-request":"901114418101","side-letter-request":"901114320630","investor-information-update":"901114375425","account-maintenance-request":"901114375429","document-request":"901114375430","axiskey-report-request":"901114375435","investment-change-name-request":"901115619854","transfer-agreement-request":"901115630893"}
 ```
 
 **This is an env var only — it is never committed to the repo.** It's set
@@ -632,20 +633,22 @@ investment?").
   this slug -- same reasoning as every other locked form, otherwise
   the homepage card would silently open the generic `RequestModal`
   instead of the real page.
-- **No ClickUp list exists for this slug yet** -- unlike
-  `investment-change-name-request` (built with its List ID already in
-  hand), the user said they'd provide the ClickUp list separately
-  after the form itself was built. `CLICKUP_LIST_ID_MAP` has no entry
-  for `transfer-agreement-request`, and `CUSTOM_FIELD_MAP`/
-  `ATTACHMENT_FIELD_MAP` in `lib/integrations/clickup.ts` have no
-  entries for it either, so submissions will fail to sync (marked
-  "failed", retryable from the admin) until the List ID is added to
-  that env var on Vercel. Once it's provided, also add a `FIELD_PLAN`
-  entry to `scripts/clickup/provision-forms.mjs` (Buyer Name,
-  Investor Account Name, Offering Name, Order Number, Transfer Amount,
-  Investor Email, Client/Capital Raiser Email, plus the attachment
-  field) and run it to get real field IDs to wire into
-  `CUSTOM_FIELD_MAP`.
+- **The ClickUp list now exists (`901115630893`, user-provided, Oct
+  2026) and is in `CLICKUP_LIST_ID_MAP`** -- see the ClickUp workspace
+  layout section above. **This is an env var only, never committed to
+  the repo** -- the updated JSON there still needs to be pasted into
+  Vercel's `CLICKUP_LIST_ID_MAP` value before submissions can sync.
+  **No custom fields are provisioned on it yet**, so until they are,
+  submissions reach ClickUp but only the task description is populated
+  (no `CUSTOM_FIELD_MAP`/`ATTACHMENT_FIELD_MAP` entries exist for this
+  slug in `lib/integrations/clickup.ts`). A `FIELD_PLAN` entry for this
+  list (Buyer Name, Investor Account Name, Offering Name, Order Number,
+  Transfer Amount, Investor Email, Client/Capital Raiser Email, plus the
+  attachment field) was added to `scripts/clickup/provision-forms.mjs`'s
+  `EXISTING_LISTS`/`FIELD_PLAN` -- run it from a machine with real
+  internet access (this sandbox cannot reach `clickup.com`) and paste
+  its output back to wire `CUSTOM_FIELD_MAP`/`ATTACHMENT_FIELD_MAP` for
+  this slug.
 
 ## Locked-form active/inactive toggle (Oct 2026)
 

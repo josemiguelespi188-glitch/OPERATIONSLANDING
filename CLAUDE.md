@@ -2077,6 +2077,49 @@ Mapping tab's Fields panel and field picker:
   text field's value shows up correctly in a generated PDF from both the
   PDF Generator tool and Generate Document.
 
+### Fourth pass: seeding a starting pinned set from CUSTOM_FIELD_MAP (Oct 2026)
+
+With `pinned_clickup_fields` live but empty by default, the user asked
+for a sensible starting "pinned" set per request type instead of every
+admin starting from zero and manually pinning each field. The user's
+own screenshots of ClickUp's per-task field panel (hovering a field's
+pin icon shows "Pin"/"Unpin") turned out not to be a reliable source:
+ClickUp's own per-task "pin" toggle isn't exposed anywhere in its REST
+API, so there would be no way to read it back even with live network
+access, and the two screenshots of the same task's panel also showed
+what looks like an accidental field deletion ("Additional File",
+`3d082ed6...` -- the exact id `ATTACHMENT_FIELD_MAP["redemption-
+request"].redemptionAgreement` points to) happening while the pin icon
+was being hovered -- flagged to the user to confirm/restore in ClickUp,
+since if that field is really gone, redemption attachments will start
+silently failing to link into that custom field (same as the
+`FIELD_250` limitation already documented above, just now possibly
+missing the field entirely rather than merely unable to write to it).
+
+Instead, per the user's own definition ("los que están pineados son los
+que utilizamos con frecuencia" -- the ones pinned are the ones we use
+often) and their explicit confirmation this should differ per list, not
+share one set, `supabase/migrations/022_pin_confirmed_clickup_fields.sql`
+seeds each locked request type's `pinned_clickup_fields` from that
+type's own already-confirmed `CUSTOM_FIELD_MAP`/`ATTACHMENT_FIELD_MAP`
+entries in `lib/integrations/clickup.ts` -- i.e. exactly the ClickUp
+fields that type's form already submits to, a reliable, already-live-
+verified proxy for "frequently used," with zero guessing and no need to
+reach ClickUp. Each of the 9 slugs with confirmed field maps gets its
+own distinct `update ... where slug = '...'` block with only that
+list's own ids (title-transfer-request, redemption-request,
+ira-funding-request, refund-request, side-letter-request,
+investor-information-update, account-maintenance-request,
+document-request, axiskey-report-request) -- **needs this migration run
+in the Supabase SQL editor, after migration 021**.
+`investment-change-name-request` and `transfer-agreement-request` have
+no `CUSTOM_FIELD_MAP` entries yet (see their own sections above), so
+nothing is seeded for them; `investor-update-request` isn't wired into
+`CUSTOM_FIELD_MAP` at all and is skipped for the same reason. This is
+only a starting default -- fully editable afterward per request type
+from "View More ClickUp Fields" in the Generate Document mapping
+editor, same as any other pin.
+
 ## AxisKey Orders (`/admin/orders`, Oct 2026)
 
 A new "AxisKey Orders" nav item in the admin sidebar, mirroring the

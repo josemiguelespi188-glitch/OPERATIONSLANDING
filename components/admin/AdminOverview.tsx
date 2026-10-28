@@ -11,6 +11,8 @@ interface AdminStats {
   byStatus: Record<RequestStatus, number>;
   bySyncStatus: Record<ClickUpSyncStatus, number>;
   byType: Record<string, number>;
+  /** Slugs currently visible to investors -- "Requests by Type" below only shows these. */
+  activeSlugs: string[];
   recent: Array<{
     id: string;
     request_type_slug: string;
@@ -68,16 +70,8 @@ const RANGE_OPTIONS: { value: StatsRange; label: string }[] = [
   { value: "all", label: "All Time" },
 ];
 
-/**
- * Every collapsible secondary section, keyed for open/closed state + the
- * "jump here and expand" behavior the failed-sync alert uses. "Schedule
- * a Call" and "Recent Requests" are no longer in this set (Oct 2026
- * redesign) -- Schedule a Call is now a permanent banner at the very top
- * of the page, and Recent Requests is always rendered in full, since
- * both were explicitly called out as important info that has to stay
- * visible rather than live behind a collapsed accordion.
- */
-type SectionKey = "syncHealth" | "byType" | "feedback" | "investorUpdates";
+/** Recent Requests shows this many per page, with Prev/Next to page through the rest. */
+const RECENT_PAGE_SIZE = 4;
 
 export function AdminOverview() {
   const { session } = useAdminAuth();
@@ -88,6 +82,7 @@ export function AdminOverview() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [recentPage, setRecentPage] = useState(0);
 
   const [feedback, setFeedback] = useState<InvestorFeedbackStats | null>(null);
   const [feedbackError, setFeedbackError] = useState("");
@@ -101,24 +96,11 @@ export function AdminOverview() {
   const [scheduleLinkError, setScheduleLinkError] = useState("");
   const [scheduleLinkModalOpen, setScheduleLinkModalOpen] = useState(false);
 
-  // Progressive disclosure only applies to the lower-priority metric
-  // sections now -- everything the admin needs at a glance (KPIs, the
-  // failed-sync alert, Recent Requests, Schedule a Call) renders in full
-  // further up the page, unconditionally.
-  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
-    syncHealth: false,
-    byType: false,
-    feedback: false,
-    investorUpdates: false,
-  });
   const recentRef = useRef<HTMLDivElement>(null);
   const [scrollToRecentSignal, setScrollToRecentSignal] = useState(0);
 
-  function toggleSection(key: SectionKey) {
-    setOpenSections((s) => ({ ...s, [key]: !s[key] }));
-  }
-
   function handleReviewFailedSyncs() {
+    setRecentPage(0);
     setScrollToRecentSignal((n) => n + 1);
   }
 
@@ -126,6 +108,12 @@ export function AdminOverview() {
     if (scrollToRecentSignal === 0) return;
     recentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [scrollToRecentSignal]);
+
+  // A range switch re-fetches a different "recent" list -- start back on
+  // page 1 rather than possibly landing past the end of the new list.
+  useEffect(() => {
+    setRecentPage(0);
+  }, [range]);
 
   const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
@@ -230,6 +218,20 @@ export function AdminOverview() {
 
   const rangeLabel = range === "30d" ? "Last 30 Days" : "All Time";
   const failedSyncs = stats?.bySyncStatus.failed ?? 0;
+  const recentPageCount = stats ? Math.max(1, Math.ceil(stats.recent.length / RECENT_PAGE_SIZE)) : 1;
+  const recentPageRows = stats
+    ? stats.recent.slice(recentPage * RECENT_PAGE_SIZE, recentPage * RECENT_PAGE_SIZE + RECENT_PAGE_SIZE)
+    : [];
+
+  // investor-update-request never lands in the generic `requests` table
+  // (its own dedicated tables -- see the "Investor Update Requests"
+  // section instead), and only an active (currently investor-visible)
+  // type belongs in this at-a-glance list.
+  const typeRows = stats
+    ? REQUEST_TYPES.filter(
+        (type) => type.slug !== "investor-update-request" && stats.activeSlugs.includes(type.slug)
+      )
+    : [];
 
   return (
     <div>
@@ -272,7 +274,7 @@ export function AdminOverview() {
         </p>
       )}
 
-      <div className="mt-8">
+      <div className="mt-6">
         {loading && <p className="text-sm text-axis-core/50">Loading...</p>}
         {error && (
           <p className="rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
@@ -294,7 +296,7 @@ export function AdminOverview() {
                 not just a number, so it sits above every passive metric
                 below it. */}
             {failedSyncs > 0 && (
-              <div className="mt-6 flex flex-col gap-3 rounded-card border border-red-300 bg-red-50 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-4 flex flex-col gap-3 rounded-card border border-red-300 bg-red-50 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-red-700">
                     {failedSyncs} request{failedSyncs === 1 ? "" : "s"} failed to sync to ClickUp
@@ -313,27 +315,26 @@ export function AdminOverview() {
               </div>
             )}
 
-            {/* Always rendered in full -- the single section an admin
-                checks most often, so it no longer lives behind a
-                collapsed toggle the way every other section below still
-                does. */}
-            <div ref={recentRef} className="mt-8">
+            {/* Everything from here down always renders in full -- no
+                section on this page collapses anymore. Compact cards and
+                short lists keep it tight instead. */}
+            <div ref={recentRef} className="mt-6">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-head text-sm font-medium tracking-tight text-axis-core">
                   Recent Requests
                 </h2>
-                <span className="text-xs text-axis-core/50">{stats.recent.length} shown</span>
+                <span className="text-xs text-axis-core/50">{stats.recent.length} total</span>
               </div>
-              <div className="mt-3 overflow-hidden rounded-card border border-axis-base/30 bg-white">
-                {stats.recent.length === 0 && (
+              <div className="mt-2 overflow-hidden rounded-card border border-axis-base/30 bg-white">
+                {recentPageRows.length === 0 && (
                   <p className="px-4 py-6 text-center text-sm text-axis-core/50">
                     No requests {range === "30d" ? "in the last 30 days." : "yet."}
                   </p>
                 )}
-                {stats.recent.map((req, i) => (
+                {recentPageRows.map((req, i) => (
                   <div
                     key={req.id}
-                    className={`px-4 py-3 text-sm ${i !== 0 ? "border-t border-axis-base/20" : ""}`}
+                    className={`px-4 py-2.5 text-sm ${i !== 0 ? "border-t border-axis-base/20" : ""}`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
@@ -348,7 +349,7 @@ export function AdminOverview() {
                         <SyncBadge status={req.clickup_sync_status} />
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-3 text-xs text-axis-core/50">
+                    <div className="mt-1.5 flex items-center justify-between gap-3 text-xs text-axis-core/50">
                       <span className="truncate">
                         {req.clickup_task_id
                           ? `ClickUp Task: ${req.clickup_task_id}`
@@ -380,138 +381,82 @@ export function AdminOverview() {
                   </div>
                 ))}
               </div>
+              {recentPageCount > 1 && (
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  <span className="text-xs text-axis-core/50">
+                    Page {recentPage + 1} of {recentPageCount}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRecentPage((p) => Math.max(0, p - 1))}
+                    disabled={recentPage === 0}
+                    className="rounded-[6px] border border-axis-base/50 px-2.5 py-1 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core disabled:opacity-40"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecentPage((p) => Math.min(recentPageCount - 1, p + 1))}
+                    disabled={recentPage >= recentPageCount - 1}
+                    className="rounded-[6px] border border-axis-base/50 px-2.5 py-1 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
 
-            <p className="mt-10 text-xs font-semibold uppercase tracking-wide text-axis-core/40">
-              More metrics
-            </p>
+            {/* ClickUp Sync Health, Investor Experience Rating, and
+                Requests by Type share one row -- each one's own card is
+                small, so stacking them full-width wasted most of the
+                screen's horizontal space. */}
+            <div className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-3">
+              <CompactCard title="ClickUp Sync Health">
+                <div className="space-y-1.5">
+                  <MiniStat label="Synced" value={stats.bySyncStatus.synced} />
+                  <MiniStat label="Failed" value={stats.bySyncStatus.failed} tone={failedSyncs > 0 ? "alert" : undefined} />
+                  <MiniStat label="Pending" value={stats.bySyncStatus.pending} />
+                </div>
+              </CompactCard>
 
-            <CollapsibleSection
-              title="ClickUp Sync Health"
-              badge={failedSyncs}
-              badgeTone="alert"
-              summary={`${stats.bySyncStatus.synced} synced`}
-              open={openSections.syncHealth}
-              onToggle={() => toggleSection("syncHealth")}
-            >
-              <div className="grid grid-cols-3 gap-3">
-                <KpiCard label="Successful Syncs" value={stats.bySyncStatus.synced} accent />
-                <KpiCard label="Failed Syncs" value={stats.bySyncStatus.failed} />
-                <KpiCard label="Pending Sync" value={stats.bySyncStatus.pending} />
-              </div>
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              title="Requests by Type"
-              summary={`${stats.total} total`}
-              open={openSections.byType}
-              onToggle={() => toggleSection("byType")}
-            >
-              <div className="space-y-2">
-                {/* investor-update-request never lands in the generic
-                    `requests` table (its own dedicated tables — see the
-                    "Investor Update Requests" section below instead), so
-                    it's excluded here rather than showing a permanently
-                    empty 0% bar. */}
-                {REQUEST_TYPES.filter((type) => type.slug !== "investor-update-request").map((type) => {
-                  const count = stats.byType[type.slug] ?? 0;
-                  const pct = stats.total > 0 ? (count / stats.total) * 100 : 0;
-                  return (
-                    <div key={type.slug} className="flex items-center gap-3">
-                      <span className="w-40 shrink-0 text-sm text-axis-core/70">{type.name}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-axis-light">
-                        <div
-                          className="h-full rounded-full bg-axis-signal"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <span className="w-6 shrink-0 text-right text-sm font-semibold text-axis-core">
-                        {count}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </CollapsibleSection>
-          </>
-        )}
-
-        {feedbackError && (
-          <p className="mt-4 rounded-[8px] bg-red-50 px-3 py-2 text-sm text-red-700">
-            {feedbackError}
-          </p>
-        )}
-
-        {feedback && (
-          <CollapsibleSection
-            title="Investor Experience Rating"
-            summary={
-              feedback.total > 0
-                ? `${Math.round(feedback.averageRating * 10) / 10}★ · ${feedback.total} rating${feedback.total === 1 ? "" : "s"}`
-                : "No ratings yet"
-            }
-            open={openSections.feedback}
-            onToggle={() => toggleSection("feedback")}
-          >
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <KpiCard
-                label="Average Rating"
-                value={feedback.total > 0 ? Math.round(feedback.averageRating * 10) / 10 : 0}
-                accent
-              />
-              <KpiCard label="Total Ratings" value={feedback.total} tone="tan" />
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {([5, 4, 3, 2, 1] as const).map((star) => {
-                const count = feedback.histogram[star] ?? 0;
-                const pct = feedback.total > 0 ? (count / feedback.total) * 100 : 0;
-                return (
-                  <div key={star} className="flex items-center gap-3">
-                    <span className="w-16 shrink-0 text-sm text-axis-core/70">
-                      {star} {star === 1 ? "star" : "stars"}
+              <CompactCard title="Investor Experience Rating">
+                {feedback && feedback.total > 0 ? (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-axis-core">
+                      {Math.round(feedback.averageRating * 10) / 10}
                     </span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-axis-light">
-                      <div
-                        className="h-full rounded-full bg-axis-signal"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="w-6 shrink-0 text-right text-sm font-semibold text-axis-core">
-                      {count}
+                    <span className="text-axis-signal">★</span>
+                    <span className="text-xs text-axis-core/50">
+                      {feedback.total} rating{feedback.total === 1 ? "" : "s"}
                     </span>
                   </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-6">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">
-                Recent Comments
-              </h4>
-              <div className="mt-3 overflow-hidden rounded-card border border-axis-base/30 bg-white">
-                {feedback.recentComments.length === 0 && (
-                  <p className="px-4 py-6 text-center text-sm text-axis-core/50">
-                    No comments yet.
+                ) : (
+                  <p className="text-sm text-axis-core/50">
+                    {feedbackError ? feedbackError : "No ratings yet"}
                   </p>
                 )}
-                {feedback.recentComments.map((c, i) => (
-                  <div
-                    key={c.id}
-                    className={`px-4 py-3 text-sm ${i !== 0 ? "border-t border-axis-base/20" : ""}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium text-axis-core">{"★".repeat(c.rating)}</span>
-                      <span className="shrink-0 text-xs text-axis-core/50">
-                        {new Date(c.submittedAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-axis-core/70">{c.comment}</p>
+              </CompactCard>
+
+              {typeRows.length > 0 ? (
+                <CompactCard title="Requests by Type">
+                  <div className="space-y-1.5">
+                    {typeRows.map((type) => (
+                      <div key={type.slug} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate text-axis-core/70">{type.name}</span>
+                        <span className="shrink-0 font-semibold text-axis-core">
+                          {stats.byType[type.slug] ?? 0}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </CompactCard>
+              ) : (
+                <CompactCard title="Requests by Type">
+                  <p className="text-sm text-axis-core/50">No requests yet</p>
+                </CompactCard>
+              )}
             </div>
-          </CollapsibleSection>
+          </>
         )}
 
         {investorUpdatesError && (
@@ -521,13 +466,11 @@ export function AdminOverview() {
         )}
 
         {investorUpdates && (
-          <CollapsibleSection
-            title="Investor Update Requests"
-            summary={`${investorUpdates.total} total · ${investorUpdates.byStatus.submitted} pending`}
-            open={openSections.investorUpdates}
-            onToggle={() => toggleSection("investorUpdates")}
-          >
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="mt-4 rounded-card border border-axis-base/30 bg-white px-4 py-3.5">
+            <h2 className="font-head text-sm font-medium tracking-tight text-axis-core">
+              Investor Update Requests
+            </h2>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
               <KpiCard label="Investor Update Requests" value={investorUpdates.total} tone="tan" />
               <KpiCard label="Pending Investor Updates" value={investorUpdates.byStatus.submitted} />
               <KpiCard label="Updates In Progress" value={investorUpdates.byStatus.in_progress} />
@@ -537,7 +480,7 @@ export function AdminOverview() {
               />
               <KpiCard label="Completed Updates" value={investorUpdates.byStatus.completed} accent />
             </div>
-          </CollapsibleSection>
+          </div>
         )}
       </div>
 
@@ -612,77 +555,24 @@ function RangeToggle({
   );
 }
 
-/**
- * Shared accordion shell for every secondary (lower-priority) metric
- * section below "More metrics". Fully controlled (open/onToggle owned by
- * the parent). `summary` stays visible even while collapsed (hidden on
- * narrow screens to avoid crowding the header) so the single most useful
- * number in a section doesn't require expanding it first.
- */
-function CollapsibleSection({
-  title,
-  summary,
-  badge,
-  badgeTone = "neutral",
-  open,
-  onToggle,
-  children,
-}: {
-  title: string;
-  summary?: string;
-  badge?: number;
-  badgeTone?: "alert" | "neutral";
-  open: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
+/** A small always-visible card for the 3-up row (ClickUp Sync Health, Investor Experience Rating, Requests by Type). */
+function CompactCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="mt-4 overflow-hidden rounded-card border border-axis-base/30 bg-white">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-axis-light/60"
-      >
-        <span className="flex min-w-0 items-center gap-2.5">
-          <span className="font-head text-sm font-medium tracking-tight text-axis-core">
-            {title}
-          </span>
-          {typeof badge === "number" && badge > 0 && (
-            <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                badgeTone === "alert" ? "bg-red-100 text-red-700" : "bg-axis-base/50 text-axis-core"
-              }`}
-            >
-              {badge}
-            </span>
-          )}
-        </span>
-        <span className="flex shrink-0 items-center gap-3">
-          {summary && <span className="hidden text-xs text-axis-core/50 sm:inline">{summary}</span>}
-          <ChevronDownIcon
-            className={`h-4 w-4 shrink-0 text-axis-core/40 transition-transform duration-150 ${
-              open ? "rotate-180" : ""
-            }`}
-          />
-        </span>
-      </button>
-      {open && <div className="border-t border-axis-base/20 px-4 py-4">{children}</div>}
+    <div className="rounded-card border border-axis-base/30 bg-white px-4 py-3.5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-axis-core/50">{title}</p>
+      <div className="mt-2">{children}</div>
     </div>
   );
 }
 
-function ChevronDownIcon({ className }: { className?: string }) {
+function MiniStat({ label, value, tone }: { label: string; value: number; tone?: "alert" }) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" className={className}>
-      <path
-        d="M5 7.5 10 12.5 15 7.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span className="text-axis-core/70">{label}</span>
+      <span className={`font-semibold ${tone === "alert" && value > 0 ? "text-red-700" : "text-axis-core"}`}>
+        {value}
+      </span>
+    </div>
   );
 }
 

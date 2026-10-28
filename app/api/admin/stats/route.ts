@@ -40,6 +40,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Used by the admin Overview's "Requests by Type" card to only show
+  // slugs that are currently visible to investors (e.g. a deactivated
+  // type like account-maintenance-request stays out of that list).
+  // Fails open (every slug "active") on a lookup error, same default as
+  // every other active/inactive check in this codebase.
+  const { data: activeRows, error: activeError } = await supabase
+    .from("request_types")
+    .select("slug")
+    .eq("is_active", true);
+  const activeSlugs = activeError ? REQUEST_TYPES.map((t) => t.slug) : (activeRows ?? []).map((r) => r.slug);
+
   const rows = requests ?? [];
 
   const byStatus: Record<RequestStatus, number> = {
@@ -74,6 +85,10 @@ export async function GET(request: Request) {
     byStatus,
     bySyncStatus,
     byType,
-    recent: rows.slice(0, 10),
+    activeSlugs,
+    // Capped well above what the Overview page shows by default (4,
+    // paginated) so "view more" has real further pages to show instead
+    // of immediately running out.
+    recent: rows.slice(0, 40),
   });
 }

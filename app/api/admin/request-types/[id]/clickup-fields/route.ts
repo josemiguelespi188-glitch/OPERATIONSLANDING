@@ -19,14 +19,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
   const supabase = getSupabaseServerClient();
-  const { data: requestType } = await supabase
-    .from("request_types")
-    .select("slug, pinned_clickup_fields")
-    .eq("id", id)
-    .maybeSingle();
+  const { data: requestType } = await supabase.from("request_types").select("slug").eq("id", id).maybeSingle();
   if (!requestType) return NextResponse.json({ error: "Request type not found." }, { status: 404 });
 
+  // Selected separately from "slug" above: pinned_clickup_fields only
+  // exists once migration 021_request_type_clickup_field_pins.sql has
+  // been run. If it hasn't, this query errors (column doesn't exist)
+  // rather than this whole route wrongly reporting "Request type not
+  // found" -- fails open to an empty pinned set instead.
+  const { data: pinnedRow } = await supabase
+    .from("request_types")
+    .select("pinned_clickup_fields")
+    .eq("id", id)
+    .maybeSingle();
+
   const all = await getAllClickUpFields(requestType.slug);
-  const pinnedIds = Array.isArray(requestType.pinned_clickup_fields) ? requestType.pinned_clickup_fields : [];
+  const pinnedIds = Array.isArray(pinnedRow?.pinned_clickup_fields) ? pinnedRow.pinned_clickup_fields : [];
   return NextResponse.json({ all, pinnedIds });
 }

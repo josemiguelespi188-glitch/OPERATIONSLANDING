@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/supabase/adminAuth";
 import {
   buildStatusPageUrl,
   fetchStatusTokenFieldId,
@@ -10,9 +11,6 @@ import {
 } from "@/lib/integrations/zendesk";
 
 export const dynamic = "force-dynamic";
-
-/** Same placeholder owner used by POST /api/support-inquiry -- see that route's comment. */
-const SHARED_OWNER_EMAIL = "ir@axiskey.com";
 
 /** Bounds how many unresolved rows get a Zendesk search attempt per call, so one slow page load can't fan out indefinitely. */
 const MAX_RESOLVE_ATTEMPTS = 20;
@@ -29,11 +27,13 @@ interface InquiryRow {
 }
 
 /**
- * Public, unauthenticated endpoint (same trust model as the rest of
- * /support-inquiry) that powers the "previous tickets" panel next to the
- * form. Three things happen on every call, all best-effort against
- * Zendesk so a Zendesk-side failure never breaks the panel -- it just
- * falls back to whatever this app already has cached from a prior call:
+ * Requires the same login as /support-inquiry itself (Oct 2026). Powers
+ * the "previous tickets" panel next to the form, scoped to the signed-in
+ * admin's own email (support_inquiries.owner_email) now that there's a
+ * real coworker identity to scope it by. Three things happen on every
+ * call, all best-effort against Zendesk so a Zendesk-side failure never
+ * breaks the panel -- it just falls back to whatever this app already
+ * has cached from a prior call:
  *
  * 1. Any row still missing a zendesk_ticket_id (the email-to-ticket
  *    automation hadn't produced a match yet last time this ran) gets a
@@ -44,7 +44,10 @@ interface InquiryRow {
  * 3. Both kinds of updates are written back to support_inquiries so the
  *    next call starts from a warmer cache.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   let supabase: ReturnType<typeof getSupabaseServerClient>;
   try {
     supabase = getSupabaseServerClient();
@@ -55,7 +58,7 @@ export async function GET() {
   const { data: rows, error } = await supabase
     .from("support_inquiries")
     .select("id, investor_name, investor_email, subject, submitted_at, zendesk_ticket_id, zendesk_status, status_page_url")
-    .eq("owner_email", SHARED_OWNER_EMAIL)
+    .eq("owner_email", admin.email ?? "unknown")
     .order("submitted_at", { ascending: false })
     .limit(50);
 

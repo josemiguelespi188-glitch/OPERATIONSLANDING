@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAdminFetch } from "@/components/admin/AdminAuthContext";
 
 interface SupportInquiryListItem {
   id: string;
@@ -26,12 +27,14 @@ const POLL_INTERVAL_MS = 20_000;
 
 /**
  * "Previous tickets" panel next to the Support Inquiry form -- lists
- * every inquiry ever submitted through this tool (all coworkers share
- * one list today, since /support-inquiry has no login yet -- see
- * supabase/migrations/026_support_inquiries.sql) with its live Zendesk
- * status and a link to the hosted status page Zendesk's "Status Token"
- * field points at. Fetches GET /api/support-inquiry/list, which does its
- * own best-effort resolution/refresh against Zendesk on every call.
+ * every inquiry the signed-in coworker has submitted through this tool
+ * (Oct 2026: scoped per-user now that /support-inquiry requires login --
+ * see supabase/migrations/026_support_inquiries.sql's owner_email
+ * column, and GET /api/support-inquiry/list's requireAdmin() check)
+ * with its live Zendesk status and a link to the hosted status page
+ * Zendesk's "Status Token" field points at. Fetches GET
+ * /api/support-inquiry/list, which does its own best-effort resolution/
+ * refresh against Zendesk on every call.
  *
  * Polls while at least one row still has no zendeskTicketId (the
  * email-to-ticket automation hasn't produced a match yet) -- stops once
@@ -39,13 +42,14 @@ const POLL_INTERVAL_MS = 20_000;
  * once there's nothing left pending.
  */
 export function PreviousTicketsPanel({ refreshSignal }: { refreshSignal: number }) {
+  const adminFetch = useAdminFetch();
   const [inquiries, setInquiries] = useState<SupportInquiryListItem[] | null>(null);
   const [error, setError] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/support-inquiry/list");
+      const res = await adminFetch("/api/support-inquiry/list");
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Could not load previous tickets.");
       setInquiries(body.inquiries ?? []);

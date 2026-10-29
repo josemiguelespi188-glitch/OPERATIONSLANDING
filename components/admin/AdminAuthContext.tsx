@@ -10,11 +10,11 @@ export interface AdminAuthValue {
 
 export const AdminAuthContext = createContext<AdminAuthValue | null>(null);
 
-/** Access token + sign-out for the current admin session. Must be used inside app/admin's layout. */
+/** Access token + sign-out for the current admin session. Must be used inside RequireAdminSession (app/admin's layout, or any other page that gates itself the same way, e.g. /support-inquiry). */
 export function useAdminAuth(): AdminAuthValue {
   const ctx = useContext(AdminAuthContext);
   if (!ctx) {
-    throw new Error("useAdminAuth must be used within the /admin layout.");
+    throw new Error("useAdminAuth must be used within RequireAdminSession.");
   }
   return ctx;
 }

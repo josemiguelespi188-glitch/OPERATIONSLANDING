@@ -2518,6 +2518,86 @@ all, which never has a `clickupEntry`). Purely a display change -- the
 underlying `field.fieldKey` is unchanged and still what every
 submission/ClickUp-sync code path actually uses.
 
+## Team invites (`/admin/team`, Oct 2026)
+
+Until now, a new admin had to be created entirely by hand in the
+Supabase dashboard (a real Auth user, then an `admin_users` row). Per
+explicit request ("necesito una función para poder crear cuentas y
+mandar invite a usuarios... les llega un mail y con eso pueden crear
+una clave y entrar al operation hub"), `/admin/team` now has an
+"Invite a coworker" flow: an admin types an email (plus optional name
+and role), the invitee gets an email with a link, clicks it, sets
+their own password, and lands signed into `/admin`.
+
+- **Uses Supabase Auth's own invite flow, not a hand-rolled token
+  table.** `POST /api/admin/team/invite` calls
+  `supabase.auth.admin.inviteUserByEmail()` (the service-role Admin
+  API) with `redirectTo` pointed at this app's `/accept-invite`.
+  Supabase generates the single-use, expiring link and the "click link
+  -> get a session" mechanics itself -- reusing that instead of
+  building a parallel invite-token system matches how this codebase
+  already defers to an existing system's security primitives rather
+  than re-implementing them (same reasoning Order Tracking's token
+  design, Communications' `review_token`, etc. each explain for their
+  own case). On success, the route also inserts the new
+  `admin_users` row (`id` = the newly created auth user's id,
+  `is_active: true`, `role` from the invite form) -- if that insert
+  fails after the email already went out, the invitee can sign in but
+  `requireAdmin()` still blocks them until the row exists, and the API
+  response says so explicitly.
+- **No new role-based gating was added.** `admin_users.role` already
+  supports `'admin'`/`'super_admin'` at the schema level (migration
+  002), but nothing in this codebase reads that column anywhere else
+  (confirmed by grepping before building this) -- so Team management
+  stays on the exact same flat `requireAdmin()` check as every other
+  `/admin/*` route, not a new `super_admin`-only gate. The invite
+  form still lets the inviter pick a role for the new row (in case a
+  future feature starts reading it), but picking "Super admin" today
+  has no different effect on what that person can access than
+  "Admin" does.
+- **Email delivery and branding are entirely a Supabase Dashboard
+  setting, not something this app's code controls** -- same pattern
+  as the ClickUp webhook registration and the Zendesk OAuth client:
+  this app has no API for either. Two one-time manual steps, both in
+  the Supabase dashboard for this project:
+  1. **Auth -> URL Configuration -> Redirect URLs**: add
+     `https://<this app's domain>/accept-invite` to the allow-list, or
+     Supabase will refuse to redirect the invite link there.
+  2. **Auth -> SMTP Settings** (so the invite actually sends from
+     `ir@axiskey.com` instead of Supabase's own default sender): host
+     `smtp.resend.com`, port `465` (or `587`), username `resend`,
+     password = the same Resend API key already set as
+     `RESEND_API_KEY` on Vercel, sender email `ir@axiskey.com`
+     (already verified in Resend -- see the Communications Calendar
+     section above). Without this step the invite still sends and
+     still works, it just comes from Supabase's own default address
+     instead of `ir@axiskey.com`. The invite email's actual copy can
+     be customized under **Auth -> Email Templates -> Invite user**
+     in the same dashboard.
+- **`/accept-invite`** (`app/accept-invite/page.tsx` +
+  `components/auth/AcceptInviteForm.tsx`) is a standalone public page,
+  same "no `PageShell`/`Sidebar`, no auth guard" convention as
+  `/rate-your-experience` -- deliberately **not** nested under
+  `app/admin`, so `app/admin/layout.tsx`'s session gate (which shows
+  the full sidebar the instant any session exists) never wraps the
+  "set your password" step. The invite link's URL hash carries session
+  tokens that the Supabase browser client auto-detects
+  (`detectSessionInUrl`, on by default) the moment the page loads;
+  this component waits for that session, then calls
+  `supabase.auth.updateUser({password})` to actually finish the
+  invite, then routes to `/admin`.
+- **Deactivating a team member** (`PATCH /api/admin/team/[id]`) only
+  flips `admin_users.is_active` -- `requireAdmin()` already checks
+  that flag on every admin API call, so this cuts off access
+  immediately without touching the person's Supabase Auth account at
+  all (no deletion, trivially reversible by toggling back).
+- Not yet tested live from this sandbox (no real Supabase project
+  connected here) -- **confirm once deployed**: that the SMTP/redirect
+  URL setup above is done, that a real invite email arrives from
+  `ir@axiskey.com`, that clicking it lands on `/accept-invite` with a
+  usable session, and that setting a password there actually signs the
+  new admin into `/admin`.
+
 ## Support Inquiry (`/support-inquiry`, Oct 2026)
 
 An internal-only tool, not an investor-facing request type -- an

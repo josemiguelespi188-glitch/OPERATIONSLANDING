@@ -2591,12 +2591,31 @@ their own password, and lands signed into `/admin`.
   that flag on every admin API call, so this cuts off access
   immediately without touching the person's Supabase Auth account at
   all (no deletion, trivially reversible by toggling back).
+- **Deleting a team member** (`DELETE /api/admin/team/[id]`, Oct
+  2026, per explicit instruction: "necesitamos poder borrar los
+  usuarios no solo dessactivar") permanently removes them, unlike
+  Deactivate above. It calls `supabase.auth.admin.deleteUser(id)` --
+  the real Supabase Auth account, not just the `admin_users` row --
+  since `admin_users.id references auth.users(id) on delete cascade`
+  (migration 002), that one call also removes the `admin_users` row
+  automatically; deleting only the `admin_users` row would have left
+  a live Auth account able to authenticate (same end state as
+  deactivating, not actually deleting). A signed-in admin can't
+  delete their own account from `/admin/team` (both the API and the
+  `TeamView.tsx` button are disabled for `member.id === session.user
+  .id`) -- avoids locking everyone out of this page by accident;
+  that still needs another active admin or the Supabase dashboard.
+  `TeamView.tsx`'s Delete button asks for a native `confirm()` first,
+  since this is irreversible from the UI.
 - Not yet tested live from this sandbox (no real Supabase project
   connected here) -- **confirm once deployed**: that the SMTP/redirect
   URL setup above is done, that a real invite email arrives from
   `ir@axiskey.com`, that clicking it lands on `/accept-invite` with a
   usable session, and that setting a password there actually signs the
-  new admin into `/admin`.
+  new admin into `/admin`. For Delete specifically: confirm a deleted
+  member's old session is actually rejected (not just hidden from the
+  list), and that the self-delete guard really blocks deleting the
+  account currently signed in.
 
 ## Support Inquiry (`/support-inquiry`, Oct 2026)
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAdminFetch } from "@/components/admin/AdminAuthContext";
+import { useAdminAuth, useAdminFetch } from "@/components/admin/AdminAuthContext";
 import { InviteModal } from "./InviteModal";
 
 interface TeamMember {
@@ -23,10 +23,12 @@ interface TeamMember {
  */
 export function TeamView() {
   const adminFetch = useAdminFetch();
+  const { session } = useAdminAuth();
   const [members, setMembers] = useState<TeamMember[] | null>(null);
   const [error, setError] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -72,6 +74,23 @@ export function TeamView() {
       setError(err instanceof Error ? err.message : "Could not update this member.");
     } finally {
       setTogglingId(null);
+    }
+  }
+
+  async function handleDelete(member: TeamMember) {
+    if (!window.confirm(`Permanently delete ${member.email}? This removes their ability to sign in and can't be undone.`)) {
+      return;
+    }
+    setDeletingId(member.id);
+    try {
+      const res = await adminFetch(`/api/admin/team/${member.id}`, { method: "DELETE" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Could not delete this member.");
+      setMembers((prev) => (prev ? prev.filter((m) => m.id !== member.id) : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete this member.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -136,14 +155,27 @@ export function TeamView() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    onClick={() => toggleActive(member)}
-                    disabled={togglingId === member.id}
-                    className="rounded-[6px] border border-axis-base/50 px-2.5 py-1 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core disabled:opacity-50"
-                  >
-                    {togglingId === member.id ? "..." : member.isActive ? "Deactivate" : "Activate"}
-                  </button>
+                  <div className="inline-flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(member)}
+                      disabled={togglingId === member.id || deletingId === member.id}
+                      className="rounded-[6px] border border-axis-base/50 px-2.5 py-1 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core disabled:opacity-50"
+                    >
+                      {togglingId === member.id ? "..." : member.isActive ? "Deactivate" : "Activate"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(member)}
+                      disabled={
+                        deletingId === member.id || togglingId === member.id || member.id === session.user.id
+                      }
+                      title={member.id === session.user.id ? "You can't delete your own account." : undefined}
+                      className="rounded-[6px] border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {deletingId === member.id ? "..." : "Delete"}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

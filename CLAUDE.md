@@ -2610,10 +2610,12 @@ explicit instruction: not on the public Operations Hub homepage grid
 (not for investors), and not a hidden page either -- reachable via a
 button, placed in the dark "Schedule a Call" banner at the top of
 `/admin` (`AdminOverview.tsx`, login-gated, so only staff already in
-the admin find it), opening a page that itself needs **no** admin login
-(so the link can be forwarded/shared directly, same convention as
-`/rate-your-experience` and `/schedule-a-call` -- no `PageShell`/
-`Sidebar`, no auth guard).
+the admin find it). **The page itself originally needed no admin login
+of its own** (so the link could be forwarded/shared directly, same
+convention as `/rate-your-experience` and `/schedule-a-call` -- no
+`PageShell`/`Sidebar`, no auth guard) -- **this was explicitly reversed
+in a later pass, see "Login required" below; the page still has no
+`PageShell`/`Sidebar` chrome, it just now requires signing in first.**
 
 - **That banner was also restructured into two compact side-by-side
   blocks** (Schedule a Call | Support Inquiry) instead of one
@@ -2757,3 +2759,52 @@ against Zendesk, layered on top.
   and "View ticket status" link show up correctly, and that the
   Search API's `created>=` date-only granularity doesn't pick the
   wrong ticket for a investor with multiple recent inquiries.
+
+### Login required, and the previous-tickets panel is now genuinely per-user (Oct 2026)
+
+Per explicit instruction ("esta pagina debe tener acceso unicamente con
+el autenticador, es decir hacer log in"), `/support-inquiry` was
+switched from a no-login public page to requiring the same `/admin`
+sign-in as everything else -- a deliberate reversal of this feature's
+original design (see above: it was built with no auth guard
+specifically so the link could be shared/forwarded directly). This is
+also exactly the trigger the "No `created_by`/per-coworker auth exists
+on `/support-inquiry` yet" note above was waiting for, so the
+previous-tickets panel became genuinely per-user in the same pass.
+
+- **`components/auth/RequireAdminSession.tsx`** (new) is
+  `app/admin/layout.tsx`'s session-check logic, extracted into its own
+  reusable component: watches the Supabase browser session
+  (`getSession()` + `onAuthStateChange`), renders `AdminLoginForm` when
+  there's none, otherwise provides `AdminAuthContext` (the session +
+  `signOut`) to its children. `app/admin/layout.tsx` now composes it
+  with a new inner `AdminShell` (the sidebar/`PageShell` chrome, reading
+  `useAdminAuth()`) -- same exact behavior as before, just split so the
+  auth check itself is reusable outside `/admin`.
+- **`app/support-inquiry/page.tsx`** now wraps `SupportInquiryForm` in
+  `RequireAdminSession` directly, with no `PageShell`/`Sidebar` --
+  keeps its original standalone single-column look once signed in,
+  it's only the "must be logged in first" gate that's new.
+  `SupportInquiryForm.tsx` and `PreviousTicketsPanel.tsx` both switched
+  from a raw `fetch()` to `useAdminFetch()` (auto-attaches the bearer
+  token) for every call.
+- **All three backing API routes are now `requireAdmin()`-gated**
+  (`POST /api/support-inquiry`, `GET /api/support-inquiry/list`,
+  `POST /api/support-inquiry/explain`) -- gating the page alone would
+  not have been real security, since these were previously public,
+  unauthenticated endpoints by design. Each returns a plain 401 when
+  `requireAdmin()` fails, same pattern as every other admin API route
+  in this codebase.
+- **`SHARED_OWNER_EMAIL` is gone.** `POST /api/support-inquiry` now
+  stamps `support_inquiries.owner_email` with the signed-in admin's own
+  `admin.email` (from `requireAdmin()`'s returned Supabase `User`), and
+  `GET /api/support-inquiry/list` filters by that same signed-in
+  admin's email instead of the old shared placeholder constant -- the
+  "previous tickets" panel is now actually scoped to the coworker
+  viewing it, matching what the user asked for when this table was
+  first built ("Deberá solo mostrar los de ese user"). No migration was
+  needed -- `owner_email` already existed exactly for this.
+- **`POST /api/support-inquiry/explain`** (the "Generate AI
+  Explanation" button) is no longer the unauthenticated-Claude-API
+  exception flagged above -- it's behind the same `requireAdmin()` gate
+  as SA Review's Claude calls now, so that caveat no longer applies.

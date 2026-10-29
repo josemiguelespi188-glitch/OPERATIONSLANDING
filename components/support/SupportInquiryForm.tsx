@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Logo } from "@/components/Logo";
+import { useAdminFetch } from "@/components/admin/AdminAuthContext";
 import { PreviousTicketsPanel } from "./PreviousTicketsPanel";
 
 type SubmitState = "idle" | "submitting" | "success" | "error";
@@ -15,9 +16,11 @@ const inputClass =
  * a forwarded complaint, etc.) and submitting emails IR directly, which
  * is what creates the Zendesk ticket on AxisKey's side (an email-to-
  * ticket automation on ir@axiskey.com, outside this app). No
- * PageShell/Sidebar, no auth guard -- same convention as
- * RateYourExperienceForm.tsx, since the link is shared directly rather
- * than reached through /admin.
+ * PageShell/Sidebar (keeps its own standalone single-column look), but
+ * (Oct 2026) it DOES require the same login as /admin now -- the page
+ * itself is wrapped in RequireAdminSession, so this component can
+ * assume AdminAuthContext is available and uses useAdminFetch() for
+ * every call.
  *
  * The form sits next to PreviousTicketsPanel (Oct 2026), which lists
  * what's already been submitted here and its live Zendesk status --
@@ -26,6 +29,7 @@ const inputClass =
  * email-to-ticket automation and this app's own resolve step catch up).
  */
 export function SupportInquiryForm() {
+  const adminFetch = useAdminFetch();
   const [investorName, setInvestorName] = useState("");
   const [investorEmail, setInvestorEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -44,9 +48,8 @@ export function SupportInquiryForm() {
     setExplaining(true);
     setExplainError("");
     try {
-      const res = await fetch("/api/support-inquiry/explain", {
+      const res = await adminFetch("/api/support-inquiry/explain", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subject, detail }),
       });
       const body = await res.json().catch(() => ({}));
@@ -64,9 +67,8 @@ export function SupportInquiryForm() {
     setState("submitting");
     setErrorMessage("");
     try {
-      const res = await fetch("/api/support-inquiry", {
+      const res = await adminFetch("/api/support-inquiry", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ investorName, investorEmail, phone, subject, detail }),
       });
       const body = await res.json().catch(() => ({}));

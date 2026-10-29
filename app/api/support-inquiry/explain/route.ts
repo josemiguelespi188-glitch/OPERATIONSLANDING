@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { requireAdmin } from "@/lib/supabase/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,12 +11,14 @@ const MODEL = "claude-sonnet-5-5";
  * whatever brief note the person typed (e.g. "no encuentro mis
  * distributions") into a clearer, more complete explanation before
  * submitting, so the resulting Zendesk ticket gives support more to
- * work with. Public and unauthenticated, same as the rest of this
- * feature (no admin gate on this page) -- deliberately capped on input/
- * output length to bound cost exposure from being an unauthenticated
- * Claude-API endpoint, the first one in this codebase.
+ * work with. Requires the same login as the rest of /support-inquiry
+ * now (Oct 2026) -- deliberately still capped on input/output length to
+ * bound cost exposure from this being a Claude-API endpoint.
  */
 export async function POST(request: Request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY is not configured." }, { status: 503 });

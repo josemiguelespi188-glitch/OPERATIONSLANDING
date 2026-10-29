@@ -6,21 +6,27 @@
  * sendSupportInquiryEmail.ts) -- this module is only for reading: finding
  * the ticket that automation created, and showing its live status.
  *
- * Authenticated with OAuth 2.0 client credentials, not a Zendesk API
- * token -- Zendesk stopped issuing new API tokens as of Oct 27 2026 (per
- * the admin). The OAuth client itself has to be created by hand in
- * Zendesk Admin Center (Apps and integrations -> APIs -> OAuth clients,
- * "Confidential" kind) -- this app has no way to create it, same as it
- * can't create a ClickUp custom field or register a ClickUp webhook.
- * ZENDESK_OAUTH_CLIENT_ID / ZENDESK_OAUTH_CLIENT_SECRET are env vars
- * only, never committed, same rule as CLICKUP_API_TOKEN.
+ * Two ways to authenticate, tried in this order by getZendeskAuthHeader():
+ * 1. An existing API token (ZENDESK_API_EMAIL + ZENDESK_API_TOKEN), Basic
+ *    Auth as `{email}/token:{token}` -- Zendesk stopped letting admins
+ *    *create new* API tokens as of Oct 27 2026, but a token issued before
+ *    then keeps working, so this is the fastest path to a working
+ *    connection if one is already on hand.
+ * 2. OAuth 2.0 client credentials (ZENDESK_OAUTH_CLIENT_ID/_SECRET), the
+ *    longer-term path once a token isn't available -- the OAuth client
+ *    has to be created by hand in Zendesk Admin Center (Apps and
+ *    integrations -> APIs -> OAuth clients, "Confidential" kind), same as
+ *    this app can't create a ClickUp custom field or register a ClickUp
+ *    webhook itself.
+ * Both sets of env vars are env-only, never committed, same rule as
+ * CLICKUP_API_TOKEN -- see .env.example.
  *
  * This sandbox's egress proxy only blocks clickup.com (see CLAUDE.md's
  * "Network access from a Claude Code" section) -- zendesk.com itself
- * isn't blocked, but no real OAuth client exists yet to test against, so
- * every function here degrades to a safe empty/null result rather than
- * throwing whenever the env vars are unset or a call fails. Confirm live
- * once the OAuth client is created and the env vars are set on Vercel.
+ * isn't blocked, but no real credential of either kind exists yet to test
+ * against from here, so every function below degrades to a safe
+ * empty/null result rather than throwing whenever the env vars are unset
+ * or a call fails. Confirm live once credentials are set on Vercel.
  */
 
 const ZENDESK_STATUS_TOKEN_FIELD_TITLE = "Status Token";
@@ -95,14 +101,31 @@ async function getZendeskAccessToken(): Promise<string | null> {
   }
 }
 
+/**
+ * Prefers an existing API token over OAuth -- see the module doc comment
+ * above for why. Returns a ready-to-use Authorization header value, or
+ * null if neither credential is configured.
+ */
+async function getZendeskAuthHeader(): Promise<string | null> {
+  const email = process.env.ZENDESK_API_EMAIL?.trim();
+  const apiToken = process.env.ZENDESK_API_TOKEN?.trim();
+  if (email && apiToken) {
+    const encoded = Buffer.from(`${email}/token:${apiToken}`).toString("base64");
+    return `Basic ${encoded}`;
+  }
+
+  const oauthToken = await getZendeskAccessToken();
+  return oauthToken ? `Bearer ${oauthToken}` : null;
+}
+
 async function zendeskGet(path: string): Promise<unknown | null> {
   const base = getZendeskApiBase();
-  const token = await getZendeskAccessToken();
-  if (!base || !token) return null;
+  const authHeader = await getZendeskAuthHeader();
+  if (!base || !authHeader) return null;
 
   try {
     const response = await fetch(`${base}${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: authHeader },
     });
     if (!response.ok) {
       console.error("Zendesk API error:", response.status, path, await response.text().catch(() => ""));

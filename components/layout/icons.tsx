@@ -92,3 +92,23 @@ export function MegaphoneIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function UsersIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <circle cx="7.3" cy="6.3" r="2.3" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M2.5 16c0-2.6 2.15-4.3 4.8-4.3s4.8 1.7 4.8 4.3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M12.8 4.3a2.3 2.3 0 0 1 0 4.5M14.7 11.8c2.3.3 3.8 1.9 3.8 4.2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

@@ -1,4 +1,4 @@
-import { FileIcon, GridIcon, LayersIcon, MegaphoneIcon, TableIcon } from "./icons";
+import { FileIcon, GridIcon, LayersIcon, MegaphoneIcon, TableIcon, UsersIcon } from "./icons";
 import type { SidebarNavItem } from "./Sidebar";
 
 // The public site (home + each request form) is a single screen with no
@@ -10,7 +10,8 @@ export type AdminNavKey =
   | "pdf-generator"
   | "sa-review"
   | "communications"
-  | "orders";
+  | "orders"
+  | "team";
 
 export function getAdminNavItems(active: AdminNavKey): SidebarNavItem[] {
   return [
@@ -25,5 +26,6 @@ export function getAdminNavItems(active: AdminNavKey): SidebarNavItem[] {
       active: active === "communications",
     },
     { label: "AxisKey Orders", href: "/admin/orders", icon: TableIcon, active: active === "orders" },
+    { label: "Team", href: "/admin/team", icon: UsersIcon, active: active === "team" },
   ];
 }

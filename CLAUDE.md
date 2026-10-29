@@ -2571,3 +2571,105 @@ the admin find it), opening a page that itself needs **no** admin login
   reasoning `investor-update-request` used for needing its own path
   rather than being forced through machinery built for a different
   shape of problem.
+
+### Previous-tickets panel: Zendesk OAuth, live status (Oct 2026)
+
+Per explicit request, the form now sits next to a "previous tickets"
+panel showing what's already been submitted through this tool and its
+live Zendesk status, with a link to Zendesk's own hosted status page
+for each one. Ticket creation itself is **unchanged** -- the form still
+only sends the self-addressed email that triggers AxisKey's existing
+email-to-ticket automation (see above); this addition is read-only
+against Zendesk, layered on top.
+
+- **OAuth, not an API token.** The admin confirmed Zendesk stopped
+  issuing new API tokens as of Oct 27 2026, so this had to use OAuth
+  2.0 client credentials from day one, unlike every other integration
+  in this codebase (`CLICKUP_API_TOKEN`, etc.). `lib/integrations/
+  zendesk.ts`'s `getZendeskAccessToken()` does the client_credentials
+  grant (`POST https://{subdomain}.zendesk.com/oauth/tokens`), cached
+  in-memory per warm function instance, refetched a little before it
+  actually expires. The OAuth client itself (Client kind:
+  Confidential, scope `read`) has to be created by hand in Zendesk
+  Admin Center -- this app has no way to create it, same as it can't
+  create a ClickUp custom field or register a ClickUp webhook. See
+  `.env.example` for the exact setup steps and the three env vars
+  (`ZENDESK_SUBDOMAIN`, `ZENDESK_OAUTH_CLIENT_ID`,
+  `ZENDESK_OAUTH_CLIENT_SECRET`) -- never committed, Vercel only.
+- **No `created_by`/per-coworker auth exists on `/support-inquiry`
+  yet**, so the panel can't actually be scoped "to the signed-in
+  coworker" today -- confirmed explicitly with the admin, who asked
+  for this to be built "por usuarios de una vez" (by-user from day
+  one) ahead of real login landing here. `supabase/migrations/
+  026_support_inquiries.sql`'s new table has an `owner_email` column
+  for exactly that, but every row is stamped with the same shared
+  placeholder value, `ir@axiskey.com` (a constant,
+  `SHARED_OWNER_EMAIL`, in both `POST /api/support-inquiry` and `GET
+  /api/support-inquiry/list`) -- so today's panel is effectively one
+  shared list for every coworker, with the schema and query already
+  shaped to switch to per-user filtering the moment real login exists
+  here, with no migration needed, just swapping the constant for the
+  signed-in user's email. **Needs this migration run in the Supabase
+  SQL editor.**
+- **This feature did NOT have a Supabase table before this pass** (see
+  the "No Supabase table at all" note just above, from when the
+  feature first shipped) -- adding one was a deliberate, explicit
+  reversal, confirmed live with the admin, once showing a "previous
+  tickets" list made that necessary (there's no way to know which
+  Zendesk tickets came from this tool without remembering them
+  somewhere, since they're created by Zendesk's own automation with no
+  id handed back to this app).
+- **Matching a submission to the ticket it produced is a best-effort
+  search, not a direct link** (`lib/integrations/zendesk.ts`'s
+  `searchTicketsByRequesterEmail()` + `pickBestMatch()` in `GET
+  /api/support-inquiry/list`): the email-to-ticket automation runs
+  entirely on Zendesk's side with no webhook or callback into this
+  app, so there's no way to get the real ticket id back at submission
+  time. Every row with no `zendesk_ticket_id` yet gets a fresh Zendesk
+  Search API query (`requester:"<email>" created>=<date>`) on each
+  call to the list endpoint; among the results, the candidate closest
+  in time to (and not materially before) the submission is picked and
+  never one already claimed by another row resolved earlier in the
+  same batch. This can occasionally pick the wrong ticket if the same
+  investor has two inquiries submitted close together through this
+  tool and Zendesk around the same time some other way -- an accepted,
+  documented trade-off, not a silent one.
+- **The "Status Token" custom field only holds a token, not a full
+  URL** -- confirmed directly from the admin (sample value
+  `6598.3cf142ec36533b9b0895841f816947a4`), with the real hosted page
+  at `https://status.axiskey.com/t/<token>`.
+  `buildStatusPageUrl()`/`ZENDESK_STATUS_PAGE_BASE_URL` hardcodes that
+  host, same reasoning `CALENDLY_URL` is hardcoded elsewhere in this
+  codebase (a public link shape, not a secret). The field is always
+  resolved live by its exact title ("Status Token") via Zendesk's "List
+  Ticket Fields" endpoint, never a hardcoded id -- same "a field can be
+  renamed with zero warning, never trust a stored id blind" rule this
+  file already applies to every ClickUp field mapping.
+- **Every Zendesk call degrades to an empty/null result instead of
+  throwing** (`zendeskGet()`'s own try/catch, `getZendeskAccessToken()`
+  returning `null` when the env vars aren't set) -- a missing OAuth
+  client, a Zendesk outage, or an unresolved field all leave the panel
+  showing whatever was last successfully cached in `support_inquiries`
+  (or "Pending..." for a row that's never resolved yet) rather than
+  erroring the whole page. `POST /api/support-inquiry`'s new insert
+  into `support_inquiries` is the same kind of best-effort layered on
+  top of the email send -- if it fails, the inquiry has still gone out
+  and reached IR, so the user-facing submission still succeeds.
+- **Polling, not push**: `PreviousTicketsPanel.tsx` fetches on mount
+  and refetches on a 20s interval only while at least one row still has
+  no `zendeskTicketId` -- once every visible row is resolved, polling
+  stops rather than running forever. A successful submit bumps a
+  `refreshSignal` prop in `SupportInquiryForm.tsx` to trigger an
+  immediate refetch too, so a just-submitted inquiry shows up (likely
+  still "Pending") without waiting for the next poll tick.
+- This sandbox's egress proxy only blocks `clickup.com` (see "Network
+  access from a Claude Code" above) -- `zendesk.com` itself is
+  reachable from here, but no real OAuth client exists yet to test
+  against (the admin hasn't created it in Zendesk Admin Center as of
+  this writing), so this was built and verified structurally
+  (typecheck, build) only -- **confirm live once the OAuth client
+  exists and the three env vars are set on Vercel**: that a real
+  submission eventually resolves to a real ticket id, that its status
+  and "View ticket status" link show up correctly, and that the
+  Search API's `created>=` date-only granularity doesn't pick the
+  wrong ticket for a investor with multiple recent inquiries.

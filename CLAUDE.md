@@ -2582,19 +2582,23 @@ only sends the self-addressed email that triggers AxisKey's existing
 email-to-ticket automation (see above); this addition is read-only
 against Zendesk, layered on top.
 
-- **OAuth, not an API token.** The admin confirmed Zendesk stopped
-  issuing new API tokens as of Oct 27 2026, so this had to use OAuth
-  2.0 client credentials from day one, unlike every other integration
-  in this codebase (`CLICKUP_API_TOKEN`, etc.). `lib/integrations/
-  zendesk.ts`'s `getZendeskAccessToken()` does the client_credentials
-  grant (`POST https://{subdomain}.zendesk.com/oauth/tokens`), cached
-  in-memory per warm function instance, refetched a little before it
-  actually expires. The OAuth client itself (Client kind:
-  Confidential, scope `read`) has to be created by hand in Zendesk
-  Admin Center -- this app has no way to create it, same as it can't
-  create a ClickUp custom field or register a ClickUp webhook. See
-  `.env.example` for the exact setup steps and the three env vars
-  (`ZENDESK_SUBDOMAIN`, `ZENDESK_OAUTH_CLIENT_ID`,
+- **Two ways to authenticate, API token preferred over OAuth.** Zendesk
+  stopped letting admins create *new* API tokens as of Oct 27 2026, but
+  a token issued before then keeps working -- the admin had one on
+  hand, so `getZendeskAuthHeader()` in `lib/integrations/zendesk.ts`
+  tries it first: Basic Auth as `{ZENDESK_API_EMAIL}/token:
+  {ZENDESK_API_TOKEN}`. If those aren't set, it falls back to OAuth 2.0
+  client credentials (`getZendeskAccessToken()`'s client_credentials
+  grant, `POST https://{subdomain}.zendesk.com/oauth/tokens`, cached
+  in-memory per warm function instance and refetched a little before
+  it actually expires) -- the longer-term path, since the OAuth client
+  itself (Client kind: Confidential, scope `read`) has to be created by
+  hand in Zendesk Admin Center, same as this app can't create a
+  ClickUp custom field or register a ClickUp webhook. Both are
+  equally valid; whichever pair of env vars is set is what gets used.
+  See `.env.example` for the exact setup steps and all five env vars
+  (`ZENDESK_SUBDOMAIN` always required, plus `ZENDESK_API_EMAIL`/
+  `ZENDESK_API_TOKEN` or `ZENDESK_OAUTH_CLIENT_ID`/
   `ZENDESK_OAUTH_CLIENT_SECRET`) -- never committed, Vercel only.
 - **No `created_by`/per-coworker auth exists on `/support-inquiry`
   yet**, so the panel can't actually be scoped "to the signed-in

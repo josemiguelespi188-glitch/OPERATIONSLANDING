@@ -2827,3 +2827,49 @@ previous-tickets panel became genuinely per-user in the same pass.
   Explanation" button) is no longer the unauthenticated-Claude-API
   exception flagged above -- it's behind the same `requireAdmin()` gate
   as SA Review's Claude calls now, so that caveat no longer applies.
+
+## Resend to ClickUp / Delete on Recent Requests (Oct 2026)
+
+Each row in `/admin`'s "Recent Requests" list now has two always-visible
+buttons, per explicit request ("necesito un boton para resend to
+clickup acá. igual uno para borrar las pruebas y que no dañe las
+metricas"):
+
+- **"Resend to ClickUp"** replaces the old "Retry" button, which only
+  rendered for `clickup_sync_status !== "synced"`. It's the exact same
+  `POST /api/requests/[id]/retry-sync` call (already existed, already
+  admin-gated, already re-runs `syncRequestAndPersist`) -- the only
+  change is that `AdminOverview.tsx` no longer hides the button once a
+  request is already `synced`, so an admin can force a re-push at any
+  time (e.g. after fixing something in ClickUp by hand, or just to
+  confirm a sync that looks stale).
+- **"Delete"** is new: `DELETE /api/requests/[id]`
+  (`app/api/requests/[id]/route.ts`, previously only had the nested
+  `retry-sync` subroute) permanently removes the row from `requests`,
+  admin-gated the same way. This exists specifically so test
+  submissions can be cleaned out of the metrics -- Total Requests, the
+  by-status/by-sync-status breakdowns, and Requests by Type on
+  `/admin` all read straight off the `requests` table, so a test row
+  left in place keeps skewing them even once it's otherwise ignored.
+  `request_attachments` and `activity_log` both cascade on delete
+  already (`on delete cascade`, see `supabase/schema.sql`), so the
+  route only additionally needs to best-effort clean up the actual
+  files in the `attachments` Storage bucket, which the DB-level
+  cascade can't reach -- it parses the storage key back out of each
+  attachment's stored public URL
+  (`.../object/public/attachments/<key>`) and removes them, skipping
+  (not failing the whole delete over) any URL that doesn't parse. The
+  confirm dialog is explicit that this does **not** also delete the
+  task from ClickUp itself -- only the local tracking row.
+- Deleting does **not** touch ClickUp -- the task this request synced
+  to (if any) stays exactly as it was. This is deliberate: the ask was
+  specifically about the Operations Hub's own metrics, not about
+  cleaning up ClickUp itself, and silently deleting a real ClickUp
+  task from an "admin cleans up a test row" button would be far more
+  dangerous than useful.
+- Not yet verified against a live Supabase project from this session
+  (no credentials in this sandbox -- typecheck and a full production
+  build are clean, and the delete route's logic was read closely
+  against the real schema, but neither button has been clicked against
+  real data). Confirm both work end-to-end against the live site
+  before relying on them for real cleanup.

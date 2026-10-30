@@ -83,6 +83,7 @@ export function AdminOverview() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [recentPage, setRecentPage] = useState(0);
 
   const [feedback, setFeedback] = useState<InvestorFeedbackStats | null>(null);
@@ -214,6 +215,28 @@ export function AdminOverview() {
       await fetchStats();
     } finally {
       setRetryingId(null);
+    }
+  }
+
+  /** Permanently deletes a request -- for cleaning up test submissions so
+   *  they stop skewing the metrics above (Total Requests, by-status/by-
+   *  sync-status breakdowns, Requests by Type all read straight off the
+   *  `requests` table). Cannot be undone -- confirm first. */
+  async function handleDelete(id: string, requestorName: string) {
+    if (!confirm(`Delete "${requestorName}"'s request? This can't be undone and removes it from ClickUp sync history, but not from ClickUp itself.`)) {
+      return;
+    }
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/requests/${id}`, { method: "DELETE", headers: authHeaders });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(body.error ?? "Could not delete this request.");
+        return;
+      }
+      await fetchStats();
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -380,16 +403,24 @@ export function AdminOverview() {
                         {" · "}
                         {new Date(req.created_at).toLocaleString()}
                       </span>
-                      {req.clickup_sync_status !== "synced" && (
+                      <div className="flex shrink-0 items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleRetry(req.id)}
                           disabled={retryingId === req.id}
-                          className="shrink-0 rounded-[6px] border border-axis-base/50 px-2 py-1 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core disabled:opacity-50"
+                          className="rounded-[6px] border border-axis-base/50 px-2 py-1 text-xs font-semibold text-axis-core transition-colors hover:border-axis-core disabled:opacity-50"
                         >
-                          {retryingId === req.id ? "Retrying..." : "Retry"}
+                          {retryingId === req.id ? "Resending..." : "Resend to ClickUp"}
                         </button>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(req.id, req.requestor_name)}
+                          disabled={deletingId === req.id}
+                          className="rounded-[6px] border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 transition-colors hover:border-red-700 disabled:opacity-50"
+                        >
+                          {deletingId === req.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
                     </div>
                     {/* A "synced" row can still carry a best-effort warning (an
                         attachment that didn't link to its field, a rejected
